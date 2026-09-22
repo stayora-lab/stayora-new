@@ -22,7 +22,8 @@ export type StayStatus =
   | "CHECKED_IN"
   | "CHECKED_OUT"
   | "COMPLETED"
-  | "DID_NOT_OCCUR";
+  | "DID_NOT_OCCUR"
+  | "CANCELLED";
 
 export type StayOrigin = "STAYORA" | "EXTERNAL";
 
@@ -36,7 +37,7 @@ export type CommitmentBasis = "STAYORA_BOOKING" | "EXTERNAL" | "BLOCK";
 
 export type BlockKind = "OWNER" | "MAINTENANCE";
 
-export type CommissionStatus = "PENDING" | "EARNED";
+export type CommissionStatus = "PENDING" | "EARNED" | "VOID";
 
 export type PaymentOutcome = "SUCCEEDED" | "FAILED" | "UNKNOWN";
 

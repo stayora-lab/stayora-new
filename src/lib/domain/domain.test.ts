@@ -881,6 +881,10 @@ describe("Phase 2 host calendar, external, admin", () => {
       resolved.world.bookings.find((item) => item.id === booked.bookingId)?.status,
       "CANCELLED",
     );
+    assert.equal(
+      resolved.world.stays.find((item) => item.id === booked.stayId)?.status,
+      "CANCELLED",
+    );
     assert.equal(resolved.world.refundCases[0]?.reason, "CONFLICT_RESOLUTION");
     assert.equal(resolved.world.refundCases[0]?.status, "OPEN");
     assert.equal(
@@ -895,6 +899,209 @@ describe("Phase 2 host calendar, external, admin", () => {
       resolved.world.commitments.find((item) => item.id === external.commitment.id)?.status,
       "ACTIVE",
     );
+    assertNoOverlap(resolved.world);
+  });
+
+  it("end Stayora commitment → Booking CANCELLED, Stay CANCELLED, Commission VOID, stay not in opsLists, checkInStay refused, RefundCase CONFLICT_RESOLUTION", () => {
+    const booked = bookedStay(SALE);
+    const external = recordExternalBooking(booked.world, {
+      villaId: "sao-bien",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 4,
+      source: "Airbnb",
+      actor: HOST,
+    });
+    const stayora = external.world.commitments.find(
+      (item) => item.bookingId === booked.bookingId && item.status === "ACTIVE",
+    )!;
+    const resolved = resolveConflict(external.world, {
+      conflictId: external.world.conflicts[0]!.id,
+      keepCommitmentId: external.commitment.id,
+      endCommitmentId: stayora.id,
+      reason: "Giữ Airbnb",
+      actor: ADMIN,
+    });
+    assert.equal(resolved.world.bookings.find((item) => item.id === booked.bookingId)?.status, "CANCELLED");
+    assert.equal(resolved.world.stays.find((item) => item.id === booked.stayId)?.status, "CANCELLED");
+    assert.equal(resolved.world.commissions[0]?.status, "VOID");
+    assert.equal(resolved.world.refundCases[0]?.reason, "CONFLICT_RESOLUTION");
+    const lists = opsLists(resolved.world, "2026-12-01");
+    assert.equal(
+      lists.arriving.some((stay) => stay.id === booked.stayId),
+      false,
+    );
+    assert.throws(
+      () => checkInStay(resolved.world, { stayId: booked.stayId, actor: BUTLER }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
+    );
+    assertNoOverlap(resolved.world);
+  });
+
+  it("end EXTERNAL commitment → its Stay CANCELLED, not in opsLists", () => {
+    const booked = bookedStay();
+    const external = recordExternalBooking(booked.world, {
+      villaId: "sao-bien",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      source: "Zalo",
+      actor: HOST,
+    });
+    const stayora = external.world.commitments.find(
+      (item) => item.bookingId === booked.bookingId && item.status === "ACTIVE",
+    )!;
+    const resolved = resolveConflict(external.world, {
+      conflictId: external.world.conflicts[0]!.id,
+      keepCommitmentId: stayora.id,
+      endCommitmentId: external.commitment.id,
+      reason: "Giữ Stayora",
+      actor: ADMIN,
+    });
+    assert.equal(resolved.world.stays.find((item) => item.id === external.stay.id)?.status, "CANCELLED");
+    assert.equal(
+      opsLists(resolved.world, "2026-12-01").arriving.some((stay) => stay.id === external.stay.id),
+      false,
+    );
+    assert.equal(resolved.world.bookings.find((item) => item.id === booked.bookingId)?.status, "CONFIRMED");
+    assertNoOverlap(resolved.world);
+  });
+
+  it("end HOLD → Request CONFLICTED", () => {
+    let world = createEmptyWorld(NOW);
+    const created = createRequest(world, {
+      villaId: "sen-hong",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
+    const external = recordExternalBooking(world, {
+      villaId: "sen-hong",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      source: "Airbnb",
+      actor: HOST,
+    });
+    const resolved = resolveConflict(external.world, {
+      conflictId: external.world.conflicts[0]!.id,
+      keepCommitmentId: external.commitment.id,
+      endCommitmentId: hold.id,
+      reason: "Giữ đặt ngoài",
+      actor: ADMIN,
+    });
+    assert.equal(
+      resolved.world.requests.find((item) => item.id === created.request.id)?.status,
+      "CONFLICTED",
+    );
+    assert.equal(resolved.world.commitments.find((item) => item.id === hold.id)?.status, "ENDED");
+    assertNoOverlap(resolved.world);
+  });
+
+  it("ending a commitment whose Stay is CHECKED_IN → STAY_IN_PROGRESS, nothing changed", () => {
+    const booked = bookedStay();
+    const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    const external = recordExternalBooking(checked, {
+      villaId: "sao-bien",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      source: "Booking.com",
+      actor: HOST,
+    });
+    const stayora = external.world.commitments.find(
+      (item) => item.bookingId === booked.bookingId && item.status === "ACTIVE",
+    )!;
+    const before = external.world;
+    assert.throws(
+      () =>
+        resolveConflict(before, {
+          conflictId: before.conflicts[0]!.id,
+          keepCommitmentId: external.commitment.id,
+          endCommitmentId: stayora.id,
+          reason: "Giữ ngoài",
+          actor: ADMIN,
+        }),
+      (error: unknown) => error instanceof DomainError && error.code === "STAY_IN_PROGRESS",
+    );
+    assert.equal(before.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_IN");
+    assert.equal(before.bookings.find((item) => item.id === booked.bookingId)?.status, "CONFIRMED");
+    assert.equal(before.commitments.find((item) => item.id === stayora.id)?.status, "ACTIVE");
+    assert.equal(before.conflicts[0]?.status, "OPEN");
+    assertConflictsRecorded(before);
+  });
+
+  it("3-way conflict: ending one while two still overlap → STILL_OVERLAPPING, conflict OPEN", () => {
+    const booked = bookedStay();
+    const first = recordExternalBooking(booked.world, {
+      villaId: "sao-bien",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      source: "Airbnb",
+      actor: HOST,
+    });
+    const second = recordExternalBooking(first.world, {
+      villaId: "sao-bien",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      source: "Zalo",
+      actor: HOST,
+    });
+    const stayora = second.world.commitments.find(
+      (item) => item.bookingId === booked.bookingId && item.status === "ACTIVE",
+    )!;
+    assert.throws(
+      () =>
+        resolveConflict(second.world, {
+          conflictId: second.world.conflicts[0]!.id,
+          keepCommitmentId: stayora.id,
+          endCommitmentId: first.commitment.id,
+          reason: "Bỏ Airbnb",
+          actor: ADMIN,
+        }),
+      (error: unknown) => error instanceof DomainError && error.code === "STILL_OVERLAPPING",
+    );
+    assert.equal(second.world.conflicts[0]?.status, "OPEN");
+    assert.equal(second.world.commitments.find((item) => item.id === first.commitment.id)?.status, "ACTIVE");
+    assertConflictsRecorded(second.world);
+  });
+
+  it("Commission VOID never becomes EARNED", () => {
+    const booked = bookedStay(SALE);
+    const external = recordExternalBooking(booked.world, {
+      villaId: "sao-bien",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      source: "Khách quen",
+      actor: HOST,
+    });
+    const stayora = external.world.commitments.find(
+      (item) => item.bookingId === booked.bookingId && item.status === "ACTIVE",
+    )!;
+    const resolved = resolveConflict(external.world, {
+      conflictId: external.world.conflicts[0]!.id,
+      keepCommitmentId: external.commitment.id,
+      endCommitmentId: stayora.id,
+      reason: "Giữ ngoài",
+      actor: ADMIN,
+    });
+    assert.equal(resolved.world.commissions[0]?.status, "VOID");
+    assert.throws(
+      () => checkInStay(resolved.world, { stayId: booked.stayId, actor: BUTLER }),
+      (error: unknown) => error instanceof DomainError,
+    );
+    assert.throws(
+      () => checkOutStay(resolved.world, { stayId: booked.stayId, actor: BUTLER }),
+      (error: unknown) => error instanceof DomainError,
+    );
+    assert.equal(resolved.world.commissions[0]?.status, "VOID");
     assertNoOverlap(resolved.world);
   });
 

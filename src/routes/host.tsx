@@ -40,7 +40,6 @@ function HostPage() {
   const hostExternal = useBookingStore((state) => state.hostExternal);
   const hostCreateBlock = useBookingStore((state) => state.hostCreateBlock);
   const hostReleaseBlock = useBookingStore((state) => state.hostReleaseBlock);
-  const advanceDemo = useBookingStore((state) => state.advanceDemo);
   const [tab, setTab] = useState<HostTab>("today");
   const [error, setError] = useState<string | null>(null);
   const clock = parseISO(world.now);
@@ -79,13 +78,6 @@ function HostPage() {
           <p className="mt-2 text-sm text-muted">
             Chỉ Host chấp nhận. Thanh toán do Stayora vận hành ghi nhận.
           </p>
-          <Button
-            variant="outline"
-            className="mt-4 w-full"
-            onClick={() => run(() => advanceDemo())}
-          >
-            Tua nhanh 30 phút
-          </Button>
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
         </div>
         <div className="sticky top-16 z-20 border-t border-border bg-cream/95 backdrop-blur-md">

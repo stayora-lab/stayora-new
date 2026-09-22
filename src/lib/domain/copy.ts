@@ -174,7 +174,9 @@ export function requestStatusVi(status: RequestStatus): string {
 }
 
 export function commissionStatusVi(status: CommissionStatus): string {
-  return status === "EARNED" ? "Đã đạt" : "Chờ";
+  if (status === "EARNED") return "Đã đạt";
+  if (status === "VOID") return "Không tính";
+  return "Chờ";
 }
 
 export function refundReasonVi(reason: string): string {
@@ -215,6 +217,10 @@ export function domainMessageVi(error: unknown): string {
         return "Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.";
       case "NO_BOOKING_YET":
         return "Chưa có booking — không ghi phần còn lại";
+      case "STAY_IN_PROGRESS":
+        return "Khách đang lưu trú — không thể kết thúc commitment này";
+      case "STILL_OVERLAPPING":
+        return "Vẫn còn chỗ chồng lịch — chọn commitment khác";
       default:
         return error.message;
     }

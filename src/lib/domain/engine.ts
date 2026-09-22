@@ -610,6 +610,9 @@ export function checkInStay(
   world = expireHolds(world);
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.status === "CANCELLED") {
+    throw new DomainError("INVALID_TRANSITION", "A cancelled stay cannot be checked in");
+  }
   if (stay.status !== "SCHEDULED") {
     throw new DomainError("INVALID_TRANSITION", "Check-in is only possible from scheduled");
   }
@@ -627,6 +630,9 @@ export function checkOutStay(
   world = expireHolds(world);
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.status === "CANCELLED") {
+    throw new DomainError("INVALID_TRANSITION", "A cancelled stay cannot be checked out");
+  }
   if (stay.status !== "CHECKED_IN") {
     throw new DomainError("INVALID_TRANSITION", "Check-out is only possible after check-in");
   }
@@ -637,7 +643,9 @@ export function checkOutStay(
     completedAt: world.now,
   };
   const commissions = world.commissions.map((item) =>
-    item.stayId === stay.id ? { ...item, status: "EARNED" as const } : item,
+    item.stayId === stay.id && item.status !== "VOID"
+      ? { ...item, status: "EARNED" as const }
+      : item,
   );
   return {
     world: withAudit(
@@ -659,6 +667,9 @@ export function markDidNotOccur(
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status === "CHECKED_IN") {
     throw new DomainError("INVALID_TRANSITION", "DID_NOT_OCCUR is refused after check-in");
+  }
+  if (stay.status === "CANCELLED") {
+    throw new DomainError("INVALID_TRANSITION", "A cancelled stay cannot be marked did-not-occur");
   }
   if (stay.status !== "SCHEDULED") {
     throw new DomainError("INVALID_TRANSITION", "No-show is only possible from scheduled");
@@ -915,9 +926,33 @@ export function resolveConflict(
   if (ending.status !== "ACTIVE") {
     throw new DomainError("INVALID_TRANSITION", "Commitment is already ended");
   }
+  const relatedStay = stayForCommitment(world, ending);
+  if (relatedStay?.status === "CHECKED_IN") {
+    throw new DomainError("STAY_IN_PROGRESS", "Cannot end a commitment while the stay is in progress");
+  }
+  const remaining = current.commitmentIds
+    .filter((id) => id !== ending.id)
+    .map((id) => world.commitments.find((item) => item.id === id))
+    .filter((item): item is Commitment => {
+      if (!item || item.status !== "ACTIVE") return false;
+      if (item.kind === "HOLD" && !isHoldActive(item, world.now)) return false;
+      return true;
+    });
+  for (let i = 0; i < remaining.length; i += 1) {
+    for (let j = i + 1; j < remaining.length; j += 1) {
+      if (rangesOverlap(remaining[i]!.start, remaining[i]!.end, remaining[j]!.start, remaining[j]!.end)) {
+        throw new DomainError("STILL_OVERLAPPING", "Ending this commitment still leaves an overlap");
+      }
+    }
+  }
+
   const ended: Commitment = { ...ending, status: "ENDED", endedReason: "RELEASED" };
   let bookings = world.bookings;
+  let stays = world.stays;
+  let commissions = world.commissions;
+  let requests = world.requests;
   let refund: RefundCase | undefined;
+
   if (ending.kind === "CONFIRMED_ACCOMMODATION" && ending.basis === "STAYORA_BOOKING" && ending.bookingId) {
     const booking = world.bookings.find((item) => item.id === ending.bookingId);
     if (booking && booking.status === "CONFIRMED") {
@@ -947,8 +982,34 @@ export function resolveConflict(
           ? { ...item, status: "CANCELLED" as const, cancelledAt: world.now }
           : item,
       );
+      stays = world.stays.map((item) =>
+        item.id === booking.stayId && item.status === "SCHEDULED"
+          ? { ...item, status: "CANCELLED" as const }
+          : item,
+      );
+      commissions = world.commissions.map((item) =>
+        item.bookingId === booking.id ? { ...item, status: "VOID" as const } : item,
+      );
     }
   }
+
+  if (ending.kind === "CONFIRMED_ACCOMMODATION" && ending.basis === "EXTERNAL") {
+    const stayId = ending.stayId;
+    stays = stays.map((item) =>
+      item.id === stayId && item.status === "SCHEDULED"
+        ? { ...item, status: "CANCELLED" as const }
+        : item,
+    );
+  }
+
+  if (ending.kind === "HOLD" && ending.requestId) {
+    requests = requests.map((item) =>
+      item.id === ending.requestId && item.status === "ACCEPTED"
+        ? { ...item, status: "CONFLICTED" as const, conflictedAt: world.now }
+        : item,
+    );
+  }
+
   const conflict: InventoryConflict = {
     ...current,
     status: "RESOLVED",
@@ -962,6 +1023,9 @@ export function resolveConflict(
       {
         ...world,
         bookings,
+        stays,
+        commissions,
+        requests,
         commitments: world.commitments.map((item) => (item.id === ended.id ? ended : item)),
         conflicts: (world.conflicts ?? []).map((item) => (item.id === conflict.id ? conflict : item)),
       },
@@ -973,6 +1037,14 @@ export function resolveConflict(
     conflict,
     refund,
   };
+}
+
+function stayForCommitment(world: World, commitment: Commitment): Stay | undefined {
+  if (commitment.stayId) return world.stays.find((item) => item.id === commitment.stayId);
+  if (commitment.bookingId) {
+    return world.stays.find((item) => item.bookingId === commitment.bookingId);
+  }
+  return undefined;
 }
 
 export function markRefundDone(
@@ -1020,16 +1092,19 @@ export function stayGuestLabel(status: Stay["status"]): string {
       return "Hoàn tất";
     case "DID_NOT_OCCUR":
       return "Không diễn ra";
+    case "CANCELLED":
+      return "Đã huỷ";
   }
 }
 
 export function opsLists(world: World, date: string) {
-  const arriving = world.stays.filter((stay) => stay.checkIn === date);
-  const departing = world.stays.filter(
+  const live = world.stays.filter((stay) => stay.status !== "CANCELLED");
+  const arriving = live.filter((stay) => stay.checkIn === date);
+  const departing = live.filter(
     (stay) =>
       stay.checkOut === date && stay.status !== "DID_NOT_OCCUR" && stay.status !== "SCHEDULED",
   );
-  const inHouse = world.stays.filter(
+  const inHouse = live.filter(
     (stay) => stay.status === "CHECKED_IN" && stay.checkIn < date && date < stay.checkOut,
   );
   return { arriving, inHouse, departing };

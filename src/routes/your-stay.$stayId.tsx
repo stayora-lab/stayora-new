@@ -100,6 +100,12 @@ function YourStayPage() {
           ) : null}
         </p>
 
+        {stay.status === "CANCELLED" && stay.origin === "STAYORA" ? (
+          <p className="mt-4 rounded-2xl bg-[#fdecea] px-4 py-3 text-sm text-[#7a1f16]">
+            Lượt ở này đã bị huỷ — Stayora sẽ liên hệ về hoàn tiền
+          </p>
+        ) : null}
+
         {balance ? (
           <p className={`mt-4 text-sm ${balancePaid ? "text-ink-soft" : "text-lotus-deep"}`}>
             {balanceLine(balance, balancePaid)}

@@ -1,5 +1,6 @@
 import { addDays, format, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
+import { AlertTriangle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Drawer } from "vaul";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,29 @@ type Sheet =
 
 function addIso(date: string, days: number): string {
   return format(addDays(parseISO(date), days), "yyyy-MM-dd");
+}
+
+function cellTone(items: Commitment[]): string {
+  if (items.length > 1) return "border-2 border-[#b42318] bg-[#fdecea] text-[#7a1f16]";
+  const commitment = items[0];
+  if (!commitment) return "bg-cream text-muted";
+  if (commitment.kind === "HOLD") return "bg-sand text-ink";
+  if (commitment.kind === "AVAILABILITY_BLOCK") {
+    return commitment.blockKind === "MAINTENANCE"
+      ? "bg-ink-soft text-cream"
+      : "bg-cream-deep text-ink-soft";
+  }
+  if (commitment.basis === "EXTERNAL") return "bg-moss/20 text-moss";
+  return "bg-lotus-soft text-lotus-deep";
+}
+
+function Legend({ swatch, label }: { swatch: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-muted">
+      <span className={`inline-block size-3 rounded-sm ${swatch}`} />
+      {label}
+    </span>
+  );
 }
 
 export function HostCalendar({
@@ -114,6 +138,14 @@ export function HostCalendar({
           Sau
         </Button>
       </div>
+      <div className="mt-3 flex flex-wrap gap-2 px-4 text-[11px] sm:px-6">
+        <Legend swatch="bg-lotus-soft text-lotus-deep" label="Stayora" />
+        <Legend swatch="bg-moss/20 text-moss" label="Đặt ngoài" />
+        <Legend swatch="bg-sand text-ink" label="Giữ chỗ" />
+        <Legend swatch="bg-cream-deep text-ink-soft" label="Chặn" />
+        <Legend swatch="bg-ink-soft text-cream" label="Bảo trì" />
+        <Legend swatch="border-2 border-[#b42318] bg-[#fdecea] text-[#7a1f16]" label="Xung đột" />
+      </div>
       <div className="mt-3 overflow-x-auto">
         <table className="min-w-max border-separate border-spacing-0">
           <thead>
@@ -153,19 +185,16 @@ export function HostCalendar({
                       <button
                         type="button"
                         onClick={() => openCell(villa.id, date)}
-                        className={`flex h-16 w-20 flex-col justify-center rounded-lg px-1.5 text-left text-[11px] leading-tight ${
-                          conflict
-                            ? "bg-lotus-soft text-lotus-deep"
-                            : items[0]?.kind === "HOLD"
-                              ? "bg-sand text-ink"
-                              : items[0]?.kind === "AVAILABILITY_BLOCK"
-                                ? "bg-cream-deep text-ink-soft"
-                                : items[0]
-                                  ? "bg-paper text-ink shadow-[var(--shadow-border)]"
-                                  : "bg-cream text-muted"
-                        }`}
+                        className={`flex h-16 w-20 flex-col justify-center rounded-lg px-1.5 text-left text-[11px] leading-tight ${cellTone(items)}`}
                       >
-                        <span className="line-clamp-3">{label}</span>
+                        {conflict ? (
+                          <span className="mb-0.5 flex items-center gap-0.5 font-semibold">
+                            <AlertTriangle className="size-3 shrink-0" />
+                            Xung đột
+                          </span>
+                        ) : (
+                          <span className="line-clamp-3">{label}</span>
+                        )}
                       </button>
                     </td>
                   );

@@ -1,5 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useState } from "react";
 import { StayoraMark } from "@/components/mark";
+import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 
@@ -116,5 +118,38 @@ export function SiteFooter() {
         <p className="text-sm text-muted">Oceanami · Phước Hải · Bà Rịa–Vũng Tàu</p>
       </div>
     </footer>
+  );
+}
+
+export function DemoPanel() {
+  const [open, setOpen] = useState(false);
+  const advanceDemo = useBookingStore((state) => state.advanceDemo);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="fixed right-3 bottom-3 z-40 rounded-full bg-paper px-3 py-2 text-xs font-medium text-muted shadow-[var(--shadow-border)]"
+      >
+        Demo
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed right-3 bottom-3 z-40 w-56 rounded-2xl bg-paper p-3 shadow-[var(--shadow-lift)]">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold tracking-wider text-muted uppercase">
+          Bảng điều khiển demo
+        </p>
+        <button type="button" className="text-xs text-muted" onClick={() => setOpen(false)}>
+          Đóng
+        </button>
+      </div>
+      <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => advanceDemo()}>
+        Tua nhanh 30 phút
+      </Button>
+    </div>
   );
 }

@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteFooter, SiteHeader, DemoPanel } from "@/components/site-chrome";
 import { useBookingStore } from "@/lib/store";
 import appCss from "../styles.css?url";
 
@@ -86,6 +86,7 @@ function RootDocument() {
             </div>
             <SiteFooter />
           </div>
+          <DemoPanel />
         </AuthProvider>
         <Scripts />
       </body>
