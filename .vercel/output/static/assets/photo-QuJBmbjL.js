@@ -1,1 +1,0 @@
-import{Y as e,Z as t}from"./store-DKtxnjnM.js";var n=t();function r({src:t,alt:r,className:i}){return(0,n.jsx)(`img`,{src:t,alt:r,className:e(`size-full object-cover photo-frame`,i)})}export{r as t};

@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/admin",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 214,
+      "bodyTextHash": "13c7c5efc01d2276d0b2c50fd3cce4f599978731a54833f7c6fea218266f290c",
+      "bodyTextPrefix": "Stayora Stayora vận hành Vai Khách Sale Host Butler BQL Stayora ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/admin.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 193,
+      "bodyTextHash": "43d754a1cbc92d5776c40a48973df9409bac330fab80217b3f1de6fbd9bfb8e9",
+      "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL Stayora vận hành STAYORA VẬN ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/admin-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/admin.json"
+}
