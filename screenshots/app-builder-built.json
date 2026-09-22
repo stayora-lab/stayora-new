@@ -7,9 +7,9 @@
       "status": 200,
       "title": "Stayora",
       "hasCanvas": false,
-      "bodyTextLen": 1900,
-      "bodyTextHash": "5454cbb6e25c03bcb60be0020389789c4191a9b5b74cbb428a74a84d3ddbd283",
-      "bodyTextPrefix": "Stayora Oceanami · Phước Hải Vai Khách Sale Host Butler BQL Stay",
+      "bodyTextLen": 1879,
+      "bodyTextHash": "e3a3ac78fd6b3e52bbb2b40410a788872d02063dbe3058fe179b89e2625bdb53",
+      "bodyTextPrefix": "Bản thử nghiệm — không có giao dịch thật. Stayora Oceanami · Phư",
       "horizontalOverflow": false,
       "consoleErrors": [],
       "pageErrors": [],
@@ -21,9 +21,9 @@
       "status": 200,
       "title": "Stayora",
       "hasCanvas": false,
-      "bodyTextLen": 1875,
-      "bodyTextHash": "c7814416a9b974b796ab0895e883b17220c0cbd7b2cd64a132a519a97b0db8c4",
-      "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL Stayora vận hành PHƯỚC HẢI, B",
+      "bodyTextLen": 1858,
+      "bodyTextHash": "bf37c93e19f40524489673a7a0037035a5e7e91209adbb70ab6ca7da4de0c9e3",
+      "bodyTextPrefix": "Bản thử nghiệm — không có giao dịch thật. Stayora PHƯỚC HẢI, BÀ ",
       "horizontalOverflow": false,
       "consoleErrors": [],
       "pageErrors": [],
@@ -35,7 +35,6 @@
   "verdictFile": "/workspace/screenshots/app-builder-built.json",
   "divergesFromBaseline": true,
   "baselineReasons": [
-    "desktop: body text replaced (similar length, page start changed)",
     "mobile: body text replaced (similar length, page start changed)"
   ]
 }
