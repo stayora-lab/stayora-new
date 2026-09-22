@@ -115,6 +115,9 @@ function AdminPage() {
             <Button asChild variant="outline" size="sm">
               <Link to="/admin/links">Link vai trò</Link>
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/images">Ảnh</Link>
+            </Button>
           </div>
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
         </div>

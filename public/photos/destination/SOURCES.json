@@ -1,50 +1,91 @@
 [
   {
-    "file": "beach.jpg",
-    "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49958234898_ac19a9fa02_k.jpg",
-    "sourceSite": "oceanami.com",
-    "fetchedAt": "2026-09-22T20:45:00+07:00",
-    "approvedBy": "Founder",
-    "note": "Bãi biển Phước Hải nhìn từ Oceanami. Ảnh khuôn viên chung, dùng cho hero."
-  },
-  {
     "file": "aerial.jpg",
+    "type": "real",
     "sourceUrl": "https://oceanami.com/wp-content/uploads/2017/08/DSC_5249-edited.jpg",
     "sourceSite": "oceanami.com",
-    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "addedAt": "2026-09-22T20:45:00+07:00",
     "approvedBy": "Founder",
-    "note": "Ảnh trên cao toàn cảnh Oceanami: biển, vườn và núi Minh Đạm."
+    "note": "Ảnh trên cao toàn cảnh: biển, vườn và núi Minh Đạm."
+  },
+  {
+    "file": "beach.jpg",
+    "type": "real",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49958234898_ac19a9fa02_k.jpg",
+    "sourceSite": "oceanami.com",
+    "addedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Bãi biển Phước Hải nhìn từ Oceanami."
   },
   {
     "file": "pool.jpg",
+    "type": "real",
     "sourceUrl": "https://oceanami.com/wp-content/uploads/2017/08/pool-ss.jpg",
     "sourceSite": "oceanami.com",
-    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "addedAt": "2026-09-22T20:45:00+07:00",
     "approvedBy": "Founder",
     "note": "Hồ bơi chung tại Oceanami."
   },
   {
     "file": "landscape.jpg",
+    "type": "real",
     "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49959006147_8d184d72d4_k.jpg",
     "sourceSite": "oceanami.com",
-    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "addedAt": "2026-09-22T20:45:00+07:00",
     "approvedBy": "Founder",
     "note": "Cảnh quan vườn và núi Minh Đạm trong khuôn viên."
   },
   {
     "file": "hoa-anh-dao.jpg",
+    "type": "real",
     "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49958232328_1ed4ff86e1_k.jpg",
     "sourceSite": "oceanami.com",
-    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "addedAt": "2026-09-22T20:45:00+07:00",
     "approvedBy": "Founder",
-    "note": "Hàng cây hoa anh đào trong khuôn viên Oceanami."
+    "note": "Hàng cây hoa trong khuôn viên Oceanami."
   },
   {
     "file": "minh-dam.jpg",
+    "type": "real",
     "sourceUrl": "https://oceanami.com/wp-content/uploads/2018/11/49958215843_bb49cf939b_k.jpg",
     "sourceSite": "oceanami.com",
-    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "addedAt": "2026-09-22T20:45:00+07:00",
     "approvedBy": "Founder",
     "note": "Núi Minh Đạm phía sau khu nghỉ dưỡng."
+  },
+  {
+    "file": "gym.jpg",
+    "type": "ai-generated",
+    "addedAt": "2026-09-22T21:30:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh minh hoạ phòng tập. Thay file cùng tên và đổi type thành real khi có ảnh thật."
+  },
+  {
+    "file": "maison.jpg",
+    "type": "ai-generated",
+    "addedAt": "2026-09-22T21:30:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh minh hoạ nhà hàng Maison."
+  },
+  {
+    "file": "lua-spa.jpg",
+    "type": "ai-generated",
+    "addedAt": "2026-09-22T21:30:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh minh hoạ Lụa Spa."
+  },
+  {
+    "file": "jumping-galaxy.jpg",
+    "type": "ai-generated",
+    "addedAt": "2026-09-22T21:30:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh minh hoạ khu bạt nhún Jumping Galaxy."
+  },
+  {
+    "file": "bicycle.jpg",
+    "type": "ai-generated",
+    "addedAt": "2026-09-22T21:30:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh minh hoạ cho thuê xe đạp."
   }
 ]

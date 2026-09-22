@@ -4,6 +4,7 @@ import { DESTINATION, photosForVilla } from "./destination.ts";
 export type StayImage = {
   src: string;
   alt: string;
+  illustration?: boolean;
 };
 
 export type VillaSetting = "beachfront" | "garden" | "hillside";
@@ -56,7 +57,7 @@ function villaFromSeed(row: PilotVilla): Villa {
     hostId: row.hostId,
     tagline: `${row.bedrooms} phòng ngủ · ngủ ${row.sleeps}`,
     summary: `${row.name} · ${row.bedrooms} phòng ngủ, ${row.sleeps} khách.`,
-    description: [`${row.name} tại Oceanami, Phước Hải.`],
+    description: [`${row.name} tại Oceanami · Phước Hải.`],
     setting,
     settingLabel: SETTING_LABEL[setting],
     bedrooms: row.bedrooms,
@@ -69,7 +70,7 @@ function villaFromSeed(row: PilotVilla): Villa {
       title: `Phòng ${index + 1}`,
       detail: "Giường lớn",
     })),
-    images: photosForVilla(row.id),
+    images: photosForVilla(row.id, row.name),
   };
 }
 

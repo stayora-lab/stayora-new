@@ -1,20 +1,36 @@
+import { isIllustration } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 
 export function Photo({
   src,
   alt,
   className,
+  eager,
+  illustration,
 }: {
   src: string;
   alt: string;
   className?: string;
+  eager?: boolean;
+  illustration?: boolean;
 }) {
+  const showCaption = illustration ?? isIllustration(src);
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={cn("size-full object-cover photo-frame", className)}
-    />
+    <span className={cn("relative block size-full overflow-hidden", className)}>
+      <img
+        src={src}
+        alt={alt}
+        loading={eager ? "eager" : "lazy"}
+        decoding={eager ? "sync" : "async"}
+        fetchPriority={eager ? "high" : "low"}
+        className="size-full object-cover photo-frame"
+      />
+      {showCaption ? (
+        <span className="absolute bottom-2 left-2 rounded-full bg-ink/75 px-2.5 py-1 text-[10px] font-medium tracking-wide text-cream">
+          Ảnh minh hoạ
+        </span>
+      ) : null}
+    </span>
   );
 }
 

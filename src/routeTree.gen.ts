@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as OpsRouteImport } from './routes/ops'
 import { Route as SaleRouteImport } from './routes/sale'
+import { Route as AdminImagesRouteImport } from './routes/admin_.images'
 import { Route as AdminLinksRouteImport } from './routes/admin_.links'
 import { Route as RequestsRequestIdRouteImport } from './routes/requests.$requestId'
 import { Route as VillasVillaIdRouteImport } from './routes/villas.$villaId'
@@ -44,6 +45,11 @@ const SaleRoute = SaleRouteImport.update({
   path: '/sale',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminImagesRoute = AdminImagesRouteImport.update({
+  id: '/admin_/images',
+  path: '/admin/images',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLinksRoute = AdminLinksRouteImport.update({
   id: '/admin_/links',
   path: '/admin/links',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/host': typeof HostRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
+  '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/host': typeof HostRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
+  '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/host': typeof HostRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
+  '/admin_/images': typeof AdminImagesRoute
   '/admin_/links': typeof AdminLinksRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/host'
     | '/ops'
     | '/sale'
+    | '/admin/images'
     | '/admin/links'
     | '/requests/$requestId'
     | '/villas/$villaId'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/host'
     | '/ops'
     | '/sale'
+    | '/admin/images'
     | '/admin/links'
     | '/requests/$requestId'
     | '/villas/$villaId'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/host'
     | '/ops'
     | '/sale'
+    | '/admin_/images'
     | '/admin_/links'
     | '/requests/$requestId'
     | '/villas/$villaId'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   HostRoute: typeof HostRoute
   OpsRoute: typeof OpsRoute
   SaleRoute: typeof SaleRoute
+  AdminImagesRoute: typeof AdminImagesRoute
   AdminLinksRoute: typeof AdminLinksRoute
   RequestsRequestIdRoute: typeof RequestsRequestIdRoute
   VillasVillaIdRoute: typeof VillasVillaIdRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SaleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/images': {
+      id: '/admin_/images'
+      path: '/admin/images'
+      fullPath: '/admin/images'
+      preLoaderRoute: typeof AdminImagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/links': {
       id: '/admin_/links'
       path: '/admin/links'
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   HostRoute: HostRoute,
   OpsRoute: OpsRoute,
   SaleRoute: SaleRoute,
+  AdminImagesRoute: AdminImagesRoute,
   AdminLinksRoute: AdminLinksRoute,
   RequestsRequestIdRoute: RequestsRequestIdRoute,
   VillasVillaIdRoute: VillasVillaIdRoute,

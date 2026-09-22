@@ -17,9 +17,15 @@ import { VillaGallery } from "@/components/gallery";
 import { Photo } from "@/components/photo";
 import { Button } from "@/components/ui/button";
 import {
-  DESTINATION_COPY,
-  LANDSCAPE_PHOTO,
+  ABOUT_BODY,
+  ABOUT_TITLE,
+  AMENITIES_SECTION_ID,
+  AROUND_BODY,
+  AROUND_TITLE,
+  ARRIVAL_BODY,
+  ARRIVAL_TITLE,
   LOCATION_LABEL,
+  VILLA_COMMON_AMENITIES_LINE,
 } from "@/lib/destination";
 import { useBookingStore } from "@/lib/store";
 import {
@@ -170,6 +176,15 @@ function VillaDetail({ villa }: { villa: Villa }) {
             {villa.description.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
+            <p>
+              <Link
+                to="/"
+                hash={AMENITIES_SECTION_ID}
+                className="font-medium text-lotus hover:text-lotus-deep"
+              >
+                {VILLA_COMMON_AMENITIES_LINE}
+              </Link>
+            </p>
           </div>
 
           <section>
@@ -200,37 +215,26 @@ function VillaDetail({ villa }: { villa: Villa }) {
           </section>
 
           <section>
-            <h2 className="font-medium">{DESTINATION_COPY.namePlace.title}</h2>
-            <p className="mt-3 text-ink-soft">{DESTINATION_COPY.namePlace.body}</p>
+            <h2 className="font-medium">{ABOUT_TITLE}</h2>
+            <p className="mt-3 text-ink-soft">{ABOUT_BODY}</p>
           </section>
 
           <section>
-            <h2 className="font-medium">{DESTINATION_COPY.about.title}</h2>
-            <p className="mt-3 text-ink-soft">{DESTINATION_COPY.about.body}</p>
-          </section>
-
-          <section>
-            <h2 className="font-medium">{DESTINATION_COPY.amenities.title}</h2>
-            <ul className="mt-3 space-y-1 text-ink-soft">
-              {DESTINATION_COPY.amenities.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="font-medium">{DESTINATION_COPY.around.title}</h2>
-            <p className="mt-3 text-ink-soft">{DESTINATION_COPY.around.body}</p>
+            <h2 className="font-medium">{AROUND_TITLE}</h2>
+            <p className="mt-3 text-ink-soft">{AROUND_BODY}</p>
           </section>
 
           <section className="grid gap-6 md:grid-cols-2 md:items-center">
             <div>
-              <h2 className="font-medium">{DESTINATION_COPY.arrival.title}</h2>
-              <p className="mt-3 text-ink-soft">{DESTINATION_COPY.arrival.body}</p>
+              <h2 className="font-medium">{ARRIVAL_TITLE}</h2>
+              <p className="mt-3 text-ink-soft">{ARRIVAL_BODY}</p>
               <p className="mt-3 text-sm text-muted">{LOCATION_LABEL}</p>
             </div>
             <div className="relative h-52 overflow-hidden rounded-xl">
-              <Photo src={LANDSCAPE_PHOTO.src} alt={LANDSCAPE_PHOTO.alt} />
+              <Photo
+                src="/photos/destination/landscape.jpg"
+                alt="Cảnh quan trong khu nghỉ dưỡng Oceanami · Phước Hải"
+              />
             </div>
           </section>
         </article>

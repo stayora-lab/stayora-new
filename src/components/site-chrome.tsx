@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { OceanamiLockup, StayoraLockup } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
-import { DESTINATION_COPY } from "@/lib/destination";
+import { DESTINATION_COPY, LOCATION_LABEL } from "@/lib/destination";
 import { PILOT_SEED } from "@/lib/pilot-data";
 import { useBookingStore } from "@/lib/store";
 
@@ -66,7 +66,7 @@ export function PersonaSwitch() {
 function DestinationChip() {
   return (
     <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-paper px-3 text-xs font-medium text-ink-soft shadow-[var(--shadow-border)] sm:text-sm">
-      Điểm đến: Oceanami
+      Oceanami · Phước Hải
     </span>
   );
 }
@@ -162,7 +162,7 @@ export function SiteFooter() {
         </div>
         <div className="text-left sm:text-right">
           <p className="text-xs font-medium tracking-widest text-muted uppercase">
-            Điểm đến · Oceanami
+            Điểm đến · {LOCATION_LABEL}
           </p>
           <div className="mt-3 sm:flex sm:justify-end">
             <OceanamiLockup tone="on-paper" />
@@ -205,7 +205,7 @@ export function StayoraServiceNote({
 export function DestinationAbout() {
   return (
     <section className="mt-12 border-t border-border pt-8">
-      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Về điểm đến</p>
+      <p className="text-xs font-semibold tracking-wider text-muted uppercase">{LOCATION_LABEL}</p>
       <OceanamiLockup tone="on-paper" className="mt-4" />
       <p className="mt-3 max-w-md text-sm text-ink-soft">{DESTINATION_COPY.about.body}</p>
     </section>
