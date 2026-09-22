@@ -1,1 +1,0 @@
-import{A as e,O as t}from"./store-5oZBI_tJ.js";var n=`Khách`;function r(r,i){let a=r.guestName?.trim();return a?i.persona===`ADMIN`?a:i.persona===`HOST`?e(i.hostId,r.villaId)?a:n:i.persona===`BUTLER`?t.find(e=>e.id===i.butlerId)?.villaIds?.includes(r.villaId)?a:n:i.persona===`SALE`?r.origin===`EXTERNAL`?n:r.saleId&&r.saleId===i.saleId?a:n:n:n}export{r as t};
