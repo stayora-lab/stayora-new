@@ -9,6 +9,7 @@ const PERSONAS: { id: Persona; label: string; to: string }[] = [
   { id: "HOST", label: "Host", to: "/host" },
   { id: "BUTLER", label: "Butler", to: "/ops" },
   { id: "BQL", label: "BQL", to: "/ops" },
+  { id: "ADMIN", label: "Stayora vận hành", to: "/admin" },
 ];
 
 export function PersonaSwitch() {
@@ -27,7 +28,7 @@ export function PersonaSwitch() {
           const target = PERSONAS.find((item) => item.id === next);
           if (target) void navigate({ to: target.to });
         }}
-        className="h-9 max-w-28 rounded-full bg-paper px-3 text-sm font-medium text-ink shadow-[var(--shadow-border)]"
+        className="h-9 max-w-44 rounded-full bg-paper px-3 text-sm font-medium text-ink shadow-[var(--shadow-border)]"
       >
         {PERSONAS.map((item) => (
           <option key={item.id} value={item.id}>
@@ -48,7 +49,11 @@ export function SiteHeader() {
     ? world.bookings.find((item) => item.requestId === latest.id)
     : undefined;
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const workspace = path.startsWith("/sale") || path.startsWith("/ops") || path.startsWith("/host");
+  const workspace =
+    path.startsWith("/sale") ||
+    path.startsWith("/ops") ||
+    path.startsWith("/host") ||
+    path.startsWith("/admin");
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-cream/90 backdrop-blur-md">
@@ -89,6 +94,7 @@ export function SiteHeader() {
 function workspaceTitle(path: string, persona: Persona): string {
   if (path.startsWith("/sale")) return "Sale · Oceanami";
   if (path.startsWith("/host")) return "Host · Oceanami";
+  if (path.startsWith("/admin")) return "Stayora vận hành";
   if (persona === "BQL") return "BQL Oceanami · Hôm nay";
   if (path.startsWith("/ops")) return "Butler · Hôm nay";
   return "Oceanami · Phước Hải";

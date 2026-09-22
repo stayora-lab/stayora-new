@@ -1,5 +1,5 @@
 import { nightsBetween, requireVilla } from "./catalog.ts";
-import type { Commitment, World } from "./types.ts";
+import type { Commitment, InventoryConflict, World } from "./types.ts";
 
 export function rangesOverlap(start: string, end: string, otherStart: string, otherEnd: string) {
   return start < otherEnd && end > otherStart;
@@ -57,4 +57,26 @@ export function overlappingActive(world: World): [Commitment, Commitment][] {
     }
   }
   return pairs;
+}
+
+export function commitmentsOnDate(world: World, villaId: string, date: string): Commitment[] {
+  return activeCommitments(world).filter(
+    (commitment) =>
+      commitment.villaId === villaId && commitment.start <= date && date < commitment.end,
+  );
+}
+
+export function openConflictsCovering(
+  world: World,
+  villaId: string,
+  start: string,
+  end: string,
+): InventoryConflict[] {
+  return (world.conflicts ?? []).filter((conflict) => {
+    if (conflict.status !== "OPEN" || conflict.villaId !== villaId) return false;
+    return conflict.commitmentIds.some((id) => {
+      const commitment = world.commitments.find((item) => item.id === id);
+      return commitment ? rangesOverlap(start, end, commitment.start, commitment.end) : false;
+    });
+  });
 }

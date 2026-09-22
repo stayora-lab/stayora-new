@@ -102,6 +102,10 @@ function stayoraBundle(input: {
     basis: "STAYORA_BOOKING",
     requestId: input.requestId,
     bookingId: input.bookingId,
+    stayId: input.stayId,
+    reference: input.reference,
+    createdBy: "HOST",
+    createdAt: input.now,
   };
   const commission: Commission | undefined = input.saleId
     ? {
@@ -275,6 +279,11 @@ export function seedWorld(now = PILOT_NOW): World {
     kind: "CONFIRMED_ACCOMMODATION",
     status: "ACTIVE",
     basis: "EXTERNAL",
+    stayId: "sty_seed_ext",
+    externalId: "ext_seed_huong",
+    source: "Khách quen",
+    createdBy: "HOST",
+    createdAt: now,
   };
   const blocks: Commitment[] = OWNER_BLOCKS.map((block, index) => ({
     id: `blk_seed_${index + 1}`,
@@ -285,6 +294,8 @@ export function seedWorld(now = PILOT_NOW): World {
     status: "ACTIVE",
     basis: "BLOCK",
     blockKind: "OWNER",
+    createdBy: "HOST",
+    createdAt: now,
   }));
   const pending = [
     pendingGuest({

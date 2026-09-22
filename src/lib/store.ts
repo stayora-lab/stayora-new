@@ -6,17 +6,24 @@ import {
   BUTLER_LINH,
   checkInStay,
   checkOutStay,
+  createBlock,
   createRequest,
   DomainError,
   expireHolds,
   HOLD_MS,
   markDidNotOccur,
+  markRefundDone,
+  recordExternalBooking,
   recordPayment,
+  releaseBlock,
   reportIncident,
+  resolveConflict,
   resolveUnknown,
   SALE_MAI,
   seedWorld,
   type Actor,
+  type BlockKind,
+  type ExternalSource,
   type PaymentOutcome,
   type Persona,
   type World,
@@ -61,8 +68,31 @@ type BookingState = {
     guestName: string;
   }) => { requestId: string };
   hostAccept: (requestId: string) => void;
-  hostRecordPayment: (obligationId: string, outcome: PaymentOutcome) => void;
-  hostResolveUnknown: (attemptId: string, outcome: "SUCCEEDED" | "FAILED") => void;
+  hostExternal: (input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+  }) => void;
+  hostCreateBlock: (input: {
+    villaId: string;
+    start: string;
+    end: string;
+    blockKind: BlockKind;
+    note?: string;
+  }) => void;
+  hostReleaseBlock: (commitmentId: string) => void;
+  adminRecordPayment: (obligationId: string, outcome: PaymentOutcome) => void;
+  adminResolveUnknown: (attemptId: string, outcome: "SUCCEEDED" | "FAILED") => void;
+  adminMarkRefundDone: (refundId: string, note: string) => void;
+  adminResolveConflict: (input: {
+    conflictId: string;
+    keepCommitmentId: string;
+    endCommitmentId: string;
+    reason: string;
+  }) => void;
   butlerCheckIn: (stayId: string) => void;
   butlerCheckOut: (stayId: string) => void;
   butlerNoShow: (stayId: string, reason: string) => void;
@@ -74,6 +104,7 @@ function actorFor(persona: Persona): Actor {
   if (persona === "BUTLER") return { persona: "BUTLER", butlerId: BUTLER_LINH };
   if (persona === "HOST") return { persona: "HOST" };
   if (persona === "BQL") return { persona: "BQL" };
+  if (persona === "ADMIN") return { persona: "ADMIN" };
   return { persona: "GUEST" };
 }
 
@@ -81,6 +112,8 @@ function withWorldDefaults(world: World): World {
   return {
     ...world,
     refundCases: world.refundCases ?? [],
+    conflicts: world.conflicts ?? [],
+    auditLog: world.auditLog ?? [],
   };
 }
 
@@ -139,19 +172,55 @@ export const useBookingStore = create<BookingState>()(
         });
         set({ world: result.world });
       },
-      hostRecordPayment: (obligationId, outcome) => {
-        const result = recordPayment(withWorldDefaults(get().world), {
-          obligationId,
-          outcome,
+      hostExternal: (input) => {
+        const result = recordExternalBooking(withWorldDefaults(get().world), {
+          ...input,
           actor: { persona: "HOST" },
         });
         set({ world: result.world });
       },
-      hostResolveUnknown: (attemptId, outcome) => {
+      hostCreateBlock: (input) => {
+        const result = createBlock(withWorldDefaults(get().world), {
+          ...input,
+          actor: { persona: "HOST" },
+        });
+        set({ world: result.world });
+      },
+      hostReleaseBlock: (commitmentId) => {
+        const result = releaseBlock(withWorldDefaults(get().world), {
+          commitmentId,
+          actor: { persona: "HOST" },
+        });
+        set({ world: result.world });
+      },
+      adminRecordPayment: (obligationId, outcome) => {
+        const result = recordPayment(withWorldDefaults(get().world), {
+          obligationId,
+          outcome,
+          actor: { persona: "ADMIN" },
+        });
+        set({ world: result.world });
+      },
+      adminResolveUnknown: (attemptId, outcome) => {
         const result = resolveUnknown(withWorldDefaults(get().world), {
           attemptId,
           outcome,
-          actor: { persona: "HOST" },
+          actor: { persona: "ADMIN" },
+        });
+        set({ world: result.world });
+      },
+      adminMarkRefundDone: (refundId, note) => {
+        const result = markRefundDone(withWorldDefaults(get().world), {
+          refundId,
+          note,
+          actor: { persona: "ADMIN" },
+        });
+        set({ world: result.world });
+      },
+      adminResolveConflict: (input) => {
+        const result = resolveConflict(withWorldDefaults(get().world), {
+          ...input,
+          actor: { persona: "ADMIN" },
         });
         set({ world: result.world });
       },
@@ -188,7 +257,7 @@ export const useBookingStore = create<BookingState>()(
       },
     }),
     {
-      name: "stayora-domain-core",
+      name: "stayora-phase2",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       partialize: (state) => ({

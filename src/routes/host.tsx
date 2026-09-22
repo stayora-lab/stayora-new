@@ -1,17 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { useEffect, useState, type ReactNode } from "react";
+import { HostCalendar } from "@/components/host-calendar";
 import { Button } from "@/components/ui/button";
 import {
   balanceLine,
   domainMessageVi,
   holdCountdown,
-  obligationSucceeded,
+  hostPaymentStatus,
+  hostToday,
   paymentPlanLabel,
   requestStatusVi,
+  stayGuestLabel,
   viDateRange,
 } from "@/lib/domain";
-import type { PaymentObligation, PaymentOutcome, StayRequest } from "@/lib/domain";
+import type { StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
@@ -20,19 +23,29 @@ export const Route = createFileRoute("/host")({
   component: HostPage,
 });
 
-const DEMO_PAY_LABEL = "Ghi nhận thanh toán (demo — sau này do Stayora xác minh)";
+type HostTab = "today" | "calendar" | "requests" | "stays";
+
+const TABS: { id: HostTab; label: string }[] = [
+  { id: "today", label: "Hôm nay" },
+  { id: "calendar", label: "Lịch" },
+  { id: "requests", label: "Yêu cầu" },
+  { id: "stays", label: "Đặt chỗ & lưu trú" },
+];
 
 function HostPage() {
   const persona = useBookingStore((state) => state.persona);
   const setPersona = useBookingStore((state) => state.setPersona);
   const world = useBookingStore((state) => state.world);
   const hostAccept = useBookingStore((state) => state.hostAccept);
-  const hostRecordPayment = useBookingStore((state) => state.hostRecordPayment);
-  const hostResolveUnknown = useBookingStore((state) => state.hostResolveUnknown);
+  const hostExternal = useBookingStore((state) => state.hostExternal);
+  const hostCreateBlock = useBookingStore((state) => state.hostCreateBlock);
+  const hostReleaseBlock = useBookingStore((state) => state.hostReleaseBlock);
   const advanceDemo = useBookingStore((state) => state.advanceDemo);
+  const [tab, setTab] = useState<HostTab>("today");
   const [error, setError] = useState<string | null>(null);
   const clock = parseISO(world.now);
-  const refundCases = world.refundCases ?? [];
+  const today = world.now.slice(0, 10);
+  const summary = hostToday(world, today);
 
   useEffect(() => {
     if (persona !== "HOST") setPersona("HOST");
@@ -42,15 +55,11 @@ function HostPage() {
   const holding = world.requests.filter(
     (item) =>
       item.status === "ACCEPTED" &&
-      !world.bookings.some((booking) => booking.requestId === item.id),
+      !world.bookings.some((booking) => booking.requestId === item.id && booking.status === "CONFIRMED"),
   );
   const bookedRequests = world.requests.filter((item) =>
-    world.bookings.some((booking) => booking.requestId === item.id),
+    world.bookings.some((booking) => booking.requestId === item.id && booking.status === "CONFIRMED"),
   );
-  const occupancyBookings = world.bookings.filter(
-    (booking) => !world.requests.some((request) => request.id === booking.requestId),
-  );
-  const openRefunds = refundCases.filter((item) => item.status === "OPEN");
 
   function run(action: () => void) {
     setError(null);
@@ -62,220 +71,218 @@ function HostPage() {
   }
 
   return (
-    <main lang="vi" className="mx-auto max-w-lg px-4 pt-6 pb-20 sm:px-6">
-      <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Host · Oceanami</p>
-      <h1 className="mt-1 font-serif text-title">Yêu cầu cần xử lý</h1>
-      <p className="mt-3 text-sm text-muted">
-        Chỉ Host chấp nhận. Thanh toán được ghi nhận tại đây — khách không tự xác nhận.
-      </p>
-      <div className="mt-4">
-        <Button variant="outline" className="w-full" onClick={() => run(() => advanceDemo())}>
-          Tua nhanh 30 phút
-        </Button>
-      </div>
-      {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
-
-      <Section title="Chờ chấp nhận" count={pending.length} empty="Không có yêu cầu mới.">
-        {pending.map((request) => (
-          <RequestCard
-            key={request.id}
-            request={request}
-            clock={clock}
-            action={
-              <Button className="w-full" onClick={() => run(() => hostAccept(request.id))}>
-                Chấp nhận · giữ 30 phút
-              </Button>
-            }
-          />
-        ))}
-      </Section>
-
-      <Section title="Đang giữ chỗ" count={holding.length} empty="Không có chỗ đang giữ.">
-        {holding.map((request) => {
-          const initial = world.obligations.find(
-            (item) => item.requestId === request.id && item.kind === "INITIAL",
-          );
-          const unknown = world.attempts.find(
-            (item) => item.obligationId === initial?.id && item.status === "UNKNOWN",
-          );
-          return (
-            <RequestCard
-              key={request.id}
-              request={request}
-              clock={clock}
-              extra={
-                initial ? (
-                  <p className="mt-3 text-sm">Cần thu {formatVnd(initial.amount)}</p>
-                ) : null
-              }
-              action={
-                unknown && initial ? (
-                  <ResolveUnknown
-                    onResolve={(outcome) => run(() => hostResolveUnknown(unknown.id, outcome))}
-                  />
-                ) : initial ? (
-                  <PaymentButtons
-                    onRecord={(outcome) => run(() => hostRecordPayment(initial.id, outcome))}
-                  />
-                ) : null
-              }
-            />
-          );
-        })}
-      </Section>
-
-      <Section
-        title="Đã xác nhận"
-        count={bookedRequests.length + occupancyBookings.length}
-        empty="Chưa có booking."
-      >
-        {bookedRequests.map((request) => {
-          const balance = world.obligations.find(
-            (item) => item.requestId === request.id && item.kind === "BALANCE",
-          );
-          const unknown = world.attempts.find(
-            (item) => item.obligationId === balance?.id && item.status === "UNKNOWN",
-          );
-          const paid = balance ? obligationSucceeded(world, balance.id) : false;
-          return (
-            <RequestCard
-              key={request.id}
-              request={request}
-              clock={clock}
-              booked
-              extra={
-                <>
-                  <p className="mt-3 text-sm text-muted">
-                    Mã{" "}
-                    <span className="font-medium text-ink">
-                      {world.bookings.find((item) => item.requestId === request.id)?.reference}
-                    </span>
-                  </p>
-                  {balance ? <BalanceStatus obligation={balance} paid={paid} /> : null}
-                </>
-              }
-              action={
-                !balance ? null : unknown ? (
-                  <ResolveUnknown
-                    onResolve={(outcome) => run(() => hostResolveUnknown(unknown.id, outcome))}
-                  />
-                ) : paid ? null : (
-                  <PaymentButtons
-                    onRecord={(outcome) => run(() => hostRecordPayment(balance.id, outcome))}
-                  />
-                )
-              }
-            />
-          );
-        })}
-        {occupancyBookings.map((booking) => (
-          <article
-            key={booking.id}
-            className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
+    <main lang="vi" className="pb-20">
+      <div className="border-b border-border bg-cream">
+        <div className="mx-auto max-w-lg px-4 pt-6 pb-4 sm:px-6">
+          <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Host · Oceanami</p>
+          <h1 className="mt-1 font-serif text-title">Lịch, yêu cầu, đặt chỗ.</h1>
+          <p className="mt-2 text-sm text-muted">
+            Chỉ Host chấp nhận. Thanh toán do Stayora vận hành ghi nhận.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-4 w-full"
+            onClick={() => run(() => advanceDemo())}
           >
-            <p className="font-medium">{getVilla(booking.villaId)?.name ?? booking.villaId}</p>
-            <p className="mt-1 text-sm text-ink-soft">{booking.guestName}</p>
-            <p className="mt-3 text-sm text-muted">
-              {viDateRange(booking.checkIn, booking.checkOut)} · {booking.guests} khách
-            </p>
-            <p className="mt-3 text-sm text-muted">
-              Mã <span className="font-medium text-ink">{booking.reference}</span>
-            </p>
-          </article>
-        ))}
-      </Section>
+            Tua nhanh 30 phút
+          </Button>
+          {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
+        </div>
+        <div className="sticky top-16 z-20 border-t border-border bg-cream/95 backdrop-blur-md">
+          <div className="mx-auto grid max-w-lg grid-cols-4 px-1">
+            {TABS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`h-12 px-1 text-xs font-medium sm:text-sm ${
+                  tab === item.id
+                    ? "border-b-2 border-ink text-ink"
+                    : "border-b-2 border-transparent text-muted"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      <Section title="Cần hoàn tiền" count={openRefunds.length} empty="Không có khoản cần hoàn.">
-        {openRefunds.map((refund) => {
-          const request = world.requests.find((item) => item.id === refund.requestId);
-          const villa = request ? getVilla(request.villaId) : undefined;
-          return (
-            <article
-              key={refund.id}
-              className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{villa?.name ?? request?.villaId ?? refund.requestId}</p>
-                  <p className="mt-1 text-sm text-ink-soft">{request?.guestName ?? "Khách"}</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
-                  Mở
-                </span>
-              </div>
-              <p className="mt-3 font-semibold tabular-nums">{formatVnd(refund.amount)}</p>
-              <p className="mt-1 text-sm text-muted">Hết hạn giữ chỗ</p>
-            </article>
-          );
-        })}
-      </Section>
+      {tab === "today" ? (
+        <section className="mx-auto max-w-lg space-y-3 px-4 pt-5 sm:px-6">
+          <TodayCard
+            title="Yêu cầu chờ phản hồi"
+            count={summary.pending.length}
+            onClick={() => setTab("requests")}
+          >
+            {summary.pending.map((request) => (
+              <p key={request.id} className="text-sm">
+                {getVilla(request.villaId)?.name} · {request.guestName}
+              </p>
+            ))}
+          </TodayCard>
+          <TodayCard title="Khách đến hôm nay" count={summary.arriving.length} onClick={() => setTab("stays")}>
+            {summary.arriving.map((stay) => (
+              <p key={stay.id} className="text-sm">
+                {getVilla(stay.villaId)?.name} · {stay.guestName} · {stay.originLabel}
+              </p>
+            ))}
+          </TodayCard>
+          <TodayCard title="Khách đi hôm nay" count={summary.departing.length} onClick={() => setTab("stays")}>
+            {summary.departing.map((stay) => (
+              <p key={stay.id} className="text-sm">
+                {getVilla(stay.villaId)?.name} · {stay.guestName}
+              </p>
+            ))}
+          </TodayCard>
+          <TodayCard
+            title="Xung đột lịch đang mở"
+            count={summary.openConflicts.length}
+            onClick={() => setTab("calendar")}
+          >
+            {summary.openConflicts.map((conflict) => (
+              <p key={conflict.id} className="text-sm">
+                {getVilla(conflict.villaId)?.name} · Stayora vận hành sẽ xử lý
+              </p>
+            ))}
+          </TodayCard>
+          <TodayCard title="Khoản còn lại sắp đến hạn" count={summary.balancesDue.length}>
+            {summary.balancesDue.map((obligation) => {
+              const request = world.requests.find((item) => item.id === obligation.requestId);
+              return (
+                <p key={obligation.id} className="text-sm">
+                  {request ? getVilla(request.villaId)?.name : obligation.requestId} ·{" "}
+                  {balanceLine(obligation, false)}
+                </p>
+              );
+            })}
+          </TodayCard>
+        </section>
+      ) : null}
+
+      {tab === "calendar" ? (
+        <section className="pt-4">
+          <HostCalendar
+            world={world}
+            onExternal={(input) => run(() => hostExternal(input))}
+            onBlock={(input) => run(() => hostCreateBlock(input))}
+            onRelease={(id) => run(() => hostReleaseBlock(id))}
+          />
+        </section>
+      ) : null}
+
+      {tab === "requests" ? (
+        <div className="mx-auto max-w-lg px-4 sm:px-6">
+          <Section title="Chờ chấp nhận" count={pending.length} empty="Không có yêu cầu mới.">
+            {pending.map((request) => (
+              <RequestCard
+                key={request.id}
+                request={request}
+                clock={clock}
+                worldLines={[]}
+                action={
+                  <Button className="w-full" onClick={() => run(() => hostAccept(request.id))}>
+                    Chấp nhận · giữ 30 phút
+                  </Button>
+                }
+              />
+            ))}
+          </Section>
+          <Section title="Đang giữ chỗ" count={holding.length} empty="Không có chỗ đang giữ.">
+            {holding.map((request) => (
+              <RequestCard
+                key={request.id}
+                request={request}
+                clock={clock}
+                worldLines={hostPaymentStatus(world, request.id)}
+              />
+            ))}
+          </Section>
+          <Section title="Đã xác nhận" count={bookedRequests.length} empty="Chưa có booking.">
+            {bookedRequests.map((request) => (
+              <RequestCard
+                key={request.id}
+                request={request}
+                clock={clock}
+                booked
+                worldLines={[
+                  `Mã ${world.bookings.find((item) => item.requestId === request.id)?.reference ?? ""}`,
+                  ...hostPaymentStatus(world, request.id),
+                ]}
+              />
+            ))}
+          </Section>
+        </div>
+      ) : null}
+
+      {tab === "stays" ? (
+        <section className="mx-auto max-w-lg space-y-3 px-4 pt-5 sm:px-6">
+          {world.stays.length === 0 ? (
+            <p className="rounded-2xl bg-paper px-4 py-8 text-center text-sm text-muted shadow-[var(--shadow-border)]">
+              Chưa có lưu trú.
+            </p>
+          ) : (
+            world.stays.map((stay) => {
+              const booking = world.bookings.find((item) => item.stayId === stay.id);
+              return (
+                <article
+                  key={stay.id}
+                  className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{getVilla(stay.villaId)?.name ?? stay.villaId}</p>
+                      <p className="mt-1 text-sm text-ink-soft">{stay.guestName}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
+                      {stayGuestLabel(stay.status)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">
+                    {viDateRange(stay.checkIn, stay.checkOut)} · {stay.guests} khách
+                  </p>
+                  <p className="mt-1 text-sm text-muted">{stay.originLabel}</p>
+                  {booking ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Mã <span className="font-medium text-ink">{booking.reference}</span>
+                      {booking.status === "CANCELLED" ? " · đã huỷ" : ""}
+                    </p>
+                  ) : null}
+                </article>
+              );
+            })
+          )}
+        </section>
+      ) : null}
     </main>
   );
 }
 
-function BalanceStatus({
-  obligation,
-  paid,
+function TodayCard({
+  title,
+  count,
+  children,
+  onClick,
 }: {
-  obligation: PaymentObligation;
-  paid: boolean;
+  title: string;
+  count: number;
+  children: ReactNode;
+  onClick?: () => void;
 }) {
   return (
-    <p className={`mt-3 text-sm ${paid ? "text-ink-soft" : "text-lotus-deep"}`}>
-      {balanceLine(obligation, paid)}
-    </p>
-  );
-}
-
-function PaymentButtons({ onRecord }: { onRecord: (outcome: PaymentOutcome) => void }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Kết quả thanh toán</p>
-      <p className="text-xs text-muted">{DEMO_PAY_LABEL}</p>
-      <div className="grid grid-cols-3 gap-2">
-        {(
-          [
-            ["SUCCEEDED", "Thành công"],
-            ["FAILED", "Thất bại"],
-            ["UNKNOWN", "Không xác định"],
-          ] as [PaymentOutcome, string][]
-        ).map(([outcome, label]) => (
-          <Button
-            key={outcome}
-            size="sm"
-            variant={outcome === "SUCCEEDED" ? "primary" : "outline"}
-            className="h-11 px-2 text-xs"
-            onClick={() => onRecord(outcome)}
-          >
-            {label}
-          </Button>
-        ))}
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full rounded-2xl bg-paper p-4 text-left shadow-[var(--shadow-border)]"
+    >
+      <div className="flex items-baseline justify-between">
+        <p className="font-medium">{title}</p>
+        <p className="font-serif text-2xl tabular-nums">{count}</p>
       </div>
-    </div>
-  );
-}
-
-function ResolveUnknown({
-  onResolve,
-}: {
-  onResolve: (outcome: "SUCCEEDED" | "FAILED") => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="text-sm text-lotus-deep">
-        Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.
-      </p>
-      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Gỡ không xác định</p>
-      <p className="text-xs text-muted">{DEMO_PAY_LABEL}</p>
-      <div className="grid grid-cols-2 gap-2">
-        <Button className="w-full" onClick={() => onResolve("SUCCEEDED")}>
-          Thành công
-        </Button>
-        <Button variant="outline" className="w-full" onClick={() => onResolve("FAILED")}>
-          Thất bại
-        </Button>
+      <div className="mt-3 space-y-1 text-ink-soft">
+        {count === 0 ? <p className="text-sm text-muted">Không có.</p> : children}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -291,7 +298,7 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="pt-8">
+    <section className="pt-6">
       <div className="flex items-baseline justify-between">
         <h2 className="font-serif text-2xl">{title}</h2>
         <p className="text-sm text-muted">{count}</p>
@@ -313,13 +320,13 @@ function RequestCard({
   request,
   clock,
   action,
-  extra,
+  worldLines,
   booked,
 }: {
   request: StayRequest;
   clock: Date;
   action?: ReactNode;
-  extra?: ReactNode;
+  worldLines: string[];
   booked?: boolean;
 }) {
   const villa = getVilla(request.villaId);
@@ -350,7 +357,11 @@ function RequestCard({
           Giữ còn {holdCountdown(request.holdExpiresAt, clock)}
         </p>
       ) : null}
-      {extra}
+      {worldLines.map((line) => (
+        <p key={line} className="mt-2 text-sm text-ink-soft">
+          {line}
+        </p>
+      ))}
       {action ? <div className="mt-4">{action}</div> : null}
     </article>
   );

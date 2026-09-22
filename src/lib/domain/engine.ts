@@ -1,5 +1,11 @@
 import { parseISO } from "date-fns";
-import { isAvailable, isHoldActive } from "./availability.ts";
+import {
+  activeCommitments,
+  isAvailable,
+  isHoldActive,
+  openConflictsCovering,
+  rangesOverlap,
+} from "./availability.ts";
 import {
   BUTLER_LINH,
   nightsBetween,
@@ -10,13 +16,18 @@ import {
 import { COMMISSION_RATE, HOLD_MS } from "./config.ts";
 import type {
   Actor,
+  AuditEntry,
   Booking,
   Commission,
   Commitment,
+  ExternalAccommodation,
+  ExternalSource,
+  InventoryConflict,
   PaymentAttempt,
   PaymentObligation,
   PaymentOutcome,
   RefundCase,
+  RefundReason,
   Stay,
   StayRequest,
   World,
@@ -30,11 +41,11 @@ function nid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
 }
 
-function reference(): string {
+function reference(prefix = "STY"): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let token = "";
   for (let i = 0; i < 4; i += 1) token += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return `STY-${token}`;
+  return `${prefix}-${token}`;
 }
 
 function requireRequest(world: World, requestId: string): StayRequest {
@@ -55,9 +66,21 @@ function requireObligation(world: World, obligationId: string): PaymentObligatio
   return obligation;
 }
 
+function requireCommitment(world: World, commitmentId: string): Commitment {
+  const commitment = world.commitments.find((item) => item.id === commitmentId);
+  if (!commitment) throw new DomainError("NOT_FOUND", "Commitment not found");
+  return commitment;
+}
+
 function assertHost(actor: Actor): void {
   if (actor.persona !== "HOST") {
-    throw new DomainError("FORBIDDEN", "Only Host can accept or record payment");
+    throw new DomainError("FORBIDDEN", "Only Host can do this");
+  }
+}
+
+function assertAdmin(actor: Actor): void {
+  if (actor.persona !== "ADMIN") {
+    throw new DomainError("FORBIDDEN", "Only Stayora vận hành can record payment");
   }
 }
 
@@ -85,6 +108,24 @@ function replaceStay(world: World, stay: Stay): World {
   };
 }
 
+function withAudit(
+  world: World,
+  actor: Actor,
+  action: string,
+  objectId: string,
+  reason?: string,
+): World {
+  const entry: AuditEntry = {
+    id: nid("aud"),
+    at: world.now,
+    persona: actor.persona,
+    action,
+    objectId,
+    reason,
+  };
+  return { ...world, auditLog: [entry, ...(world.auditLog ?? [])] };
+}
+
 function hasUnresolvedUnknown(world: World, obligationId: string): boolean {
   return world.attempts.some(
     (attempt) => attempt.obligationId === obligationId && attempt.status === "UNKNOWN",
@@ -98,6 +139,30 @@ function activeHoldFor(world: World, requestId: string): Commitment | undefined 
       commitment.requestId === requestId &&
       isHoldActive(commitment, world.now),
   );
+}
+
+function makeRefund(
+  world: World,
+  input: {
+    requestId: string;
+    attemptId?: string;
+    amount: number;
+    reason: RefundReason;
+  },
+): { world: World; refund: RefundCase } {
+  const refund: RefundCase = {
+    id: nid("ref"),
+    requestId: input.requestId,
+    attemptId: input.attemptId,
+    amount: input.amount,
+    reason: input.reason,
+    status: "OPEN",
+    createdAt: world.now,
+  };
+  return {
+    world: { ...world, refundCases: [refund, ...(world.refundCases ?? [])] },
+    refund,
+  };
 }
 
 export function expireHolds(world: World): World {
@@ -125,7 +190,11 @@ export function expireHolds(world: World): World {
       )
       .map((commitment) => commitment.requestId as string),
   );
-  const bookedRequestIds = new Set(world.bookings.map((booking) => booking.requestId));
+  const bookedRequestIds = new Set(
+    world.bookings
+      .filter((booking) => booking.status === "CONFIRMED")
+      .map((booking) => booking.requestId),
+  );
   const requests = world.requests.map((request) => {
     if (
       request.status === "ACCEPTED" &&
@@ -158,6 +227,8 @@ export function createEmptyWorld(now: string): World {
     obligations: [],
     attempts: [],
     refundCases: [],
+    conflicts: [],
+    auditLog: [],
     externalAccommodations: [],
     sales: [{ id: SALE_MAI, name: "Mai" }],
     butlers: [
@@ -208,7 +279,15 @@ export function createRequest(
     status: "PENDING",
     createdAt: world.now,
   };
-  return { world: { ...world, requests: [request, ...world.requests] }, request };
+  return {
+    world: withAudit(
+      { ...world, requests: [request, ...world.requests] },
+      input.actor,
+      "CREATE_REQUEST",
+      request.id,
+    ),
+    request,
+  };
 }
 
 export function acceptRequest(
@@ -227,7 +306,10 @@ export function acceptRequest(
       status: "CONFLICTED",
       conflictedAt: world.now,
     };
-    return { world: replaceRequest(world, request), request };
+    return {
+      world: withAudit(replaceRequest(world, request), input.actor, "ACCEPT_REQUEST", request.id),
+      request,
+    };
   }
   const holdExpiresAt = new Date(parseISO(world.now).getTime() + HOLD_MS).toISOString();
   const request: StayRequest = {
@@ -246,6 +328,8 @@ export function acceptRequest(
     expiresAt: holdExpiresAt,
     basis: "STAYORA_BOOKING",
     requestId: request.id,
+    createdBy: "HOST",
+    createdAt: world.now,
   };
   const obligations: PaymentObligation[] = [
     ...world.obligations,
@@ -258,11 +342,16 @@ export function acceptRequest(
     })),
   ];
   return {
-    world: {
-      ...replaceRequest(world, request),
-      commitments: [...world.commitments, hold],
-      obligations,
-    },
+    world: withAudit(
+      {
+        ...replaceRequest(world, request),
+        commitments: [...world.commitments, hold],
+        obligations,
+      },
+      input.actor,
+      "ACCEPT_REQUEST",
+      request.id,
+    ),
     request,
   };
 }
@@ -285,13 +374,17 @@ export function rejectRequest(
     status: "DECLINED",
     declinedAt: world.now,
   };
-  return { world: replaceRequest(world, request), request };
+  return {
+    world: withAudit(replaceRequest(world, request), input.actor, "REJECT_REQUEST", request.id),
+    request,
+  };
 }
 
 function fulfillInitialSuccess(
   world: World,
   obligation: PaymentObligation,
   hold: Commitment,
+  actor: Actor,
 ): { world: World; booking: Booking; stay: Stay } {
   const request = requireRequest(world, obligation.requestId);
   const bookingId = nid("bkg");
@@ -339,6 +432,10 @@ function fulfillInitialSuccess(
     basis: "STAYORA_BOOKING",
     requestId: request.id,
     bookingId,
+    stayId,
+    reference: ref,
+    createdBy: actor.persona,
+    createdAt: world.now,
   };
   const commissions: Commission[] = [...world.commissions];
   if (request.saleId) {
@@ -375,28 +472,31 @@ function applyInitialSuccess(
   world: World,
   obligation: PaymentObligation,
   attempt: PaymentAttempt,
+  actor: Actor,
 ): { world: World; booking?: Booking; stay?: Stay; refund?: RefundCase } {
   if (obligation.kind !== "INITIAL") return { world };
-  if (world.bookings.some((booking) => booking.requestId === obligation.requestId)) {
+  if (world.bookings.some((booking) => booking.requestId === obligation.requestId && booking.status === "CONFIRMED")) {
     return { world };
+  }
+  const request = requireRequest(world, obligation.requestId);
+  if (openConflictsCovering(world, request.villaId, request.checkIn, request.checkOut).length > 0) {
+    return makeRefund(world, {
+      requestId: request.id,
+      attemptId: attempt.id,
+      amount: obligation.amount,
+      reason: "INVENTORY_CONFLICT",
+    });
   }
   const hold = activeHoldFor(world, obligation.requestId);
   if (!hold) {
-    const refund: RefundCase = {
-      id: nid("ref"),
-      requestId: obligation.requestId,
+    return makeRefund(world, {
+      requestId: request.id,
       attemptId: attempt.id,
       amount: obligation.amount,
       reason: "HOLD_EXPIRED",
-      status: "OPEN",
-      createdAt: world.now,
-    };
-    return {
-      world: { ...world, refundCases: [refund, ...(world.refundCases ?? [])] },
-      refund,
-    };
+    });
   }
-  return fulfillInitialSuccess(world, obligation, hold);
+  return fulfillInitialSuccess(world, obligation, hold, actor);
 }
 
 type PaymentResult = {
@@ -407,21 +507,38 @@ type PaymentResult = {
   refund?: RefundCase;
 };
 
+function finishPayment(
+  world: World,
+  actor: Actor,
+  action: string,
+  attempt: PaymentAttempt,
+  extra: { booking?: Booking; stay?: Stay; refund?: RefundCase } = {},
+): PaymentResult {
+  return {
+    world: withAudit(world, actor, action, extra.refund?.id ?? extra.booking?.id ?? attempt.id),
+    attempt,
+    booking: extra.booking,
+    stay: extra.stay,
+    refund: extra.refund,
+  };
+}
+
 export function recordPayment(
   world: World,
   input: { obligationId: string; outcome: PaymentOutcome; actor: Actor },
 ): PaymentResult {
   world = expireHolds(world);
-  assertHost(input.actor);
+  assertAdmin(input.actor);
   const obligation = requireObligation(world, input.obligationId);
   if (obligation.kind === "BALANCE") {
-    if (!world.bookings.some((booking) => booking.requestId === obligation.requestId)) {
+    if (!world.bookings.some((booking) => booking.requestId === obligation.requestId && booking.status === "CONFIRMED")) {
       throw new DomainError("NO_BOOKING_YET", "Balance cannot be recorded before a Booking exists");
     }
   }
   if (hasUnresolvedUnknown(world, obligation.id)) {
     throw new DomainError("ATTEMPT_UNRESOLVED", "An unknown attempt must be resolved first");
   }
+  const alreadyPaid = obligationSucceeded(world, obligation.id);
   const attempt: PaymentAttempt = {
     id: nid("att"),
     obligationId: obligation.id,
@@ -430,12 +547,24 @@ export function recordPayment(
   };
   world = { ...world, attempts: [attempt, ...world.attempts] };
 
-  if (input.outcome !== "SUCCEEDED" || obligation.kind !== "INITIAL") {
-    return { world, attempt };
+  if (input.outcome === "SUCCEEDED" && alreadyPaid) {
+    const refunded = makeRefund(world, {
+      requestId: obligation.requestId,
+      attemptId: attempt.id,
+      amount: obligation.amount,
+      reason: "DUPLICATE_PAYMENT",
+    });
+    return finishPayment(refunded.world, input.actor, "RECORD_PAYMENT", attempt, {
+      refund: refunded.refund,
+    });
   }
 
-  const applied = applyInitialSuccess(world, obligation, attempt);
-  return { world: applied.world, attempt, booking: applied.booking, stay: applied.stay, refund: applied.refund };
+  if (input.outcome !== "SUCCEEDED" || obligation.kind !== "INITIAL") {
+    return finishPayment(world, input.actor, "RECORD_PAYMENT", attempt);
+  }
+
+  const applied = applyInitialSuccess(world, obligation, attempt, input.actor);
+  return finishPayment(applied.world, input.actor, "RECORD_PAYMENT", attempt, applied);
 }
 
 export function resolveUnknown(
@@ -443,21 +572,35 @@ export function resolveUnknown(
   input: { attemptId: string; outcome: "SUCCEEDED" | "FAILED"; actor: Actor },
 ): PaymentResult {
   world = expireHolds(world);
-  assertHost(input.actor);
+  assertAdmin(input.actor);
   const current = world.attempts.find((item) => item.id === input.attemptId);
   if (!current) throw new DomainError("NOT_FOUND", "Attempt not found");
   if (current.status !== "UNKNOWN") {
     throw new DomainError("INVALID_TRANSITION", "Only an unknown attempt can be resolved");
   }
+  const obligation = requireObligation(world, current.obligationId);
+  const alreadyPaid = obligationSucceeded(world, obligation.id);
   const attempt: PaymentAttempt = { ...current, status: input.outcome, at: world.now };
   world = {
     ...world,
     attempts: world.attempts.map((item) => (item.id === attempt.id ? attempt : item)),
   };
-  if (input.outcome !== "SUCCEEDED") return { world, attempt };
-  const obligation = requireObligation(world, attempt.obligationId);
-  const applied = applyInitialSuccess(world, obligation, attempt);
-  return { world: applied.world, attempt, booking: applied.booking, stay: applied.stay, refund: applied.refund };
+  if (input.outcome !== "SUCCEEDED") {
+    return finishPayment(world, input.actor, "RESOLVE_UNKNOWN", attempt);
+  }
+  if (alreadyPaid) {
+    const refunded = makeRefund(world, {
+      requestId: obligation.requestId,
+      attemptId: attempt.id,
+      amount: obligation.amount,
+      reason: "DUPLICATE_PAYMENT",
+    });
+    return finishPayment(refunded.world, input.actor, "RESOLVE_UNKNOWN", attempt, {
+      refund: refunded.refund,
+    });
+  }
+  const applied = applyInitialSuccess(world, obligation, attempt, input.actor);
+  return finishPayment(applied.world, input.actor, "RESOLVE_UNKNOWN", attempt, applied);
 }
 
 export function checkInStay(
@@ -471,7 +614,10 @@ export function checkInStay(
     throw new DomainError("INVALID_TRANSITION", "Check-in is only possible from scheduled");
   }
   const updated: Stay = { ...stay, status: "CHECKED_IN", checkedInAt: world.now };
-  return { world: replaceStay(world, updated), stay: updated };
+  return {
+    world: withAudit(replaceStay(world, updated), input.actor, "CHECK_IN", updated.id),
+    stay: updated,
+  };
 }
 
 export function checkOutStay(
@@ -494,7 +640,12 @@ export function checkOutStay(
     item.stayId === stay.id ? { ...item, status: "EARNED" as const } : item,
   );
   return {
-    world: { ...replaceStay(world, completed), commissions },
+    world: withAudit(
+      { ...replaceStay(world, completed), commissions },
+      input.actor,
+      "CHECK_OUT",
+      completed.id,
+    ),
     stay: completed,
   };
 }
@@ -521,7 +672,16 @@ export function markDidNotOccur(
     didNotOccurReason: input.reason.trim(),
     didNotOccurAt: world.now,
   };
-  return { world: replaceStay(world, updated), stay: updated };
+  return {
+    world: withAudit(
+      replaceStay(world, updated),
+      input.actor,
+      "DID_NOT_OCCUR",
+      updated.id,
+      input.reason.trim(),
+    ),
+    stay: updated,
+  };
 }
 
 export function reportIncident(
@@ -534,22 +694,317 @@ export function reportIncident(
   }
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
+  const incident = {
+    id: nid("inc"),
+    stayId: stay.id,
+    villaId: stay.villaId,
+    note: input.note.trim(),
+    hasPhoto: input.hasPhoto,
+    createdAt: world.now,
+    createdBy: "BUTLER" as const,
+  };
   return {
-    world: {
-      ...world,
-      incidents: [
-        {
-          id: nid("inc"),
-          stayId: stay.id,
-          villaId: stay.villaId,
-          note: input.note.trim(),
-          hasPhoto: input.hasPhoto,
-          createdAt: world.now,
-          createdBy: "BUTLER",
-        },
-        ...world.incidents,
-      ],
-    },
+    world: withAudit(
+      { ...world, incidents: [incident, ...world.incidents] },
+      input.actor,
+      "REPORT_INCIDENT",
+      incident.id,
+    ),
+  };
+}
+
+export function recordExternalBooking(
+  world: World,
+  input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+    actor: Actor;
+  },
+): { world: World; stay: Stay; commitment: Commitment; conflict?: InventoryConflict } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  requireVilla(input.villaId);
+  const nights = nightsBetween(input.checkIn, input.checkOut);
+  if (nights < 1) throw new DomainError("INVALID", "Check-out must be after check-in");
+  const overlapping = activeCommitments(world).filter(
+    (commitment) =>
+      commitment.villaId === input.villaId &&
+      rangesOverlap(input.checkIn, input.checkOut, commitment.start, commitment.end),
+  );
+  const external: ExternalAccommodation = {
+    id: nid("ext"),
+    villaId: input.villaId,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    guests: input.guests,
+    guestName: input.guestName?.trim() || undefined,
+    source: input.source,
+  };
+  const stayId = nid("sty");
+  const commitmentId = nid("cmt");
+  const ref = reference("EXT");
+  const butler = world.butlers.find((person) => person.villaIds?.includes(input.villaId));
+  const stay: Stay = {
+    id: stayId,
+    villaId: input.villaId,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    guests: input.guests,
+    guestName: input.guestName?.trim() || "Khách",
+    origin: "EXTERNAL",
+    originLabel: input.source,
+    status: "SCHEDULED",
+    assignedButlerId: butler?.id,
+  };
+  const commitment: Commitment = {
+    id: commitmentId,
+    villaId: input.villaId,
+    start: input.checkIn,
+    end: input.checkOut,
+    kind: "CONFIRMED_ACCOMMODATION",
+    status: "ACTIVE",
+    basis: "EXTERNAL",
+    stayId,
+    externalId: external.id,
+    source: input.source,
+    reference: ref,
+    createdBy: "HOST",
+    createdAt: world.now,
+  };
+  let conflicts = world.conflicts ?? [];
+  let conflict: InventoryConflict | undefined;
+  if (overlapping.length > 0) {
+    conflict = {
+      id: nid("cnf"),
+      villaId: input.villaId,
+      commitmentIds: [...overlapping.map((item) => item.id), commitmentId],
+      status: "OPEN",
+      createdAt: world.now,
+    };
+    conflicts = [conflict, ...conflicts];
+  }
+  return {
+    world: withAudit(
+      {
+        ...world,
+        externalAccommodations: [external, ...world.externalAccommodations],
+        stays: [stay, ...world.stays],
+        commitments: [...world.commitments, commitment],
+        conflicts,
+      },
+      input.actor,
+      "RECORD_EXTERNAL",
+      stay.id,
+    ),
+    stay,
+    commitment,
+    conflict,
+  };
+}
+
+export function createBlock(
+  world: World,
+  input: {
+    villaId: string;
+    start: string;
+    end: string;
+    blockKind: "OWNER" | "MAINTENANCE";
+    note?: string;
+    actor: Actor;
+  },
+): { world: World; commitment: Commitment } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  requireVilla(input.villaId);
+  if (nightsBetween(input.start, input.end) < 1) {
+    throw new DomainError("INVALID", "End must be after start");
+  }
+  if (!isAvailable(world, input.villaId, input.start, input.end)) {
+    throw new DomainError("NOT_AVAILABLE", "Not available for these dates");
+  }
+  const commitment: Commitment = {
+    id: nid("blk"),
+    villaId: input.villaId,
+    start: input.start,
+    end: input.end,
+    kind: "AVAILABILITY_BLOCK",
+    status: "ACTIVE",
+    basis: "BLOCK",
+    blockKind: input.blockKind,
+    note: input.note?.trim() || undefined,
+    createdBy: "HOST",
+    createdAt: world.now,
+  };
+  return {
+    world: withAudit(
+      { ...world, commitments: [...world.commitments, commitment] },
+      input.actor,
+      "CREATE_BLOCK",
+      commitment.id,
+    ),
+    commitment,
+  };
+}
+
+export function releaseBlock(
+  world: World,
+  input: { commitmentId: string; actor: Actor },
+): { world: World; commitment: Commitment } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  const current = requireCommitment(world, input.commitmentId);
+  if (current.kind !== "AVAILABILITY_BLOCK") {
+    throw new DomainError("INVALID_TRANSITION", "Only an availability block can be released");
+  }
+  if (current.status !== "ACTIVE") {
+    throw new DomainError("INVALID_TRANSITION", "Block is already ended");
+  }
+  const commitment: Commitment = {
+    ...current,
+    status: "ENDED",
+    endedReason: "RELEASED",
+  };
+  return {
+    world: withAudit(
+      {
+        ...world,
+        commitments: world.commitments.map((item) =>
+          item.id === commitment.id ? commitment : item,
+        ),
+      },
+      input.actor,
+      "RELEASE_BLOCK",
+      commitment.id,
+    ),
+    commitment,
+  };
+}
+
+export function resolveConflict(
+  world: World,
+  input: {
+    conflictId: string;
+    keepCommitmentId: string;
+    endCommitmentId: string;
+    reason: string;
+    actor: Actor;
+  },
+): { world: World; conflict: InventoryConflict; refund?: RefundCase } {
+  world = expireHolds(world);
+  assertAdmin(input.actor);
+  if (!input.reason.trim()) throw new DomainError("MISSING_REASON", "A reason is required");
+  const current = (world.conflicts ?? []).find((item) => item.id === input.conflictId);
+  if (!current) throw new DomainError("NOT_FOUND", "Conflict not found");
+  if (current.status !== "OPEN") {
+    throw new DomainError("INVALID_TRANSITION", "Conflict is already resolved");
+  }
+  if (input.keepCommitmentId === input.endCommitmentId) {
+    throw new DomainError("INVALID", "Keep and end must be different commitments");
+  }
+  if (
+    !current.commitmentIds.includes(input.keepCommitmentId) ||
+    !current.commitmentIds.includes(input.endCommitmentId)
+  ) {
+    throw new DomainError("INVALID", "Commitments must belong to the conflict");
+  }
+  const ending = requireCommitment(world, input.endCommitmentId);
+  if (ending.status !== "ACTIVE") {
+    throw new DomainError("INVALID_TRANSITION", "Commitment is already ended");
+  }
+  const ended: Commitment = { ...ending, status: "ENDED", endedReason: "RELEASED" };
+  let bookings = world.bookings;
+  let refund: RefundCase | undefined;
+  if (ending.kind === "CONFIRMED_ACCOMMODATION" && ending.basis === "STAYORA_BOOKING" && ending.bookingId) {
+    const booking = world.bookings.find((item) => item.id === ending.bookingId);
+    if (booking && booking.status === "CONFIRMED") {
+      const paid = world.obligations
+        .filter((item) => item.requestId === booking.requestId)
+        .reduce((sum, obligation) => {
+          return obligationSucceeded(world, obligation.id) ? sum + obligation.amount : sum;
+        }, 0);
+      const succeededAttempt = world.attempts.find(
+        (item) =>
+          item.status === "SUCCEEDED" &&
+          world.obligations.some(
+            (obligation) =>
+              obligation.id === item.obligationId && obligation.requestId === booking.requestId,
+          ),
+      );
+      const refunded = makeRefund(world, {
+        requestId: booking.requestId,
+        attemptId: succeededAttempt?.id,
+        amount: paid || booking.total,
+        reason: "CONFLICT_RESOLUTION",
+      });
+      world = refunded.world;
+      refund = refunded.refund;
+      bookings = world.bookings.map((item) =>
+        item.id === booking.id
+          ? { ...item, status: "CANCELLED" as const, cancelledAt: world.now }
+          : item,
+      );
+    }
+  }
+  const conflict: InventoryConflict = {
+    ...current,
+    status: "RESOLVED",
+    resolvedAt: world.now,
+    keepCommitmentId: input.keepCommitmentId,
+    endCommitmentId: input.endCommitmentId,
+    reason: input.reason.trim(),
+  };
+  return {
+    world: withAudit(
+      {
+        ...world,
+        bookings,
+        commitments: world.commitments.map((item) => (item.id === ended.id ? ended : item)),
+        conflicts: (world.conflicts ?? []).map((item) => (item.id === conflict.id ? conflict : item)),
+      },
+      input.actor,
+      "RESOLVE_CONFLICT",
+      conflict.id,
+      input.reason.trim(),
+    ),
+    conflict,
+    refund,
+  };
+}
+
+export function markRefundDone(
+  world: World,
+  input: { refundId: string; note: string; actor: Actor },
+): { world: World; refund: RefundCase } {
+  world = expireHolds(world);
+  assertAdmin(input.actor);
+  if (!input.note.trim()) throw new DomainError("MISSING_REASON", "A note is required");
+  const current = (world.refundCases ?? []).find((item) => item.id === input.refundId);
+  if (!current) throw new DomainError("NOT_FOUND", "Refund case not found");
+  if (current.status !== "OPEN") {
+    throw new DomainError("INVALID_TRANSITION", "Refund is already done");
+  }
+  const refund: RefundCase = {
+    ...current,
+    status: "DONE",
+    note: input.note.trim(),
+    resolvedAt: world.now,
+  };
+  return {
+    world: withAudit(
+      {
+        ...world,
+        refundCases: world.refundCases.map((item) => (item.id === refund.id ? refund : item)),
+      },
+      input.actor,
+      "MARK_REFUND_DONE",
+      refund.id,
+      input.note.trim(),
+    ),
+    refund,
   };
 }
 
@@ -589,4 +1044,29 @@ export function obligationSucceeded(world: World, obligationId: string): boolean
   return world.attempts.some(
     (attempt) => attempt.obligationId === obligationId && attempt.status === "SUCCEEDED",
   );
+}
+
+export function hostToday(world: World, date: string) {
+  const pending = world.requests.filter((item) => item.status === "PENDING");
+  const lists = opsLists(world, date);
+  const openConflicts = (world.conflicts ?? []).filter((item) => item.status === "OPEN");
+  const nowMs = parseISO(world.now).getTime();
+  const horizon = nowMs + 48 * 60 * 60 * 1000;
+  const balancesDue = world.obligations.filter((obligation) => {
+    if (obligation.kind !== "BALANCE") return false;
+    if (obligationSucceeded(world, obligation.id)) return false;
+    const booking = world.bookings.find(
+      (item) => item.requestId === obligation.requestId && item.status === "CONFIRMED",
+    );
+    if (!booking) return false;
+    const due = parseISO(obligation.dueAt).getTime();
+    return due >= nowMs && due <= horizon;
+  });
+  return {
+    pending,
+    arriving: lists.arriving,
+    departing: lists.departing,
+    openConflicts,
+    balancesDue,
+  };
 }

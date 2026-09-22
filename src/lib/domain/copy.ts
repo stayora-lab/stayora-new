@@ -2,8 +2,16 @@ import { format, parseISO } from "date-fns";
 import { getVilla } from "../villas.ts";
 import { paymentPlanLabel } from "./catalog.ts";
 import { TIMEZONE } from "./config.ts";
+import { obligationSucceeded } from "./engine.ts";
 import { DomainError } from "./types.ts";
-import type { CommissionStatus, PaymentObligation, RequestStatus, StayRequest } from "./types.ts";
+import type {
+  Commitment,
+  CommissionStatus,
+  PaymentObligation,
+  RequestStatus,
+  StayRequest,
+  World,
+} from "./types.ts";
 
 function formatVnd(amount: number): string {
   return `₫${amount.toLocaleString("en-US")}`;
@@ -32,9 +40,76 @@ export function formatDueAt(iso: string): string {
   return `${get("hour")}:${get("minute")} ${get("day")}/${get("month")}/${get("year")}`;
 }
 
+export function formatIctTime(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(parseISO(iso));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("hour")}:${get("minute")}`;
+}
+
 export function balanceLine(obligation: PaymentObligation, paid: boolean): string {
   if (paid) return "Đã thanh toán đủ";
   return `Còn lại ${formatVnd(obligation.amount)} — hạn ${formatDueAt(obligation.dueAt)}`;
+}
+
+export function hostPaymentStatus(world: World, requestId: string): string[] {
+  const initial = world.obligations.find(
+    (item) => item.requestId === requestId && item.kind === "INITIAL",
+  );
+  const balance = world.obligations.find(
+    (item) => item.requestId === requestId && item.kind === "BALANCE",
+  );
+  const unknown = world.attempts.find(
+    (item) =>
+      (item.obligationId === initial?.id || item.obligationId === balance?.id) &&
+      item.status === "UNKNOWN",
+  );
+  if (unknown) return ["Đang xác minh thanh toán"];
+  const lines: string[] = [];
+  if (initial && obligationSucceeded(world, initial.id)) {
+    lines.push(balance ? "Đã nhận 50%" : "Đã nhận 100%");
+  }
+  if (balance) {
+    lines.push(balanceLine(balance, obligationSucceeded(world, balance.id)));
+  }
+  return lines;
+}
+
+export function commitmentCellLabel(commitment: Commitment): string {
+  if (commitment.kind === "HOLD") {
+    const until = commitment.expiresAt ? formatIctTime(commitment.expiresAt) : "";
+    return until ? `Đang giữ · hết hạn ${until}` : "Đang giữ";
+  }
+  if (commitment.kind === "AVAILABILITY_BLOCK") {
+    return commitment.blockKind === "MAINTENANCE" ? "Bảo trì" : "Chủ nhà chặn";
+  }
+  if (commitment.basis === "EXTERNAL") {
+    return `Đặt ngoài · ${commitment.source ?? "Khác"}`;
+  }
+  return "Đặt qua Stayora";
+}
+
+export function personaLabel(persona: string): string {
+  switch (persona) {
+    case "GUEST":
+      return "Khách";
+    case "SALE":
+      return "Sale";
+    case "HOST":
+      return "Host";
+    case "BUTLER":
+      return "Butler";
+    case "BQL":
+      return "BQL";
+    case "ADMIN":
+      return "Stayora vận hành";
+    default:
+      return persona;
+  }
 }
 
 export function quoteText(request: {
@@ -100,6 +175,21 @@ export function requestStatusVi(status: RequestStatus): string {
 
 export function commissionStatusVi(status: CommissionStatus): string {
   return status === "EARNED" ? "Đã đạt" : "Chờ";
+}
+
+export function refundReasonVi(reason: string): string {
+  switch (reason) {
+    case "HOLD_EXPIRED":
+      return "Hết hạn giữ chỗ";
+    case "DUPLICATE_PAYMENT":
+      return "Thanh toán trùng";
+    case "INVENTORY_CONFLICT":
+      return "Xung đột lịch";
+    case "CONFLICT_RESOLUTION":
+      return "Giải quyết xung đột";
+    default:
+      return reason;
+  }
 }
 
 export function domainMessageVi(error: unknown): string {

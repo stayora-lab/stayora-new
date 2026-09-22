@@ -1,11 +1,12 @@
-export type Persona = "GUEST" | "SALE" | "HOST" | "BUTLER" | "BQL";
+export type Persona = "GUEST" | "SALE" | "HOST" | "BUTLER" | "BQL" | "ADMIN";
 
 export type Actor =
   | { persona: "GUEST" }
   | { persona: "SALE"; saleId: string }
   | { persona: "HOST" }
   | { persona: "BUTLER"; butlerId: string }
-  | { persona: "BQL" };
+  | { persona: "BQL" }
+  | { persona: "ADMIN" };
 
 export type RequestSource = "GUEST" | "SALE";
 
@@ -38,6 +39,14 @@ export type BlockKind = "OWNER" | "MAINTENANCE";
 export type CommissionStatus = "PENDING" | "EARNED";
 
 export type PaymentOutcome = "SUCCEEDED" | "FAILED" | "UNKNOWN";
+
+export type ExternalSource = "Airbnb" | "Booking.com" | "Zalo" | "Khách quen" | "Khác";
+
+export type RefundReason =
+  | "HOLD_EXPIRED"
+  | "DUPLICATE_PAYMENT"
+  | "INVENTORY_CONFLICT"
+  | "CONFLICT_RESOLUTION";
 
 export type StayRequest = {
   id: string;
@@ -74,8 +83,9 @@ export type Booking = {
   nights: number;
   total: number;
   saleId?: string;
-  status: "CONFIRMED";
+  status: "CONFIRMED" | "CANCELLED";
   confirmedAt: string;
+  cancelledAt?: string;
 };
 
 export type Stay = {
@@ -111,6 +121,13 @@ export type Commitment = {
   blockKind?: BlockKind;
   requestId?: string;
   bookingId?: string;
+  stayId?: string;
+  externalId?: string;
+  source?: ExternalSource;
+  note?: string;
+  reference?: string;
+  createdBy?: Persona;
+  createdAt?: string;
 };
 
 export type PaymentObligation = {
@@ -131,11 +148,13 @@ export type PaymentAttempt = {
 export type RefundCase = {
   id: string;
   requestId: string;
-  attemptId: string;
+  attemptId?: string;
   amount: number;
-  reason: "HOLD_EXPIRED";
-  status: "OPEN";
+  reason: RefundReason;
+  status: "OPEN" | "DONE";
   createdAt: string;
+  note?: string;
+  resolvedAt?: string;
 };
 
 export type ExternalAccommodation = {
@@ -144,7 +163,29 @@ export type ExternalAccommodation = {
   checkIn: string;
   checkOut: string;
   guests: number;
-  source: "Airbnb" | "Booking.com" | "Zalo" | "Khách quen";
+  guestName?: string;
+  source: ExternalSource;
+};
+
+export type InventoryConflict = {
+  id: string;
+  villaId: string;
+  commitmentIds: string[];
+  status: "OPEN" | "RESOLVED";
+  createdAt: string;
+  resolvedAt?: string;
+  keepCommitmentId?: string;
+  endCommitmentId?: string;
+  reason?: string;
+};
+
+export type AuditEntry = {
+  id: string;
+  at: string;
+  persona: Persona;
+  action: string;
+  objectId: string;
+  reason?: string;
 };
 
 export type Incident = {
@@ -183,6 +224,8 @@ export type World = {
   obligations: PaymentObligation[];
   attempts: PaymentAttempt[];
   refundCases: RefundCase[];
+  conflicts: InventoryConflict[];
+  auditLog: AuditEntry[];
   externalAccommodations: ExternalAccommodation[];
   sales: Person[];
   butlers: Person[];
