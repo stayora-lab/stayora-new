@@ -1,4 +1,4 @@
-import { PILOT_SEED, type PilotVilla } from "./pilot-data.ts";
+import { PILOT_SEED, DESTINATION_NAME, type PilotVilla } from "./pilot-data.ts";
 
 export type StayImage = {
   src: string;
@@ -42,7 +42,7 @@ export type Villa = {
 };
 
 export const DESTINATION = {
-  name: "Oceanami",
+  name: DESTINATION_NAME,
   region: "Phước Hải, Bà Rịa–Vũng Tàu",
   country: "Việt Nam",
   travel: "About 2½ hours from Ho Chi Minh City by car",

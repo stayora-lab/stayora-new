@@ -14,7 +14,7 @@ import { applyWorldAction } from "./world-actions.ts";
 
 const HOST: Actor = { persona: "HOST" };
 const NOW = "2026-09-22T03:00:00.000Z";
-const HOST_ROLE = { persona: "HOST" as const, hostId: "host-oceanami" };
+const HOST_ROLE = { persona: "HOST" as const, hostId: "host-b" };
 
 function assertNoOverlap(world: World) {
   const pairs = overlappingActive(world);

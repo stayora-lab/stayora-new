@@ -19,6 +19,7 @@ import type { StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla, villasForHost } from "@/lib/villas";
+import { visibleGuestName } from "@/lib/privacy";
 
 export const Route = createFileRoute("/host")({
   component: HostPage,
@@ -47,6 +48,7 @@ function HostPage() {
   const summary = hostToday(world, today);
   const mine = villasForHost(hostId);
   const mineIds = new Set(mine.map((villa) => villa.id));
+  const hostRole = { persona: "HOST" as const, hostId };
   const todayPending = summary.pending.filter((item) => mineIds.has(item.villaId));
   const todayArriving = summary.arriving.filter((item) => mineIds.has(item.villaId));
   const todayDeparting = summary.departing.filter((item) => mineIds.has(item.villaId));
@@ -117,21 +119,25 @@ function HostPage() {
           >
             {todayPending.map((request) => (
               <p key={request.id} className="text-sm">
-                {getVilla(request.villaId)?.name} · {request.guestName}
+                {getVilla(request.villaId)?.name} ·{" "}
+                {visibleGuestName(
+                  { guestName: request.guestName, villaId: request.villaId, saleId: request.saleId },
+                  hostRole,
+                )}
               </p>
             ))}
           </TodayCard>
           <TodayCard title="Khách đến hôm nay" count={todayArriving.length} onClick={() => setTab("stays")}>
             {todayArriving.map((stay) => (
               <p key={stay.id} className="text-sm">
-                {getVilla(stay.villaId)?.name} · {stay.guestName} · {stay.originLabel}
+                {getVilla(stay.villaId)?.name} · {visibleGuestName(stay, hostRole)} · {stay.originLabel}
               </p>
             ))}
           </TodayCard>
           <TodayCard title="Khách đi hôm nay" count={todayDeparting.length} onClick={() => setTab("stays")}>
             {todayDeparting.map((stay) => (
               <p key={stay.id} className="text-sm">
-                {getVilla(stay.villaId)?.name} · {stay.guestName}
+                {getVilla(stay.villaId)?.name} · {visibleGuestName(stay, hostRole)}
               </p>
             ))}
           </TodayCard>
@@ -233,7 +239,7 @@ function HostPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{getVilla(stay.villaId)?.name ?? stay.villaId}</p>
-                      <p className="mt-1 text-sm text-ink-soft">{stay.guestName}</p>
+                      <p className="mt-1 text-sm text-ink-soft">{visibleGuestName(stay, hostRole)}</p>
                     </div>
                     <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
                       {stayGuestLabel(stay.status)}
@@ -332,15 +338,22 @@ function RequestCard({
   booked?: boolean;
 }) {
   const villa = getVilla(request.villaId);
-  const source = request.source === "SALE" ? "Sale · Mai" : "Khách trực tiếp";
+  const sales = useBookingStore((state) => state.world.sales);
+  const hostId = useBookingStore((state) => state.hostId);
+  const sale = request.saleId ? sales.find((person) => person.id === request.saleId) : undefined;
+  const source = request.source === "SALE" ? `Sale · ${sale?.name ?? "Sale"}` : "Khách trực tiếp";
   const plan = paymentPlanLabel(request.total, request.checkIn, request.createdAt);
+  const guestLabel = visibleGuestName(
+    { guestName: request.guestName, villaId: request.villaId, saleId: request.saleId },
+    { persona: "HOST", hostId },
+  );
 
   return (
     <article className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-medium">{villa?.name ?? request.villaId}</p>
-          <p className="mt-1 text-sm text-ink-soft">{request.guestName}</p>
+          <p className="mt-1 text-sm text-ink-soft">{guestLabel}</p>
         </div>
         <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
           {booked ? "Đã xác nhận" : requestStatusVi(request.status)}

@@ -186,9 +186,13 @@ export function DemoPanel() {
           variant="outline"
           size="sm"
           className="mt-2 w-full"
-          onClick={() => void resetWorld()}
+          onClick={() => {
+            if (window.confirm("Nạp lại dữ liệu thử? Dữ liệu phiên này sẽ bị thay.")) {
+              void resetWorld();
+            }
+          }}
         >
-          Reset dữ liệu
+          Nạp lại dữ liệu thử
         </Button>
       ) : null}
     </div>
@@ -210,9 +214,6 @@ export function RoleGate({ allow, children }: { allow: Persona[]; children: Reac
         <p className="mt-3 text-ink-soft">
           Trang này không mở bằng vai đang lưu trên thiết bị. Dùng link được gửi cho bạn.
         </p>
-        <Button asChild className="mt-8">
-          <Link to="/admin/links">Xem danh sách link</Link>
-        </Button>
       </main>
     );
   }

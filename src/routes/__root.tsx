@@ -26,7 +26,7 @@ function HydrateStore() {
     const boot = async () => {
       if (!persistApi.hasHydrated()) await persistApi.rehydrate();
       if (cancelled) return;
-      const role = applyVaiFromUrl();
+      const role = await applyVaiFromUrl();
       await refreshWorld();
       if (cancelled || !role) return;
       const dest = workspaceFor(role.persona);

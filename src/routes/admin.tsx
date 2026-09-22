@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
@@ -16,6 +16,7 @@ import type { PaymentOutcome } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
+import { visibleGuestName } from "@/lib/privacy";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -37,8 +38,10 @@ function AdminPage() {
   const adminResolveUnknown = useBookingStore((state) => state.adminResolveUnknown);
   const adminMarkRefundDone = useBookingStore((state) => state.adminMarkRefundDone);
   const adminResolveConflict = useBookingStore((state) => state.adminResolveConflict);
+  const resetWorld = useBookingStore((state) => state.resetWorld);
   const [tab, setTab] = useState<AdminTab>("pay");
   const [error, setError] = useState<string | null>(null);
+  const [reseedOpen, setReseedOpen] = useState(false);
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundNote, setRefundNote] = useState("");
   const [conflictId, setConflictId] = useState<string | null>(null);
@@ -72,6 +75,7 @@ function AdminPage() {
   const openRefunds = (world.refundCases ?? []).filter((item) => item.status === "OPEN");
   const openConflicts = (world.conflicts ?? []).filter((item) => item.status === "OPEN");
   const log = [...(world.auditLog ?? [])];
+  const role = { persona: "ADMIN" as const };
 
   async function run(action: () => Promise<void>) {
     setError(null);
@@ -93,6 +97,14 @@ function AdminPage() {
             Stayora vận hành
           </p>
           <h1 className="mt-1 font-serif text-title">Thanh toán, hoàn tiền, xung đột.</h1>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => setReseedOpen(true)}>
+              Nạp lại dữ liệu thử
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/links">Link vai trò</Link>
+            </Button>
+          </div>
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
         </div>
         <div className="sticky top-16 z-20 border-t border-border bg-cream/95 backdrop-blur-md">
@@ -127,7 +139,14 @@ function AdminPage() {
                   className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
                 >
                   <p className="font-medium">{villa?.name ?? obligation.requestId}</p>
-                  <p className="mt-1 text-sm text-ink-soft">{request?.guestName}</p>
+                  <p className="mt-1 text-sm text-ink-soft">
+                    {request
+                      ? visibleGuestName(
+                          { guestName: request.guestName, villaId: request.villaId, saleId: request.saleId },
+                          role,
+                        )
+                      : null}
+                  </p>
                   <p className="mt-2 text-sm">
                     {obligation.kind === "INITIAL" ? "Đợt đầu" : "Phần còn lại"} ·{" "}
                     <span className="font-semibold tabular-nums">{formatVnd(obligation.amount)}</span>
@@ -191,7 +210,14 @@ function AdminPage() {
                   <p className="font-medium">
                     {request ? getVilla(request.villaId)?.name : refund.requestId}
                   </p>
-                  <p className="mt-1 text-sm text-ink-soft">{request?.guestName}</p>
+                  <p className="mt-1 text-sm text-ink-soft">
+                    {request
+                      ? visibleGuestName(
+                          { guestName: request.guestName, villaId: request.villaId, saleId: request.saleId },
+                          role,
+                        )
+                      : null}
+                  </p>
                   <p className="mt-3 font-semibold tabular-nums">{formatVnd(refund.amount)}</p>
                   <p className="mt-1 text-sm text-muted">{refundReasonVi(refund.reason)}</p>
                   <Button
@@ -371,6 +397,33 @@ function AdminPage() {
                 </Button>
               </>
             ) : null}
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+      <Drawer.Root open={reseedOpen} onOpenChange={setReseedOpen}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-50 bg-ink/40" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-paper p-5 pb-10">
+            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-sand" />
+            <p className="font-serif text-2xl">Nạp lại dữ liệu thử</p>
+            <p className="mt-2 text-sm text-ink-soft">
+              Nạp lại sẽ thay toàn bộ dữ liệu phiên này bằng file thử. Các yêu cầu đang mở sẽ
+              mất.
+            </p>
+            <div className="mt-6 flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setReseedOpen(false)}>
+                Huỷ
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  run(() => resetWorld());
+                  setReseedOpen(false);
+                }}
+              >
+                Nạp lại
+              </Button>
+            </div>
           </Drawer.Content>
         </Drawer.Portal>
       </Drawer.Root>

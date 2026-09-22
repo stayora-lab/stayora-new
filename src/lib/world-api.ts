@@ -22,12 +22,21 @@ export const fetchWorld = createServerFn({ method: "GET" }).handler(
   },
 );
 
+export const resolveRole = createServerFn({ method: "POST" })
+  .validator((input: { vai?: string; key?: string }) => input)
+  .handler(async ({ data }): Promise<RoleSession> => {
+    const { authorizeRole } = await import("./authorize.ts");
+    return authorizeRole(data.vai, data.key);
+  });
+
 export const submitWorldAction = createServerFn({ method: "POST" })
-  .validator((input: { action: WorldAction; role: RoleSession }) => input)
+  .validator((input: { action: WorldAction; vai?: string; key?: string }) => input)
   .handler(async ({ data }): Promise<ActionResponse> => {
     const { runWorldAction } = await import("./world.server.ts");
+    const { authorizeRole } = await import("./authorize.ts");
+    const role = authorizeRole(data.vai, data.key);
     try {
-      const result = await runWorldAction(data.action, data.role);
+      const result = await runWorldAction(data.action, role);
       return { ok: true, ...result };
     } catch (error) {
       const code =

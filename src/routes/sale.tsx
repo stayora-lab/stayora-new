@@ -23,6 +23,7 @@ import {
 import { useBookingStore } from "@/lib/store";
 import { formatVnd, isIsoDate, nightsBetween } from "@/lib/stay";
 import { villas, type Villa } from "@/lib/villas";
+import { visibleGuestName } from "@/lib/privacy";
 
 export const Route = createFileRoute("/sale")({
   component: SalePage,
@@ -38,6 +39,7 @@ const TABS: { id: SaleTab; label: string }[] = [
 
 function SalePage() {
   const saleId = useBookingStore((state) => state.saleId) ?? SALE_MAI;
+  const saleRole = { persona: "SALE" as const, saleId };
   const world = useBookingStore((state) => state.world);
   const search = useBookingStore((state) => state.saleSearch);
   const setSaleSearch = useBookingStore((state) => state.setSaleSearch);
@@ -262,7 +264,10 @@ function SalePage() {
                     </StatusPill>
                   </div>
                   <p className="mt-3 text-sm">
-                    {request.guestName}
+                    {visibleGuestName(
+                      { guestName: request.guestName, villaId: request.villaId, saleId: request.saleId },
+                      saleRole,
+                    )}
                     <span className="text-muted"> · {formatVnd(request.total)}</span>
                   </p>
                   {request.status === "ACCEPTED" && !booking && request.holdExpiresAt ? (
@@ -318,7 +323,14 @@ function SalePage() {
                       <p className="font-medium">{villa?.name ?? booking?.villaId}</p>
                       <p className="text-sm text-muted">
                         {booking
-                          ? `${viDateRange(booking.checkIn, booking.checkOut)} · ${booking.guestName}`
+                          ? `${viDateRange(booking.checkIn, booking.checkOut)} · ${visibleGuestName(
+                              {
+                                guestName: booking.guestName,
+                                villaId: booking.villaId,
+                                saleId: booking.saleId,
+                              },
+                              saleRole,
+                            )}`
                           : item.bookingId}
                       </p>
                     </div>

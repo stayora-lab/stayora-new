@@ -1,6 +1,13 @@
 {
-  "hosts": [{ "id": "host-oceanami", "name": "Oceanami" }],
-  "sales": [{ "id": "sale-mai", "name": "Mai" }],
+  "hosts": [
+    { "id": "host-a", "name": "Chủ nhà A" },
+    { "id": "host-b", "name": "Chủ nhà B" }
+  ],
+  "sales": [
+    { "id": "sale-mai", "name": "Mai" },
+    { "id": "sale-b", "name": "Sale B" },
+    { "id": "sale-c", "name": "Sale C" }
+  ],
   "butlers": [
     {
       "id": "butler-linh",
@@ -19,7 +26,7 @@
     {
       "id": "sao-bien",
       "name": "Villa Sao Biển",
-      "hostId": "host-oceanami",
+      "hostId": "host-a",
       "bedrooms": 4,
       "sleeps": 8,
       "nightlyPrice": 16500000,
@@ -34,7 +41,7 @@
     {
       "id": "huong-tram",
       "name": "Villa Hương Tràm",
-      "hostId": "host-oceanami",
+      "hostId": "host-a",
       "bedrooms": 3,
       "sleeps": 6,
       "nightlyPrice": 9400000,
@@ -49,7 +56,7 @@
     {
       "id": "minh-dam",
       "name": "Villa Minh Đạm",
-      "hostId": "host-oceanami",
+      "hostId": "host-a",
       "bedrooms": 5,
       "sleeps": 10,
       "nightlyPrice": 22400000,
@@ -64,7 +71,7 @@
     {
       "id": "sen-hong",
       "name": "Villa Sen Hồng",
-      "hostId": "host-oceanami",
+      "hostId": "host-b",
       "bedrooms": 2,
       "sleeps": 4,
       "nightlyPrice": 6200000,
@@ -74,7 +81,7 @@
     {
       "id": "gio-bien",
       "name": "Villa Gió Biển",
-      "hostId": "host-oceanami",
+      "hostId": "host-b",
       "bedrooms": 3,
       "sleeps": 6,
       "nightlyPrice": 10800000,
@@ -89,7 +96,7 @@
     {
       "id": "cat-vang",
       "name": "Villa Cát Vàng",
-      "hostId": "host-oceanami",
+      "hostId": "host-b",
       "bedrooms": 4,
       "sleeps": 8,
       "nightlyPrice": 18200000,

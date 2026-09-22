@@ -17,6 +17,8 @@ import {
 import type { Stay } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { getVilla } from "@/lib/villas";
+import { visibleGuestName } from "@/lib/privacy";
+import type { RoleSession } from "@/lib/role";
 
 export const Route = createFileRoute("/ops")({
   component: OpsPage,
@@ -44,6 +46,9 @@ function OpsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isBql = persona === "BQL";
+  const role: RoleSession = isBql
+    ? { persona: "BQL" }
+    : { persona: "BUTLER", butlerId: butlerId ?? BUTLER_LINH };
   const butler = world.butlers.find((person) => person.id === (butlerId ?? BUTLER_LINH));
   const lists = opsLists(world, opsDate);
 
@@ -119,6 +124,7 @@ function OpsPage() {
         empty="Không có khách đến."
         canAct={!isBql}
         assigned={assigned}
+        role={role}
         onCheckIn={(stay) => run(() => butlerCheckIn(stay.id))}
         onCheckOut={(stay) => run(() => butlerCheckOut(stay.id))}
         onNoShow={(stay) => {
@@ -139,6 +145,7 @@ function OpsPage() {
         empty="Không có khách đang ở."
         canAct={!isBql}
         assigned={assigned}
+        role={role}
         onCheckIn={(stay) => run(() => butlerCheckIn(stay.id))}
         onCheckOut={(stay) => run(() => butlerCheckOut(stay.id))}
         onNoShow={(stay) => {
@@ -159,6 +166,7 @@ function OpsPage() {
         empty="Không có khách trả phòng."
         canAct={!isBql}
         assigned={assigned}
+        role={role}
         onCheckIn={(stay) => run(() => butlerCheckIn(stay.id))}
         onCheckOut={(stay) => run(() => butlerCheckOut(stay.id))}
         onNoShow={(stay) => {
@@ -193,7 +201,7 @@ function OpsPage() {
               <>
                 <p className="font-serif text-2xl">Khách không đến</p>
                 <p className="mt-2 text-sm text-ink-soft">
-                  {getVilla(sheet.stay.villaId)?.name} · {sheet.stay.guestName}. Không tự đánh dấu khi
+                  {getVilla(sheet.stay.villaId)?.name} · {visibleGuestName(sheet.stay, role)}. Không tự đánh dấu khi
                   quá ngày — cần lý do.
                 </p>
                 <textarea
@@ -265,6 +273,7 @@ function StayList({
   empty,
   canAct,
   assigned,
+  role,
   onCheckIn,
   onCheckOut,
   onNoShow,
@@ -275,6 +284,7 @@ function StayList({
   empty: string;
   canAct: boolean;
   assigned: (stay: Stay) => boolean;
+  role: RoleSession;
   onCheckIn: (stay: Stay) => void;
   onCheckOut: (stay: Stay) => void;
   onNoShow: (stay: Stay) => void;
@@ -296,6 +306,7 @@ function StayList({
             <StayRow
               key={stay.id}
               stay={stay}
+              role={role}
               canAct={canAct && assigned(stay)}
               onCheckIn={() => onCheckIn(stay)}
               onCheckOut={() => onCheckOut(stay)}
@@ -311,6 +322,7 @@ function StayList({
 
 function StayRow({
   stay,
+  role,
   canAct,
   onCheckIn,
   onCheckOut,
@@ -318,6 +330,7 @@ function StayRow({
   onIncident,
 }: {
   stay: Stay;
+  role: RoleSession;
   canAct: boolean;
   onCheckIn: () => void;
   onCheckOut: () => void;
@@ -333,7 +346,7 @@ function StayRow({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-medium">{villa?.name ?? stay.villaId}</p>
-          <p className="mt-1 text-sm text-ink-soft">{stay.guestName}</p>
+          <p className="mt-1 text-sm text-ink-soft">{visibleGuestName(stay, role)}</p>
         </div>
         <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
           {stayGuestLabel(stay.status)}

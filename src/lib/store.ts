@@ -15,9 +15,9 @@ import {
   DEFAULT_CHECK_OUT,
   DEFAULT_GUESTS,
 } from "@/lib/stay";
-import { fetchWorld, submitWorldAction } from "./world-api.ts";
+import { fetchWorld, resolveRole, submitWorldAction } from "./world-api.ts";
 import type { WorldAction } from "./world-actions.ts";
-import { parseVai, ROLE_STORAGE_KEY, type RoleSession } from "./role.ts";
+import { parseVai, ROLE_STORAGE_KEY, vaiFor, type RoleSession } from "./role.ts";
 
 export type SearchState = {
   checkIn: string;
@@ -31,6 +31,7 @@ type BookingState = {
   saleId?: string;
   hostId?: string;
   butlerId?: string;
+  adminKey?: string;
   demoMode: boolean;
   world: World;
   version: number;
@@ -47,7 +48,7 @@ type BookingState = {
   setSaleSearch: (search: Partial<SearchState>) => void;
   setOpsDate: (date: string) => void;
   refreshWorld: () => Promise<void>;
-  applyVaiFromUrl: () => RoleSession | null;
+  applyVaiFromUrl: () => Promise<RoleSession | null>;
   runAction: (action: WorldAction) => Promise<{ requestId?: string }>;
   advanceDemo: () => Promise<void>;
   resetWorld: () => Promise<void>;
@@ -134,6 +135,7 @@ export const useBookingStore = create<BookingState>()(
           saleId: role.saleId,
           hostId: role.hostId,
           butlerId: role.butlerId,
+          adminKey: role.persona === "ADMIN" ? get().adminKey : undefined,
         }),
       setDemoMode: (demoMode) => set({ demoMode }),
       setSearch: (search) =>
@@ -155,16 +157,51 @@ export const useBookingStore = create<BookingState>()(
           set({ hydrated: true });
         }
       },
-      applyVaiFromUrl: () => {
+      applyVaiFromUrl: async () => {
         if (typeof window === "undefined") return null;
         const params = new URLSearchParams(window.location.search);
         if (params.get("demo") === "1") set({ demoMode: true });
-        const role = parseVai(params.get("vai"));
-        if (role) get().setRole(role);
-        return role;
+        const vai = params.get("vai");
+        const urlKey = params.get("key");
+        if (urlKey) sessionStorage.setItem("stayora-admin-key", urlKey);
+        const sessionKey =
+          urlKey || sessionStorage.getItem("stayora-admin-key") || undefined;
+        const role = parseVai(vai);
+        if (role?.persona === "ADMIN") {
+          const authorized = await resolveRole({ data: { vai: "admin", key: sessionKey } });
+          if (authorized.persona !== "ADMIN") {
+            sessionStorage.removeItem("stayora-admin-key");
+            get().setRole({ persona: "GUEST" });
+            return { persona: "GUEST" };
+          }
+          set({
+            persona: "ADMIN",
+            adminKey: sessionKey,
+            saleId: undefined,
+            hostId: undefined,
+            butlerId: undefined,
+          });
+          return { persona: "ADMIN" };
+        }
+        if (role) {
+          get().setRole(role);
+          return role;
+        }
+        if (sessionKey && window.location.pathname.startsWith("/admin")) {
+          const authorized = await resolveRole({ data: { vai: "admin", key: sessionKey } });
+          if (authorized.persona === "ADMIN") {
+            set({ persona: "ADMIN", adminKey: sessionKey });
+            return { persona: "ADMIN" };
+          }
+          sessionStorage.removeItem("stayora-admin-key");
+        }
+        return null;
       },
       runAction: async (action) => {
-        const result = await submitWorldAction({ data: { action, role: roleOf(get()) } });
+        const state = get();
+        const result = await submitWorldAction({
+          data: { action, vai: vaiFor(roleOf(state)), key: state.adminKey },
+        });
         if (!result.ok) {
           throw new DomainError(result.code, result.message);
         }
@@ -234,7 +271,7 @@ export const useBookingStore = create<BookingState>()(
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       partialize: (state) => ({
-        persona: state.persona,
+        persona: state.persona === "ADMIN" ? "GUEST" : state.persona,
         saleId: state.saleId,
         hostId: state.hostId,
         butlerId: state.butlerId,

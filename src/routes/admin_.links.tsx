@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { RoleGate } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { roleLinks } from "@/lib/role";
+import { useBookingStore } from "@/lib/store";
 
 export const Route = createFileRoute("/admin_/links")({
   component: RoleLinksPage,
@@ -10,17 +12,25 @@ export const Route = createFileRoute("/admin_/links")({
 
 function RoleLinksPage() {
   const [copied, setCopied] = useState<string | null>(null);
+  const adminKey = useBookingStore((state) => state.adminKey);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const links = useMemo(() => roleLinks(), []);
 
+  function hrefFor(vai: string): string {
+    const params = new URLSearchParams({ vai });
+    if (vai === "admin" && adminKey) params.set("key", adminKey);
+    return `/?${params.toString()}`;
+  }
+
   async function copy(vai: string) {
-    const url = `${origin}/?vai=${encodeURIComponent(vai)}`;
+    const url = `${origin}${hrefFor(vai)}`;
     const ok = await copyText(url);
     setCopied(ok ? vai : null);
     window.setTimeout(() => setCopied(null), 2000);
   }
 
   return (
+    <RoleGate allow={["ADMIN"]}>
     <main lang="vi" className="mx-auto max-w-lg px-4 py-8 sm:px-6">
       <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Field test</p>
       <h1 className="mt-1 font-serif text-title">Link vai trò</h1>
@@ -30,7 +40,7 @@ function RoleLinksPage() {
       </p>
       <ul className="mt-6 space-y-3">
         {links.map((item) => {
-          const href = `/?vai=${encodeURIComponent(item.vai)}`;
+          const href = hrefFor(item.vai);
           return (
             <li key={item.vai} className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]">
               <p className="font-medium">{item.label}</p>
@@ -54,5 +64,6 @@ function RoleLinksPage() {
         Thêm <code>?demo=1</code> để hiện bộ chọn vai (chỉ dùng khi thử).
       </p>
     </main>
+    </RoleGate>
   );
 }

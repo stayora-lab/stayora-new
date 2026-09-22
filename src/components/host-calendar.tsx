@@ -13,6 +13,8 @@ import {
 } from "@/lib/domain";
 import type { BlockKind, Commitment, ExternalSource, World } from "@/lib/domain";
 import { getVilla, villas as allVillas, type Villa } from "@/lib/villas";
+import { visibleGuestName } from "@/lib/privacy";
+import { useBookingStore } from "@/lib/store";
 
 const SOURCES: ExternalSource[] = ["Airbnb", "Booking.com", "Zalo", "Khách quen", "Khác"];
 
@@ -347,13 +349,17 @@ function CommitmentDetail({
   const stay = commitment.stayId
     ? world.stays.find((item) => item.id === commitment.stayId)
     : world.stays.find((item) => item.bookingId === commitment.bookingId);
+  const hostId = useBookingStore((state) => state.hostId);
+  const guestLabel = stay
+    ? visibleGuestName(stay, { persona: "HOST", hostId })
+    : null;
   return (
     <article className="rounded-2xl bg-cream p-4">
       <p className="font-medium">{commitmentCellLabel(commitment)}</p>
       <p className="mt-1 text-sm text-muted">{villa?.name}</p>
       <p className="mt-2 text-sm">
         {viDateRange(commitment.start, commitment.end)}
-        {stay ? ` · ${stay.guestName} · ${stay.guests} khách` : null}
+        {stay ? ` · ${guestLabel} · ${stay.guests} khách` : null}
       </p>
       <dl className="mt-3 space-y-1 text-sm text-ink-soft">
         <div>Nguồn: {commitment.source ?? (commitment.basis === "STAYORA_BOOKING" ? "Stayora" : commitment.blockKind ?? "—")}</div>
