@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { useState, type ReactNode } from "react";
-import { StayoraMark } from "@/components/mark";
+import { DualBrandLockup, OceanamiLockup, StayoraLockup } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
 import { PILOT_SEED } from "@/lib/pilot-data";
@@ -78,19 +78,22 @@ export function SiteHeader() {
     path.startsWith("/host") ||
     path.startsWith("/admin");
   const stamp = fetchedAt ? format(parseISO(fetchedAt), "HH:mm:ss") : null;
+  const showDestination = persona === "GUEST" && !workspace;
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-cream/90 backdrop-blur-md">
       <TrialBanner />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link to="/" className="shrink-0" aria-label="Stayora home">
-          <StayoraMark />
-        </Link>
-        <div className="hidden min-w-0 md:block">
-          <p className="truncate text-sm text-ink-soft">
-            {workspace ? workspaceTitle(path, persona) : "Oceanami · Phước Hải"}
-          </p>
-          {stamp ? <p className="text-[11px] text-muted">Cập nhật lúc {stamp}</p> : null}
+        <div className="flex min-w-0 items-center gap-3">
+          <Link to="/" className="shrink-0" aria-label="Stayora home">
+            {showDestination ? <DualBrandLockup /> : <StayoraLockup />}
+          </Link>
+          {showDestination ? null : (
+            <div className="hidden min-w-0 md:block">
+              <p className="truncate text-sm text-ink-soft">{workspaceTitle(path, persona)}</p>
+              {stamp ? <p className="text-[11px] text-muted">Cập nhật lúc {stamp}</p> : null}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {hydrated && persona === "GUEST" && latest ? (
@@ -136,15 +139,28 @@ export function SiteFooter() {
   if (persona !== "GUEST") return null;
   return (
     <footer className="border-t border-border bg-cream-deep/60">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-10 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div>
-          <StayoraMark />
+          <p className="text-[10px] font-medium tracking-[0.18em] text-muted uppercase">
+            Thương hiệu cho thuê
+          </p>
+          <div className="mt-3">
+            <StayoraLockup />
+          </div>
           <p className="mt-3 max-w-sm text-sm text-muted">
-            Private villas in Vietnam. This first destination is Oceanami, on Phước Hải
-            beach.
+            The rental brand. Unique homes and villas across Vietnam, starting at this
+            destination.
           </p>
         </div>
-        <p className="text-sm text-muted">Oceanami · Phước Hải · Bà Rịa–Vũng Tàu</p>
+        <div className="text-left sm:text-right">
+          <p className="text-[10px] font-medium tracking-[0.18em] text-muted uppercase">
+            Điểm đến
+          </p>
+          <div className="mt-3 sm:flex sm:justify-end">
+            <OceanamiLockup />
+          </div>
+          <p className="mt-3 text-sm text-muted">Phước Hải · Bà Rịa–Vũng Tàu</p>
+        </div>
       </div>
     </footer>
   );
@@ -187,9 +203,7 @@ export function DemoPanel() {
           size="sm"
           className="mt-2 w-full"
           onClick={() => {
-            if (window.confirm("Nạp lại dữ liệu thử? Dữ liệu phiên này sẽ bị thay.")) {
-              void resetWorld();
-            }
+            if (window.confirm("Nạp lại dữ liệu thử?")) void resetWorld();
           }}
         >
           Nạp lại dữ liệu thử

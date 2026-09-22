@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { DateRangeField, FieldSplit, GuestField } from "@/components/dates-guests";
-import { StayoraIcon } from "@/components/mark";
+import { OceanamiEmblem } from "@/components/mark";
 import { Photo } from "@/components/photo";
 import { Button } from "@/components/ui/button";
 import { VillaCard } from "@/components/villa-card";
@@ -64,9 +64,9 @@ function MarketplacePage() {
           />
           <div className="absolute inset-0 bg-linear-to-t from-ink/70 via-ink/20 to-ink/10" />
           <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-24 sm:px-6 sm:pb-28">
-            <StayoraIcon className="mb-5 h-11 text-cream" />
+            <OceanamiEmblem className="mb-5 h-14 w-14" />
             <p className="text-sm font-medium tracking-[0.18em] text-cream/80 uppercase">
-              {DESTINATION.region}
+              Điểm đến · {DESTINATION.region}
             </p>
             <h1 className="mt-3 font-serif text-display text-cream italic">Oceanami</h1>
             <p className="mt-4 max-w-xl text-lead text-cream/90">

@@ -1,25 +1,89 @@
 import { cn } from "@/lib/utils";
 
-const LOTUS_D =
-  "M 754.511 1085.98 C 729.96 1112.85 706.925 1140.14 681.56 1165.08 C 652.487 1193.62 624.937 1224.11 591.021 1247.3 C 581.017 1254.15 570.273 1260.6 558.949 1264.65 C 540.153 1271.38 521.175 1268.33 504.527 1257.76 C 487.73 1247.08 471.31 1235.49 456.156 1222.62 C 435.263 1204.87 415.371 1185.88 395.66 1166.78 C 359.126 1131.41 324.502 1094.2 292.771 1054.39 C 263.611 1017.81 234.893 980.844 210.299 940.969 C 192.976 912.884 176.09 884.468 160.397 855.446 C 139.212 816.266 120.508 775.883 104.83 734.069 C 89.134 692.208 78.101 649.163 69.228 605.466 C 56.624 543.396 58.707 481.31 70.36 419.474 C 81.265 361.608 103.078 307.905 134.352 257.984 C 160.97 215.492 193.333 178.075 231.426 145.619 C 255.5 125.108 282.12 108.294 309.255 92.183 C 353.88 65.689 402.687 50.417 452.882 39.952 C 510.427 27.952 568.397 27.854 626.302 39.416 C 676.874 49.514 724.919 66.531 770.209 91.089 C 796.619 105.409 820.954 122.918 844.024 142.227 C 872.034 165.672 897.374 191.799 919.336 220.856 C 933.6 239.73 946.069 260.099 957.998 280.583 C 986.192 328.996 1002.5 381.834 1011.64 436.768 C 1019.35 483.166 1020.87 530.003 1012.92 576.606 C 1007.17 610.278 999.599 643.578 989.752 676.368 C 971.968 735.582 947.776 792.059 918.36 846.302 C 903.517 873.673 888.353 900.919 872.068 927.441 C 859.48 947.943 845.294 967.501 831.146 986.989 C 813.97 1010.65 796.227 1033.91 778.442 1057.12 C 771.008 1066.82 762.834 1075.96 754.511 1085.98 Z  M576.679932,667.637817 C571.060730,667.959167 567.981628,666.468323 568.026367,661.092224 C568.092834,653.112061 568.085449,645.130493 568.017517,637.150330 C567.975037,632.157288 570.348999,629.854553 575.317993,629.907410 C582.300415,629.981750 589.284912,629.977112 596.267273,629.898499 C601.053589,629.844666 603.996460,631.866272 604.043213,636.838867 C604.118286,644.814758 604.257812,652.810242 603.797852,660.764404 C603.435547,667.029419 602.297058,667.835205 595.547546,667.966431 C589.570496,668.082642 583.585022,667.765930 576.679932,667.637817 z  M630.057007,676.227478 C648.670288,676.142212 648.766174,674.769836 648.537903,693.380249 C648.476807,698.360413 648.436035,703.343750 648.539917,708.322388 C648.642151,713.228516 646.358459,715.901672 641.475769,715.906433 C634.175171,715.913635 626.874084,715.687683 619.573669,715.537231 C615.448120,715.452271 613.648560,713.181091 613.654236,709.191772 C613.665466,701.222473 613.501526,693.250061 613.673401,685.284668 C613.847717,677.211365 614.725891,676.498108 623.141846,676.238464 C625.132324,676.177002 627.126221,676.228027 630.057007,676.227478 z  M614.513855,664.759766 C614.089172,653.135498 614.089172,642.323425 614.089172,630.719299 C625.353455,630.719299 635.724182,630.719299 647.344666,630.719299 C647.614136,635.717102 648.149780,640.540710 648.087769,645.356689 C647.758301,670.924377 652.091309,667.399048 625.251587,667.542908 C621.817566,667.561340 618.376404,666.261230 614.513855,664.759766 z  M569.317261,692.167603 C569.315979,676.680542 567.600403,675.996704 584.716064,676.251770 C589.024597,676.315979 593.334778,676.262329 597.643860,676.302551 C601.647522,676.339905 603.913269,678.450623 603.969543,682.392151 C604.097351,691.339539 604.062622,700.290466 603.981628,709.238953 C603.947754,712.981995 601.501465,714.497009 598.110962,714.532654 C590.488281,714.612854 582.863525,714.602295 575.240784,714.519165 C571.077454,714.473755 569.435486,711.881042 569.382446,708.051819 C569.313538,703.080322 569.334961,698.107605 569.317261,692.167603 z";
-
-export function StayoraIcon({ className }: { className?: string }) {
+/** Official Stayora lockup — lotus + custom wordmark from stayora.vn */
+export function StayoraLockup({
+  variant = "color",
+  className,
+}: {
+  variant?: "color" | "white";
+  className?: string;
+}) {
   return (
-    <svg
-      viewBox="40 10 996 1276"
-      className={cn("h-8 w-auto shrink-0", className)}
-      aria-hidden="true"
-    >
-      <path fill="currentColor" fillRule="evenodd" d={LOTUS_D} />
-    </svg>
+    <img
+      src={variant === "white" ? "/brand/stayora-lockup-white.svg" : "/brand/stayora-lockup.svg"}
+      alt="Stayora"
+      className={cn("h-8 w-auto sm:h-9", className)}
+    />
   );
 }
 
 export function StayoraMark({ className }: { className?: string }) {
+  return <StayoraLockup className={className} />;
+}
+
+export function StayoraIcon({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-2.5 text-ink", className)}>
-      <StayoraIcon className="h-8 text-lotus" />
-      <span className="font-sans text-lg font-semibold tracking-tight">Stayora</span>
+    <img
+      src="/brand/stayora-icon.svg"
+      alt=""
+      className={cn("h-8 w-auto", className)}
+      aria-hidden="true"
+    />
+  );
+}
+
+/**
+ * Official Oceanami seal from oceanami.com — Núi, Biển, Hoa Anh Đào.
+ * Magenta circle; not the Stayora lotus.
+ */
+export function OceanamiEmblem({
+  variant = "color",
+  className,
+}: {
+  variant?: "color" | "white";
+  className?: string;
+}) {
+  return (
+    <img
+      src={variant === "white" ? "/brand/oceanami-mark-white.png" : "/brand/oceanami-mark.png"}
+      alt=""
+      className={cn("h-8 w-8 shrink-0 object-contain", className)}
+      aria-hidden="true"
+    />
+  );
+}
+
+export function OceanamiLockup({
+  variant = "color",
+  compact = false,
+  className,
+}: {
+  variant?: "color" | "white";
+  compact?: boolean;
+  className?: string;
+}) {
+  return (
+    <img
+      src={variant === "white" ? "/brand/oceanami-lockup-white.png" : "/brand/oceanami-lockup.png"}
+      alt="Oceanami Villas & Beach Club"
+      className={cn(
+        "w-auto object-contain object-left",
+        compact ? "h-8 sm:h-9" : "h-10 sm:h-12",
+        className,
+      )}
+    />
+  );
+}
+
+/** Six Senses-style dual lockup: rental brand + destination. */
+export function DualBrandLockup({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-3", className)}>
+      <StayoraLockup />
+      <span className="h-8 w-px bg-border-strong" aria-hidden />
+      <OceanamiEmblem className="h-8 w-8 sm:hidden" />
+      <OceanamiLockup compact className="hidden sm:block" />
     </span>
   );
 }
+
