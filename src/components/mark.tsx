@@ -71,7 +71,7 @@ export function OceanamiLockup({
   return (
     <img
       src="/brand/oceanami-lockup.png"
-      alt="Oceanami Villas & Beach Club"
+      alt="Oceanami"
       className={cn(
         "w-auto object-contain object-left",
         compact ? "h-8 sm:h-9" : "h-10 sm:h-12",

@@ -1,4 +1,5 @@
 import { PILOT_SEED, DESTINATION_NAME, type PilotVilla } from "./pilot-data.ts";
+import { DESTINATION, photosForVilla } from "./destination.ts";
 
 export type StayImage = {
   src: string;
@@ -11,13 +12,11 @@ export type AmenityId =
   | "pool"
   | "wifi"
   | "kitchen"
-  | "beach"
   | "air"
   | "parking"
   | "bbq"
   | "washer"
   | "shower"
-  | "club"
   | "housekeeping"
   | "workspace"
   | "baths";
@@ -41,20 +40,12 @@ export type Villa = {
   images: StayImage[];
 };
 
-export const DESTINATION = {
-  name: DESTINATION_NAME,
-  region: "Phước Hải, Bà Rịa–Vũng Tàu",
-  country: "Việt Nam",
-  travel: "About 2½ hours from Ho Chi Minh City by car",
-  address: "QL44A, Phước Hải, Đất Đỏ, Bà Rịa–Vũng Tàu",
-  intro:
-    "A quiet stretch of Phước Hải beach, with Minh Đạm mountain at its back. Private villas sit in tropical gardens, a short walk from the sand and the beach club.",
-};
+export { DESTINATION, DESTINATION_NAME };
 
 const SETTING_LABEL: Record<VillaSetting, string> = {
-  beachfront: "Beachfront",
-  garden: "Garden",
-  hillside: "Hillside",
+  beachfront: "Ven biển",
+  garden: "Vườn",
+  hillside: "Sườn núi",
 };
 
 function villaFromSeed(row: PilotVilla): Villa {
@@ -78,7 +69,7 @@ function villaFromSeed(row: PilotVilla): Villa {
       title: `Phòng ${index + 1}`,
       detail: "Giường lớn",
     })),
-    images: (row.photos ?? []).map((src) => ({ src, alt: "Ảnh minh hoạ" })),
+    images: photosForVilla(row.id),
   };
 }
 
@@ -102,17 +93,15 @@ export function hostOwnsVilla(hostId: string | undefined, villaId: string): bool
 }
 
 export const AMENITY_LABELS: Record<AmenityId, string> = {
-  pool: "Private pool",
+  pool: "Hồ bơi riêng",
   wifi: "Wifi",
-  kitchen: "Full kitchen",
-  beach: "Direct beach access",
-  air: "Air conditioning",
-  parking: "Private parking",
-  bbq: "Outdoor kitchen",
-  washer: "Washer",
-  shower: "Outdoor shower",
-  club: "Beach club access",
-  housekeeping: "Daily housekeeping",
-  workspace: "Work desk",
-  baths: "Deep soaking tub",
+  kitchen: "Bếp",
+  air: "Máy lạnh",
+  parking: "Chỗ đậu xe",
+  bbq: "Bếp ngoài trời",
+  washer: "Máy giặt",
+  shower: "Vòi sen ngoài trời",
+  housekeeping: "Dọn phòng",
+  workspace: "Bàn làm việc",
+  baths: "Bồn tắm",
 };

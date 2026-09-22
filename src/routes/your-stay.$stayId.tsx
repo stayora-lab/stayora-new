@@ -8,7 +8,8 @@ import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
 import { balanceLine, obligationSucceeded, stayGuestLabel } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
-import { DESTINATION, getVilla } from "@/lib/villas";
+import { GUEST_ARRIVAL, LOCATION_LABEL } from "@/lib/destination";
+import { getVilla } from "@/lib/villas";
 
 export const Route = createFileRoute("/your-stay/$stayId")({
   component: YourStayPage,
@@ -75,7 +76,7 @@ function YourStayPage() {
   return (
     <main lang="vi" className="pb-16">
       <div className="relative h-72 overflow-hidden sm:h-96">
-        {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={villa.name} />}
+        {hero ? <Photo src={hero.src} alt={hero.alt} /> : <VillaPlaceholder name={villa.name} />}
         <div className="absolute inset-0 bg-linear-to-t from-ink/65 via-ink/10 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-4xl px-4 pb-8 sm:px-6">
           <p className="text-xs font-semibold tracking-wider text-cream/80 uppercase">
@@ -110,8 +111,9 @@ function YourStayPage() {
           <StayCard title="Nhận phòng">
             <p>{formatViDate(stay.checkIn)}</p>
             <p className="mt-2 text-sm text-muted">
-              Hướng dẫn nhận phòng sẽ được gửi trước ngày đến. {stay.guests} khách.
+              {stay.guests} khách.
             </p>
+            <p className="mt-2 text-sm text-muted">{GUEST_ARRIVAL}</p>
           </StayCard>
           <StayCard title="Trả phòng">
             <p>{formatViDate(stay.checkOut)}</p>
@@ -132,15 +134,15 @@ function YourStayPage() {
               Xem villa
             </Link>
           </StayCard>
-          <StayCard title="Đường đến">
-            <p>{DESTINATION.address}</p>
-            <p className="mt-2 text-sm text-muted">Khoảng 2,5 giờ từ TP. Hồ Chí Minh.</p>
+          <StayCard title="Đến nơi">
+            <p>{LOCATION_LABEL}</p>
+            <p className="mt-2 text-sm text-muted">{GUEST_ARRIVAL}</p>
           </StayCard>
         </div>
 
         <section className="mt-6 rounded-2xl bg-cream-deep/70 p-6 sm:p-8">
           <p className="max-w-2xl text-ink-soft">
-            Hướng dẫn nhận phòng sẽ được gửi trước ngày đến.
+            {GUEST_ARRIVAL}
           </p>
         </section>
         <DestinationAbout />

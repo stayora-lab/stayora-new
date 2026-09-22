@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Photo, VillaPlaceholder } from "@/components/photo";
+import { LOCATION_LABEL } from "@/lib/destination";
 import {
   bookability,
   bookabilityCopy,
@@ -37,24 +38,17 @@ export function VillaCard({
           {hero ? (
             <Photo
               src={hero.src}
-              alt="Ảnh minh hoạ"
+              alt={hero.alt}
               className="transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           ) : (
             <VillaPlaceholder name={villa.name} />
           )}
-          <span className="absolute top-3 left-3 rounded-full bg-paper/92 px-3 py-1 text-xs font-medium">
-            {villa.settingLabel}
-          </span>
-          <span className="absolute right-3 bottom-3 rounded-full bg-paper/92 px-2.5 py-1 text-[11px] text-muted">
-            Ảnh minh hoạ
-          </span>
         </div>
         <div className="space-y-3 p-4">
           <div>
             <h3 className="font-medium">{villa.name}</h3>
-            <p className="text-sm text-muted">Oceanami · Phước Hải</p>
-            <p className="mt-1 text-xs text-muted">Chưa có đánh giá</p>
+            <p className="text-sm text-muted">{LOCATION_LABEL}</p>
           </div>
           <p className="text-sm text-ink-soft">
             {bedroomLabel(villa.bedrooms)} · {guestLabel(villa.sleeps)}
@@ -62,7 +56,7 @@ export function VillaCard({
           <div className="flex items-end justify-between gap-3">
             <p className="text-sm">
               <span className="font-semibold tabular-nums">{formatVnd(villa.nightly)}</span>
-              <span className="text-muted"> / night</span>
+              <span className="text-muted"> / đêm</span>
             </p>
             <p className="text-xs text-muted">{bookabilityCopy(result)}</p>
           </div>

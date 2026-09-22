@@ -15,6 +15,14 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
     setOpen(true);
   }
 
+  if (images.length === 0) {
+    return (
+      <div className="relative h-64 overflow-hidden rounded-2xl md:h-[min(62vh,36rem)]">
+        <VillaPlaceholder name={name} />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="relative grid gap-2 md:grid-cols-4 md:grid-rows-2 md:h-[min(62vh,36rem)]">
@@ -23,7 +31,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
           onClick={() => openAt(0)}
           className="relative h-64 overflow-hidden rounded-lg md:col-span-2 md:row-span-2 md:h-full md:rounded-l-2xl md:rounded-r-lg"
         >
-          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={name} />}
+          <Photo src={hero.src} alt={hero.alt} />
         </button>
         {rest.map((image, index) => (
           <button
@@ -36,7 +44,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
               index > 1 && rest.length < 3 ? "md:hidden" : "",
             )}
           >
-            <Photo src={image.src} alt="Ảnh minh hoạ" />
+            <Photo src={image.src} alt={image.alt} />
           </button>
         ))}
         <button
@@ -44,21 +52,19 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
           onClick={() => openAt(0)}
           className="absolute right-3 bottom-3 rounded-full bg-paper/95 px-4 py-2 text-sm font-medium shadow-[var(--shadow-border)] md:right-4 md:bottom-4"
         >
-          See all photos
+          Xem ảnh
         </button>
       </div>
-      <p className="mt-2 text-xs text-muted">Ảnh minh hoạ</p>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[92vh] overflow-hidden p-0">
-          <DialogTitle className="sr-only">{name} photos</DialogTitle>
+          <DialogTitle className="sr-only">{name}</DialogTitle>
           <div className="bg-ink">
             <div className="relative aspect-photo max-h-[70vh] w-full">
               {images[active] ? (
-                <Photo src={images[active].src} alt="Ảnh minh hoạ" />
+                <Photo src={images[active].src} alt={images[active].alt} />
               ) : null}
             </div>
-            <p className="px-3 pt-2 text-xs text-cream/70">Ảnh minh hoạ</p>
             <div className="flex gap-2 overflow-x-auto p-3">
               {images.map((image, index) => (
                 <button
@@ -70,7 +76,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
                     active === index ? "ring-2 ring-cream" : "opacity-70",
                   )}
                 >
-                  <Photo src={image.src} alt="Ảnh minh hoạ" />
+                  <Photo src={image.src} alt={image.alt} />
                 </button>
               ))}
             </div>

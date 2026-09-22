@@ -445,7 +445,7 @@ function SaleVillaRow({
     <article className="overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)]">
       <div className="flex gap-3 p-3">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl">
-          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={villa.name} />}
+          {hero ? <Photo src={hero.src} alt={hero.alt} /> : <VillaPlaceholder name={villa.name} />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">

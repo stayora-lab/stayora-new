@@ -1,0 +1,50 @@
+[
+  {
+    "file": "beach.jpg",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49958234898_ac19a9fa02_k.jpg",
+    "sourceSite": "oceanami.com",
+    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Bãi biển Phước Hải nhìn từ Oceanami. Ảnh khuôn viên chung, dùng cho hero."
+  },
+  {
+    "file": "aerial.jpg",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2017/08/DSC_5249-edited.jpg",
+    "sourceSite": "oceanami.com",
+    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh trên cao toàn cảnh Oceanami: biển, vườn và núi Minh Đạm."
+  },
+  {
+    "file": "pool.jpg",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2017/08/pool-ss.jpg",
+    "sourceSite": "oceanami.com",
+    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Hồ bơi chung tại Oceanami."
+  },
+  {
+    "file": "landscape.jpg",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49959006147_8d184d72d4_k.jpg",
+    "sourceSite": "oceanami.com",
+    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Cảnh quan vườn và núi Minh Đạm trong khuôn viên."
+  },
+  {
+    "file": "hoa-anh-dao.jpg",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2020/08/49958232328_1ed4ff86e1_k.jpg",
+    "sourceSite": "oceanami.com",
+    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Hàng cây hoa anh đào trong khuôn viên Oceanami."
+  },
+  {
+    "file": "minh-dam.jpg",
+    "sourceUrl": "https://oceanami.com/wp-content/uploads/2018/11/49958215843_bb49cf939b_k.jpg",
+    "sourceSite": "oceanami.com",
+    "fetchedAt": "2026-09-22T20:45:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Núi Minh Đạm phía sau khu nghỉ dưỡng."
+  }
+]

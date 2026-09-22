@@ -47,7 +47,7 @@ export function PriceBlock({
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-xl font-semibold tabular-nums">{formatVnd(villa.nightly)}</p>
-        <p className="text-sm text-muted">per night</p>
+        <p className="text-sm text-muted">một đêm</p>
       </div>
       {ready ? (
         <div className="space-y-2 text-sm">
@@ -58,13 +58,13 @@ export function PriceBlock({
             <span className="tabular-nums">{formatVnd(total)}</span>
           </div>
           <div className="flex justify-between gap-4 border-t border-border pt-2 font-medium">
-            <span>Stay total</span>
+            <span>Tổng kỳ nghỉ</span>
             <span className="tabular-nums">{formatVnd(total)}</span>
           </div>
-          <p className="text-muted">We'll confirm this total with your stay.</p>
+          <p className="text-muted">Stayora sẽ xác nhận tổng này khi giữ chỗ.</p>
         </div>
       ) : (
-        <p className="text-sm text-muted">Add dates to see the stay total.</p>
+        <p className="text-sm text-muted">Chọn ngày để xem tổng kỳ nghỉ.</p>
       )}
     </div>
   );
@@ -84,13 +84,13 @@ export function BookingForm({
   const result = bookability(villa, checkIn, checkOut, guests, world);
   const canRequest = result.state === "ready" && !existing;
 
-  let helper = "Your request will be sent for confirmation.";
-  if (result.state === "unavailable") helper = "These dates aren't available to request.";
+  let helper = "Yêu cầu sẽ được gửi cho chủ nhà.";
+  if (result.state === "unavailable") helper = "Villa không trống cho ngày này.";
   if (result.state === "too-many-guests") {
-    helper = `This villa sleeps up to ${result.sleeps} guests.`;
+    helper = `Villa này ngủ tối đa ${result.sleeps} khách.`;
   }
-  if (result.state === "missing-dates") helper = "Choose check-in and check-out to continue.";
-  if (existing) helper = "You've already sent a request for these dates.";
+  if (result.state === "missing-dates") helper = "Chọn ngày nhận và trả phòng để tiếp tục.";
+  if (existing) helper = "Bạn đã gửi yêu cầu cho ngày này.";
 
   return (
     <div className="space-y-5">
@@ -113,7 +113,7 @@ export function BookingForm({
         </Button>
       ) : (
         <Button size="lg" className="w-full" disabled={!canRequest} onClick={onRequest}>
-          Request this stay
+          Gửi yêu cầu
         </Button>
       )}
       <p className="text-center text-sm text-muted">{helper}</p>
@@ -140,12 +140,12 @@ export function MobileBookingBar(props: Props) {
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold tabular-nums">
             {formatVnd(props.villa.nightly)}
-            <span className="ml-1 font-normal text-muted">/ night</span>
+            <span className="ml-1 font-normal text-muted">/ đêm</span>
           </p>
           <p className="truncate text-xs text-muted">
             {ready && nights > 0
               ? `${formatDateRange(props.checkIn, props.checkOut)} · ${guestLabel(props.guests)}`
-              : "Add dates"}
+              : "Chọn ngày"}
           </p>
         </div>
         {props.existing ? (
@@ -156,14 +156,14 @@ export function MobileBookingBar(props: Props) {
           <Drawer.Root open={open} onOpenChange={setOpen}>
             <Drawer.Trigger asChild>
               <Button size="lg" className="px-5">
-                Request
+                Gửi yêu cầu
               </Button>
             </Drawer.Trigger>
             <Drawer.Portal>
               <Drawer.Overlay className="fixed inset-0 z-50 bg-ink/40" />
               <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-2xl bg-paper p-5 pb-10">
                 <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-sand" />
-                <p className="mb-4 font-serif text-3xl">Request {props.villa.name}</p>
+                <p className="mb-4 font-serif text-3xl">Gửi yêu cầu {props.villa.name}</p>
                 <BookingForm {...props} />
               </Drawer.Content>
             </Drawer.Portal>

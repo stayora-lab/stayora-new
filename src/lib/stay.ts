@@ -61,25 +61,25 @@ export function formatLongDate(iso: string): string {
 export function formatDateRange(checkIn: string, checkOut: string): string {
   const start = parseISO(checkIn);
   const end = parseISO(checkOut);
-  if (start.getFullYear() !== end.getFullYear()) {
-    return `${format(start, "d MMM yyyy")} – ${format(end, "d MMM yyyy")}`;
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `${format(start, "d")}–${format(end, "d/M/yyyy")}`;
   }
-  if (start.getMonth() !== end.getMonth()) {
-    return `${format(start, "d MMM")} – ${format(end, "d MMM yyyy")}`;
+  if (start.getFullYear() === end.getFullYear()) {
+    return `${format(start, "d/M")}–${format(end, "d/M/yyyy")}`;
   }
-  return `${format(start, "d")}–${format(end, "d MMM yyyy")}`;
+  return `${format(start, "d/M/yyyy")}–${format(end, "d/M/yyyy")}`;
 }
 
 export function guestLabel(count: number): string {
-  return count === 1 ? "1 guest" : `${count} guests`;
+  return `${count} khách`;
 }
 
 export function nightLabel(count: number): string {
-  return count === 1 ? "1 night" : `${count} nights`;
+  return `${count} đêm`;
 }
 
 export function bedroomLabel(count: number): string {
-  return count === 1 ? "1 bedroom" : `${count} bedrooms`;
+  return `${count} phòng ngủ`;
 }
 
 export function isRangeAvailable(
@@ -116,13 +116,13 @@ export function bookability(
 export function bookabilityCopy(result: Bookability): string {
   switch (result.state) {
     case "ready":
-      return "Available to request";
+      return "Có thể gửi yêu cầu";
     case "missing-dates":
-      return "Check dates";
+      return "Chọn ngày";
     case "unavailable":
-      return "Not available for these dates";
+      return "Không trống ngày này";
     case "too-many-guests":
-      return `Sleeps up to ${result.sleeps}`;
+      return `Ngủ tối đa ${result.sleeps}`;
   }
 }
 

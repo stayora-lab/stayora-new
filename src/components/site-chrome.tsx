@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { OceanamiLockup, StayoraLockup } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
+import { DESTINATION_COPY } from "@/lib/destination";
 import { PILOT_SEED } from "@/lib/pilot-data";
 import { useBookingStore } from "@/lib/store";
 
@@ -111,7 +112,7 @@ export function SiteHeader() {
                 params={{ stayId: latestBooking.stayId }}
                 className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep sm:inline"
               >
-                Your stay
+                Kỳ nghỉ của bạn
               </Link>
             ) : (
               <Link
@@ -119,7 +120,7 @@ export function SiteHeader() {
                 params={{ requestId: latest.id }}
                 className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep sm:inline"
               >
-                Your request
+                Yêu cầu của bạn
               </Link>
             )
           ) : null}
@@ -166,6 +167,9 @@ export function SiteFooter() {
           <div className="mt-3 sm:flex sm:justify-end">
             <OceanamiLockup tone="on-paper" />
           </div>
+          <p className="mt-3 max-w-sm text-sm text-muted sm:ml-auto">
+            {DESTINATION_COPY.about.body}
+          </p>
         </div>
       </div>
     </footer>
@@ -203,10 +207,7 @@ export function DestinationAbout() {
     <section className="mt-12 border-t border-border pt-8">
       <p className="text-xs font-semibold tracking-wider text-muted uppercase">Về điểm đến</p>
       <OceanamiLockup tone="on-paper" className="mt-4" />
-      <p className="mt-3 max-w-md text-sm text-ink-soft">
-        Oceanami là khu villas và beach club tại Phước Hải. Villa do chủ nhà sở hữu và cho thuê;
-        Stayora vận hành đặt phòng.
-      </p>
+      <p className="mt-3 max-w-md text-sm text-ink-soft">{DESTINATION_COPY.about.body}</p>
     </section>
   );
 }

@@ -1,4 +1,5 @@
-import { Photo } from "@/components/photo";
+import { Photo, VillaPlaceholder } from "@/components/photo";
+import { LOCATION_LABEL } from "@/lib/destination";
 import { formatDateRange, formatVnd, guestLabel, nightLabel } from "@/lib/stay";
 import type { StayRequest } from "@/lib/domain";
 import type { Villa } from "@/lib/villas";
@@ -6,7 +7,7 @@ import type { Villa } from "@/lib/villas";
 export function StaySummary({
   villa,
   request,
-  totalLabel = "Stay total",
+  totalLabel = "Tổng kỳ nghỉ",
 }: {
   villa: Villa;
   request: Pick<StayRequest, "checkIn" | "checkOut" | "guests" | "nights" | "total">;
@@ -17,14 +18,15 @@ export function StaySummary({
     <article className="overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)]">
       <div className="grid sm:grid-cols-[11rem_minmax(0,1fr)]">
         <div className="relative h-40 sm:h-full">
-          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
-          <span className="absolute bottom-2 left-2 rounded-full bg-paper/92 px-2 py-0.5 text-[11px] text-muted">
-            Ảnh minh hoạ
-          </span>
+          {hero ? (
+            <Photo src={hero.src} alt={hero.alt} />
+          ) : (
+            <VillaPlaceholder name={villa.name} />
+          )}
         </div>
         <div className="space-y-2 p-5">
           <p className="text-xs font-semibold tracking-wider text-muted uppercase">
-            Oceanami · {villa.settingLabel}
+            {LOCATION_LABEL}
           </p>
           <h2 className="font-medium">{villa.name}</h2>
           <p className="text-sm text-ink-soft">

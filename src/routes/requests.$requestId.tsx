@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { Check, Clock } from "lucide-react";
 import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
+import { GUEST_ARRIVAL } from "@/lib/destination";
 import { StaySummary } from "@/components/stay-summary";
 import { Button } from "@/components/ui/button";
 import { balanceLine, holdCountdown, obligationSucceeded, paymentPlanLabel } from "@/lib/domain";
@@ -87,7 +88,7 @@ function RequestPage() {
         <div className="mt-8 space-y-3 rounded-2xl bg-paper p-5 shadow-[var(--shadow-border)]">
           <p className="font-medium">Bước tiếp theo</p>
           <ul className="space-y-2 text-sm text-ink-soft">
-            <li>Hướng dẫn nhận phòng sẽ được gửi trước ngày đến.</li>
+            <li>{GUEST_ARRIVAL}</li>
             <li>Mở kỳ nghỉ để xem hướng dẫn villa.</li>
           </ul>
         </div>

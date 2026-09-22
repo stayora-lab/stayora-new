@@ -55,7 +55,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Stayora — private villas at Oceanami, Phước Hải. Chủ nhà sẽ xem và phản hồi.",
+          "Stayora — đặt villa của các chủ nhà tại Oceanami, Phước Hải.",
       },
       { name: "robots", content: "noindex, nofollow" },
       { name: "theme-color", content: "#F6F1EA" },

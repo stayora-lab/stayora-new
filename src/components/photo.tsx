@@ -32,7 +32,10 @@ export function VillaPlaceholder({
         className,
       )}
     >
-      <p className="px-4 font-serif text-xl text-ink-soft sm:text-2xl">{name}</p>
+      <div className="px-4">
+        <p className="font-serif text-xl text-ink-soft sm:text-2xl">{name}</p>
+        <p className="mt-2 text-sm text-muted">Ảnh thật sẽ được cập nhật</p>
+      </div>
     </div>
   );
 }

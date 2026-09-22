@@ -2,9 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Bath,
   ChefHat,
-  Flower2,
   Laptop,
-  Palmtree,
   ParkingCircle,
   Shirt,
   ShowerHead,
@@ -18,6 +16,11 @@ import { BookingPanel, MobileBookingBar } from "@/components/booking-panel";
 import { VillaGallery } from "@/components/gallery";
 import { Photo } from "@/components/photo";
 import { Button } from "@/components/ui/button";
+import {
+  DESTINATION_COPY,
+  LANDSCAPE_PHOTO,
+  LOCATION_LABEL,
+} from "@/lib/destination";
 import { useBookingStore } from "@/lib/store";
 import {
   bedroomLabel,
@@ -29,7 +32,6 @@ import {
 } from "@/lib/stay";
 import {
   AMENITY_LABELS,
-  DESTINATION,
   getVilla,
   type AmenityId,
   type Villa,
@@ -44,13 +46,11 @@ const AMENITY_ICONS: Record<AmenityId, typeof Wifi> = {
   pool: Waves,
   wifi: Wifi,
   kitchen: ChefHat,
-  beach: Palmtree,
   air: Wind,
   parking: ParkingCircle,
   bbq: UtensilsCrossed,
   washer: Shirt,
   shower: ShowerHead,
-  club: Flower2,
   housekeeping: Sparkles,
   workspace: Laptop,
   baths: Bath,
@@ -62,11 +62,11 @@ function VillaPage() {
 
   if (!villa) {
     return (
-      <main className="mx-auto max-w-xl px-4 py-24 text-center">
-        <h1 className="font-serif text-title">This villa isn't listed</h1>
-        <p className="mt-3 text-ink-soft">It may have been moved, or the link is incomplete.</p>
+      <main lang="vi" className="mx-auto max-w-xl px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Villa này không còn được niêm yết</h1>
+        <p className="mt-3 text-ink-soft">Có thể villa đã được chuyển, hoặc link chưa đủ.</p>
         <Button asChild className="mt-8">
-          <Link to="/">Back to Oceanami</Link>
+          <Link to="/">Xem villa Oceanami</Link>
         </Button>
       </main>
     );
@@ -129,7 +129,7 @@ function VillaDetail({ villa }: { villa: Villa }) {
     onRequest: requestStay,
     existing: existing
       ? {
-          label: existingBooking ? "View your stay" : "View your request",
+          label: existingBooking ? "Mở kỳ nghỉ" : "Xem yêu cầu",
           onOpen: () => {
             if (existingBooking) {
               void navigate({
@@ -148,7 +148,7 @@ function VillaDetail({ villa }: { villa: Villa }) {
   };
 
   return (
-    <main className="pb-28 lg:pb-16">
+    <main lang="vi" className="pb-28 lg:pb-16">
       <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6 sm:pt-6">
         <VillaGallery images={villa.images} name={villa.name} />
       </div>
@@ -157,14 +157,13 @@ function VillaDetail({ villa }: { villa: Villa }) {
         <article className="space-y-10">
           <header>
             <p className="text-xs font-semibold tracking-wider text-muted uppercase">
-              Oceanami · {villa.settingLabel}
+              {LOCATION_LABEL}
             </p>
             <h1 className="mt-2 font-serif text-title">{villa.name}</h1>
             <p className="mt-3 max-w-2xl text-lead text-ink-soft">{villa.tagline}</p>
             <p className="mt-4 text-sm text-ink-soft">
-              {bedroomLabel(villa.bedrooms)} · {villa.bathrooms} bathrooms · {guestLabel(villa.sleeps)} · {villa.sqm} m²
+              {bedroomLabel(villa.bedrooms)} · {villa.bathrooms} phòng tắm · {guestLabel(villa.sleeps)} · {villa.sqm} m²
             </p>
-            <p className="mt-2 text-sm text-muted">Chưa có đánh giá</p>
           </header>
 
           <div className="space-y-4 text-ink-soft">
@@ -174,7 +173,7 @@ function VillaDetail({ villa }: { villa: Villa }) {
           </div>
 
           <section>
-            <h2 className="font-medium">Sleeping</h2>
+            <h2 className="font-medium">Phòng ngủ</h2>
             <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {villa.sleeping.map((room) => (
                 <li key={room.title} className="rounded-xl bg-paper p-4 shadow-[var(--shadow-border)]">
@@ -186,7 +185,7 @@ function VillaDetail({ villa }: { villa: Villa }) {
           </section>
 
           <section>
-            <h2 className="font-medium">What the house offers</h2>
+            <h2 className="font-medium">Trong villa</h2>
             <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {villa.amenities.map((id) => {
                 const Icon = AMENITY_ICONS[id];
@@ -200,20 +199,38 @@ function VillaDetail({ villa }: { villa: Villa }) {
             </ul>
           </section>
 
+          <section>
+            <h2 className="font-medium">{DESTINATION_COPY.namePlace.title}</h2>
+            <p className="mt-3 text-ink-soft">{DESTINATION_COPY.namePlace.body}</p>
+          </section>
+
+          <section>
+            <h2 className="font-medium">{DESTINATION_COPY.about.title}</h2>
+            <p className="mt-3 text-ink-soft">{DESTINATION_COPY.about.body}</p>
+          </section>
+
+          <section>
+            <h2 className="font-medium">{DESTINATION_COPY.amenities.title}</h2>
+            <ul className="mt-3 space-y-1 text-ink-soft">
+              {DESTINATION_COPY.amenities.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="font-medium">{DESTINATION_COPY.around.title}</h2>
+            <p className="mt-3 text-ink-soft">{DESTINATION_COPY.around.body}</p>
+          </section>
+
           <section className="grid gap-6 md:grid-cols-2 md:items-center">
             <div>
-              <h2 className="font-medium">Where you are</h2>
-              <p className="mt-3 text-ink-soft">
-                On the Oceanami grounds in {DESTINATION.region}. {DESTINATION.travel}. The beach club
-                and spa sit a short walk from the villas.
-              </p>
-              <p className="mt-3 text-sm text-muted">{DESTINATION.address}</p>
+              <h2 className="font-medium">{DESTINATION_COPY.arrival.title}</h2>
+              <p className="mt-3 text-ink-soft">{DESTINATION_COPY.arrival.body}</p>
+              <p className="mt-3 text-sm text-muted">{LOCATION_LABEL}</p>
             </div>
             <div className="relative h-52 overflow-hidden rounded-xl">
-              <Photo src="/images/oceanami-hero.jpg" alt="Ảnh minh hoạ" />
-              <span className="absolute right-3 bottom-3 rounded-full bg-paper/92 px-2.5 py-1 text-[11px] text-muted">
-                Ảnh minh hoạ
-              </span>
+              <Photo src={LANDSCAPE_PHOTO.src} alt={LANDSCAPE_PHOTO.alt} />
             </div>
           </section>
         </article>

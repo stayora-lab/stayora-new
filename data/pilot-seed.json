@@ -31,12 +31,7 @@
       "sleeps": 8,
       "nightlyPrice": 16500000,
       "setting": "beachfront",
-      "photos": [
-        "/images/villas/sao-bien-hero.jpg",
-        "/images/villas/sao-bien-living.jpg",
-        "/images/villas/bedroom.jpg",
-        "/images/beach-club.jpg"
-      ]
+      "photos": []
     },
     {
       "id": "huong-tram",
@@ -46,12 +41,7 @@
       "sleeps": 6,
       "nightlyPrice": 9400000,
       "setting": "garden",
-      "photos": [
-        "/images/villas/huong-tram-hero.jpg",
-        "/images/villas/huong-tram-living.jpg",
-        "/images/villas/bedroom.jpg",
-        "/images/spa.jpg"
-      ]
+      "photos": []
     },
     {
       "id": "minh-dam",
@@ -61,12 +51,7 @@
       "sleeps": 10,
       "nightlyPrice": 22400000,
       "setting": "hillside",
-      "photos": [
-        "/images/villas/minh-dam-hero.jpg",
-        "/images/villas/minh-dam-terrace.jpg",
-        "/images/villas/bedroom.jpg",
-        "/images/oceanami-hero.jpg"
-      ]
+      "photos": []
     },
     {
       "id": "sen-hong",
@@ -86,12 +71,7 @@
       "sleeps": 6,
       "nightlyPrice": 10800000,
       "setting": "garden",
-      "photos": [
-        "/images/villas/gio-bien-hero.jpg",
-        "/images/villas/gio-bien-living.jpg",
-        "/images/villas/bedroom.jpg",
-        "/images/beach-club.jpg"
-      ]
+      "photos": []
     },
     {
       "id": "cat-vang",
@@ -101,12 +81,7 @@
       "sleeps": 8,
       "nightlyPrice": 18200000,
       "setting": "beachfront",
-      "photos": [
-        "/images/villas/cat-vang-hero.jpg",
-        "/images/villas/cat-vang-pool.jpg",
-        "/images/villas/sao-bien-living.jpg",
-        "/images/villas/bedroom.jpg"
-      ]
+      "photos": []
     }
   ],
   "existingStays": [

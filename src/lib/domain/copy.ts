@@ -125,7 +125,7 @@ export function quoteText(request: {
   const name = villa?.name ?? request.villaId;
   const sleeps = villa?.sleeps ?? "";
   return [
-    `${name} · Oceanami`,
+    `${name} · Oceanami · Phước Hải`,
     `${viDateRange(request.checkIn, request.checkOut)} · ${request.guests} khách · ngủ ${sleeps}`,
     `${formatVnd(request.total)} (giá công khai)`,
     `Thanh toán ${request.paymentLabel}`,
