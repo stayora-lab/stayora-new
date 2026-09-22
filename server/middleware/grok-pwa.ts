@@ -27,7 +27,7 @@ import {
 
 interface GrokPwaEvent {
   url: URL;
-  req: { method: string; headers: Headers };
+  req: { method: string; headers: Headers; signal?: AbortSignal };
 }
 
 function requestHost(event: GrokPwaEvent): string {
@@ -64,10 +64,50 @@ export default async function grokPwaMiddleware(
   event: GrokPwaEvent,
   next: () => unknown | Promise<unknown>,
 ): Promise<unknown> {
-  const method = (event.req.method ?? "GET").toUpperCase();
-  if (method !== "GET") return next();
+  // Vercel Node may omit AbortSignal. TanStack Start then throws
+  // `request.signal.throwIfAborted()` → opaque HTTPError 500 on every page.
+  const req = event.req as GrokPwaEvent["req"] & Request;
+  if (typeof req.signal?.throwIfAborted !== "function") {
+    const ac = new AbortController();
+    try {
+      Object.defineProperty(req, "signal", {
+        configurable: true,
+        enumerable: true,
+        get: () => ac.signal,
+      });
+    } catch {
+      try {
+        event.req = new Proxy(req, {
+          get(target, prop, receiver) {
+            if (prop === "signal") return ac.signal;
+            const value = Reflect.get(target, prop, receiver);
+            return typeof value === "function"
+              ? (value as (...args: unknown[]) => unknown).bind(target)
+              : value;
+          },
+        }) as GrokPwaEvent["req"];
+      } catch {
+        /* last resort: Start will still 500; /health reports hasSignal=false */
+      }
+    }
+  }
 
+  const method = (event.req.method ?? "GET").toUpperCase();
   const path = event.url.pathname;
+  if (path === "/health") {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        app: "stayora-field-test",
+        node: process.version,
+        hasSignal: typeof req.signal?.throwIfAborted === "function",
+        extensible: Object.isExtensible(req),
+      }),
+      { headers: { "content-type": "application/json; charset=utf-8" } },
+    );
+  }
+
+  if (method !== "GET") return next();
   const urlWithQuery = path + event.url.search;
 
   if (path === "/__grok/manifest.webmanifest" || path === "/__grok/manifest.json") {
