@@ -1,0 +1,40 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 1879,
+      "bodyTextHash": "e3a3ac78fd6b3e52bbb2b40410a788872d02063dbe3058fe179b89e2625bdb53",
+      "bodyTextPrefix": "Bản thử nghiệm — không có giao dịch thật. Stayora Oceanami · Phư",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/prod-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 1858,
+      "bodyTextHash": "bf37c93e19f40524489673a7a0037035a5e7e91209adbb70ab6ca7da4de0c9e3",
+      "bodyTextPrefix": "Bản thử nghiệm — không có giao dịch thật. Stayora PHƯỚC HẢI, BÀ ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/prod-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/prod-preview.json",
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "mobile: body text replaced (similar length, page start changed)"
+  ]
+}
