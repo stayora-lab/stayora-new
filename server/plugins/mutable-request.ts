@@ -1,9 +1,10 @@
 /**
- * Vercel Node 24 hands us a non-extensible Request. Nitro then does
- * `req.context ||= {}` and `req.runtime = …`, which throws and becomes the
- * opaque `{"status":500,"unhandled":true,"message":"HTTPError"}` testers hit.
- * Mutate first (or report why we cannot) so the real failure is visible.
+ * Vercel Node may hand us a Request that is frozen (Nitro then fails to set
+ * `req.runtime` / `req.context`) or missing `AbortSignal` (TanStack SSR then
+ * 500s as opaque HTTPError). Patch both before the app runs.
  */
+import { withAbortSignal } from "../lib/with-signal.ts";
+
 type NitroApp = {
   fetch: (req: Request) => Promise<Response> | Response;
 };
@@ -40,7 +41,8 @@ function diagnostic(kind: string, error: unknown, req: Request): Response {
 
 export default function mutableRequestPlugin(app: NitroApp) {
   const orig = app.fetch.bind(app);
-  app.fetch = (req: Request) => {
+  app.fetch = (incoming: Request) => {
+    const req = withAbortSignal(incoming);
     try {
       const mutable = req as Request & { context?: Record<string, unknown> };
       mutable.context ||= {};
