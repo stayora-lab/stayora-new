@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/your-stay/sty_seed_sale_future",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 809,
+      "bodyTextHash": "b6994d3f351ccaa1abd6f3e2d40bd07ea434fd3295761dce507d6f140fbfe34b",
+      "bodyTextPrefix": "Stayora Oceanami · Phước Hải Your request Vai Khách Sale Host Bu",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/guest-stay.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 784,
+      "bodyTextHash": "a2b127735e519459e7390c5a24a6413798505287ed0b7abe65da69eb2a200002",
+      "bodyTextPrefix": "Stayora Your request Khách Sale Host Butler BQL KỲ NGHỈ CỦA BẠN ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/guest-stay-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/guest-stay.json"
+}
