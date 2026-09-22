@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 1810,
+      "bodyTextHash": "360560ca7ebf821fd84db4dbd706e19405b23d8c0077d1b1b9035aa1bf9e10f5",
+      "bodyTextPrefix": "Stayora Oceanami · Phước Hải Vai Khách Sale Host Butler BQL PHƯỚ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 1785,
+      "bodyTextHash": "633ab7d435a5c92175eff372709877702244b1dadc4e56abd9df78a1ec72fe6b",
+      "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL PHƯỚC HẢI, BÀ RỊA–VŨNG TÀU Oc",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

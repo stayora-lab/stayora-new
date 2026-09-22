@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/sale",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 831,
+      "bodyTextHash": "9b01f72d922a31668baa2a82cf557203db12d6a15eba435dd9c9f9d9e2532ca9",
+      "bodyTextPrefix": "Stayora Sale · Oceanami Vai Khách Sale Host Butler BQL SALE · OC",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/sale.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 811,
+      "bodyTextHash": "fe622ce4860b6d14ee12f0ebaacb76e86bfd0c06e98a0f626d168e43ce989c27",
+      "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL SALE · OCEANAMI Tìm chỗ trống",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/sale-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/sale.json"
+}

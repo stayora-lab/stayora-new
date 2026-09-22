@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "react-day-picker/style.css";
+
+@theme {
+  --color-cream: #f6f1ea;
+  --color-cream-deep: #ede4d6;
+  --color-paper: #fbf8f4;
+  --color-sand: #e6dccf;
+  --color-ink: #1a1614;
+  --color-ink-soft: #3d3834;
+  --color-muted: #7a726a;
+  --color-lotus: #9d3291;
+  --color-lotus-deep: #7c2773;
+  --color-lotus-soft: #f4e6f1;
+  --color-moss: #3f5348;
+  --color-border: color-mix(in oklab, var(--color-ink) 10%, transparent);
+  --color-border-strong: color-mix(in oklab, var(--color-ink) 18%, transparent);
+
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+
+  --text-display: clamp(3.25rem, 9vw, 6.75rem);
+  --text-display--line-height: 0.92;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: clamp(1.75rem, 3vw, 2.75rem);
+  --text-title--line-height: 1.12;
+  --text-title--letter-spacing: -0.025em;
+  --text-lead: clamp(1.05rem, 1.2vw, 1.2rem);
+  --text-lead--line-height: 1.55;
+
+  --aspect-photo: 4 / 3;
+
+  --shadow-border:
+    0px 0px 0px 1px rgba(26, 22, 20, 0.06),
+    0px 1px 2px -1px rgba(26, 22, 20, 0.06),
+    0px 2px 8px 0px rgba(26, 22, 20, 0.04);
+  --shadow-border-hover:
+    0px 0px 0px 1px rgba(26, 22, 20, 0.1),
+    0px 4px 16px -2px rgba(26, 22, 20, 0.1);
+  --shadow-lift:
+    0px 12px 40px -16px rgba(26, 22, 20, 0.18);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-cream);
+    color: var(--color-ink);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-lotus) 28%, white);
+    color: var(--color-ink);
+  }
+}
+
+@layer components {
+  .photo-frame {
+    outline: 1px solid rgba(26, 22, 20, 0.1);
+    outline-offset: -1px;
+  }
+
+  .rdp-root {
+    --rdp-accent-color: var(--color-lotus);
+    --rdp-accent-background-color: var(--color-lotus-soft);
+    --rdp-today-color: var(--color-lotus);
+    --rdp-range_middle-background-color: var(--color-lotus-soft);
+    --rdp-range_middle-color: var(--color-ink);
+    --rdp-day-height: 40px;
+    --rdp-day-width: 40px;
+    --rdp-day_button-border-radius: 999px;
+    --rdp-selected-border: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+  }
+
+  .rdp-month_caption {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .rdp-weekday {
+    color: var(--color-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .rdp-today:not(.rdp-selected) .rdp-day_button {
+    font-weight: 700;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

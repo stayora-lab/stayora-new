@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/host",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 450,
+      "bodyTextHash": "778ff9aea07d6cc3e4245456eee62719ec2def5d3bc5d902e5144e759d1f4cbd",
+      "bodyTextPrefix": "Stayora Host · Oceanami Vai Khách Sale Host Butler BQL HOST · OC",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/host.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 430,
+      "bodyTextHash": "9a7247a272709209e4349444f2c359afbf1dc3e7bdd909ca82b7e029372a701d",
+      "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL HOST · OCEANAMI Yêu cầu cần x",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/host-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/host.json"
+}

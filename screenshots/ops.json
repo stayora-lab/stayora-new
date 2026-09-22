@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/ops",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 536,
+      "bodyTextHash": "8a0ce1ee95188e97afdf559752c14fbafdc1c39379007194abd41eaede574b4c",
+      "bodyTextPrefix": "Stayora Butler · Hôm nay Vai Khách Sale Host Butler BQL BUTLER ·",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/ops.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Stayora",
+      "hasCanvas": false,
+      "bodyTextLen": 515,
+      "bodyTextHash": "9fd52d79ec8fdd132534393fde31adfd2f8acece6a28b80c06995bf500b3a150",
+      "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL BUTLER · LINH Hôm nay tại Oce",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/ops-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/ops.json"
+}
