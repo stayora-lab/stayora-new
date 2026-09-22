@@ -175,6 +175,7 @@ export default defineConfig(({ command, isPreview }) => ({
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
             serverDir: "./server",
+            // Field-test: surface Nitro errors instead of opaque HTTPError JSON.
             errorHandler: "./server/error.ts",
           }),
         ]

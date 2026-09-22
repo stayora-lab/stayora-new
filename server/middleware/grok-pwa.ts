@@ -115,6 +115,7 @@ export default async function grokPwaMiddleware(
       headers: {
         "content-type": "application/manifest+json; charset=utf-8",
         "cache-control": "no-cache",
+        "x-stayora-build": "71ed935-health",
       },
     });
   }
