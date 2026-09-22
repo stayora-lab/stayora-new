@@ -29,6 +29,12 @@ export const resolveRole = createServerFn({ method: "POST" })
     return authorizeRole(data.vai, data.key);
   });
 
+export const fetchAdminStatus = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ configured: boolean }> => {
+    const { isAdminConfigured } = await import("./authorize.ts");
+    return { configured: isAdminConfigured() };
+  },
+);
 export const submitWorldAction = createServerFn({ method: "POST" })
   .validator((input: { action: WorldAction; vai?: string; key?: string }) => input)
   .handler(async ({ data }): Promise<ActionResponse> => {

@@ -496,6 +496,8 @@ test("nitro middleware and its bundled assets exist", () => {
   readFileSync(join(TEMPLATE_ROOT, "scripts/install-page.html"));
   readFileSync(join(TEMPLATE_ROOT, "public/__grok/icon-180.png"));
   readFileSync(join(TEMPLATE_ROOT, "public/__grok/install/styles.css"));
+  const robots = readFileSync(join(TEMPLATE_ROOT, "public/robots.txt"), "utf8");
+  assert.equal(robots.replace(/\n$/, ""), "User-agent: *\nDisallow: /");
 });
 
 test("vite plugin bakes og identity as a virtual module", () => {

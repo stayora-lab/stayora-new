@@ -13,12 +13,14 @@ import {
   viDateRange,
 } from "@/lib/domain";
 import type { PaymentOutcome } from "@/lib/domain";
+import { fetchAdminStatus } from "@/lib/world-api";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 
 export const Route = createFileRoute("/admin")({
+  loader: () => fetchAdminStatus(),
   component: AdminPage,
 });
 
@@ -33,6 +35,7 @@ const TABS: { id: AdminTab; label: string }[] = [
 ];
 
 function AdminPage() {
+  const { configured } = Route.useLoaderData();
   const world = useBookingStore((state) => state.world);
   const adminRecordPayment = useBookingStore((state) => state.adminRecordPayment);
   const adminResolveUnknown = useBookingStore((state) => state.adminResolveUnknown);
@@ -87,6 +90,14 @@ function AdminPage() {
   }
 
   const conflict = openConflicts.find((item) => item.id === conflictId);
+
+  if (!configured) {
+    return (
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>
+      </main>
+    );
+  }
 
   return (
     <RoleGate allow={["ADMIN"]}>

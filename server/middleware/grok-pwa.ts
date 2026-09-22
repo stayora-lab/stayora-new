@@ -53,6 +53,7 @@ function injectHeadStreaming(response: Response, host: string): Response {
   );
   const headers = new Headers(response.headers);
   headers.delete("content-length");
+  headers.set("X-Robots-Tag", "noindex, nofollow");
   return new Response(transformed, {
     status: response.status,
     statusText: response.statusText,
@@ -103,7 +104,7 @@ export default async function grokPwaMiddleware(
         hasSignal: typeof req.signal?.throwIfAborted === "function",
         extensible: Object.isExtensible(req),
       }),
-      { headers: { "content-type": "application/json; charset=utf-8" } },
+      { headers: { "content-type": "application/json; charset=utf-8", "X-Robots-Tag": "noindex, nofollow" } },
     );
   }
 
@@ -116,6 +117,7 @@ export default async function grokPwaMiddleware(
         "content-type": "application/manifest+json; charset=utf-8",
         "cache-control": "no-cache",
         "x-stayora-build": "71ed935-health",
+        "X-Robots-Tag": "noindex, nofollow",
       },
     });
   }
@@ -133,6 +135,7 @@ export default async function grokPwaMiddleware(
       headers: {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-cache",
+        "X-Robots-Tag": "noindex, nofollow",
       },
     });
   }

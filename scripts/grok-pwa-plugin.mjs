@@ -28,6 +28,26 @@ function requestHost(req) {
   return Array.isArray(host) ? host[0] : host;
 }
 
+const ROBOTS_TAG = "noindex, nofollow";
+const ROBOTS_TXT = "User-agent: *\nDisallow: /";
+
+function stampRobots(middlewares) {
+  middlewares.use((req, res, next) => {
+    res.setHeader("X-Robots-Tag", ROBOTS_TAG);
+    const pathOnly = (req.url ?? "").split("?", 1)[0] ?? "";
+    if ((req.method ?? "GET").toUpperCase() === "GET" && pathOnly === "/robots.txt") {
+      const body = Buffer.from(ROBOTS_TXT, "utf8");
+      res.statusCode = 200;
+      res.setHeader("content-type", "text/plain; charset=utf-8");
+      res.setHeader("cache-control", "no-cache");
+      res.setHeader("content-length", String(body.byteLength));
+      res.end(body);
+      return;
+    }
+    next();
+  });
+}
+
 export function renderInstallPage(hostHeader, url = "/") {
   const template = readFileSync(INSTALL_PAGE_PATH, "utf8");
   return renderInstallPageHtml(template, { host: hostHeader, url });
@@ -174,10 +194,12 @@ export function grokPwaPlugin() {
     configureServer(server) {
       // Registered directly (not in a returned post-hook) so both run BEFORE
       // TanStack Start's SSR middleware, like the auth-popup plugin.
+      stampRobots(server.middlewares);
       serveGrokPwa(server.middlewares);
       wrapHtmlResponses(server.middlewares, root);
     },
     configurePreviewServer(server) {
+      stampRobots(server.middlewares);
       serveGrokPwa(server.middlewares);
       // Post-hook: preview registers compression between the direct hooks and
       // the post-hooks, and the injector must wrap AFTER compression so it

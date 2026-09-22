@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createEmptyWorld, DomainError } from "./domain/engine.ts";
 import { applyWorldAction } from "./world-actions.ts";
-import { authorizeRole } from "./authorize.ts";
+import { authorizeRole, isAdminConfigured } from "./authorize.ts";
 import { assertPilotSeed, DESTINATION_NAME, PILOT_SEED, type PilotSeed } from "./pilot-data.ts";
 import { visibleGuestName } from "./privacy.ts";
 
@@ -72,6 +72,21 @@ describe("admin key", () => {
     withAdminKey(SECRET, () => {
       assert.deepEqual(authorizeRole("host-a"), { persona: "HOST", hostId: "host-a" });
       assert.deepEqual(authorizeRole("sale-b"), { persona: "SALE", saleId: "sale-b" });
+    });
+  });
+
+  it("with ADMIN_KEY unset, role admin with any key → FORBIDDEN", () => {
+    withAdminKey(undefined, () => {
+      assert.equal(isAdminConfigured(), false);
+      for (const key of ["any-key", "wrong", "x"]) {
+        const role = authorizeRole("admin", key);
+        assert.equal(role.persona, "GUEST");
+        assert.throws(
+          () => applyWorldAction(createEmptyWorld(NOW), { type: "RESET" }, role),
+          (error: unknown) =>
+            error instanceof DomainError && error.code === "FORBIDDEN",
+        );
+      }
     });
   });
 });

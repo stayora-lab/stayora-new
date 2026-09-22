@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { roleLinks } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
+import { fetchAdminStatus } from "@/lib/world-api";
 
 export const Route = createFileRoute("/admin_/links")({
+  loader: () => fetchAdminStatus(),
   component: RoleLinksPage,
 });
 
 function RoleLinksPage() {
+  const { configured } = Route.useLoaderData();
   const [copied, setCopied] = useState<string | null>(null);
   const adminKey = useBookingStore((state) => state.adminKey);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
@@ -27,6 +30,14 @@ function RoleLinksPage() {
     const ok = await copyText(url);
     setCopied(ok ? vai : null);
     window.setTimeout(() => setCopied(null), 2000);
+  }
+
+  if (!configured) {
+    return (
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>
+      </main>
+    );
   }
 
   return (
