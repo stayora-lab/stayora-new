@@ -81,7 +81,8 @@ function VillaDetail({ villa }: { villa: Villa }) {
   const stored = useBookingStore((state) => state.search);
   const setSearch = useBookingStore((state) => state.setSearch);
   const guestCreateRequest = useBookingStore((state) => state.guestCreateRequest);
-  const requests = useBookingStore((state) => state.world.requests);
+  const world = useBookingStore((state) => state.world);
+  const requests = world.requests;
 
   const checkIn = search.checkIn ?? stored.checkIn ?? DEFAULT_CHECK_IN;
   const checkOut = search.checkOut ?? stored.checkOut ?? DEFAULT_CHECK_OUT;
@@ -104,6 +105,9 @@ function VillaDetail({ villa }: { villa: Villa }) {
       request.checkIn === checkIn &&
       request.checkOut === checkOut,
   );
+  const existingBooking = existing
+    ? world.bookings.find((item) => item.requestId === existing.id)
+    : undefined;
 
   function requestStay() {
     const { requestId } = guestCreateRequest({
@@ -125,10 +129,13 @@ function VillaDetail({ villa }: { villa: Villa }) {
     onRequest: requestStay,
     existing: existing
       ? {
-          label: existing.status === "CONFIRMED" ? "View your stay" : "View your request",
+          label: existingBooking ? "View your stay" : "View your request",
           onOpen: () => {
-            if (existing.status === "CONFIRMED" && existing.stayId) {
-              void navigate({ to: "/your-stay/$stayId", params: { stayId: existing.stayId } });
+            if (existingBooking) {
+              void navigate({
+                to: "/your-stay/$stayId",
+                params: { stayId: existingBooking.stayId },
+              });
             } else {
               void navigate({
                 to: "/requests/$requestId",
@@ -156,9 +163,8 @@ function VillaDetail({ villa }: { villa: Villa }) {
             <p className="mt-3 max-w-2xl text-lead text-ink-soft">{villa.tagline}</p>
             <p className="mt-4 text-sm text-ink-soft">
               {bedroomLabel(villa.bedrooms)} · {villa.bathrooms} bathrooms · {guestLabel(villa.sleeps)} · {villa.sqm} m²
-              <span className="mx-2 text-sand">·</span>
-              {villa.rating.toFixed(2)} · {villa.reviewCount} reviews
             </p>
+            <p className="mt-2 text-sm text-muted">Chưa có đánh giá</p>
           </header>
 
           <div className="space-y-4 text-ink-soft">
@@ -203,25 +209,11 @@ function VillaDetail({ villa }: { villa: Villa }) {
               </p>
               <p className="mt-3 text-sm text-muted">{DESTINATION.address}</p>
             </div>
-            <div className="h-52 overflow-hidden rounded-xl">
-              <Photo
-                src="/images/oceanami-hero.jpg"
-                alt="Oceanami between Phước Hải beach and Minh Đạm mountain"
-              />
-            </div>
-          </section>
-
-          <section>
-            <h2 className="font-medium">From recent guests</h2>
-            <div className="mt-4 grid gap-4">
-              {villa.reviews.map((review) => (
-                <blockquote key={review.name} className="rounded-xl bg-paper p-5 shadow-[var(--shadow-border)]">
-                  <p className="text-ink-soft">“{review.text}”</p>
-                  <footer className="mt-3 text-sm text-muted">
-                    {review.name} · {review.when}
-                  </footer>
-                </blockquote>
-              ))}
+            <div className="relative h-52 overflow-hidden rounded-xl">
+              <Photo src="/images/oceanami-hero.jpg" alt="Ảnh minh hoạ" />
+              <span className="absolute right-3 bottom-3 rounded-full bg-paper/92 px-2.5 py-1 text-[11px] text-muted">
+                Ảnh minh hoạ
+              </span>
             </div>
           </section>
         </article>

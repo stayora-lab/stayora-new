@@ -7,16 +7,14 @@ export type Actor =
   | { persona: "BUTLER"; butlerId: string }
   | { persona: "BQL" };
 
-export type PaymentRule = "FIFTY_FIFTY" | "FULL";
-
 export type RequestSource = "GUEST" | "SALE";
 
 export type RequestStatus =
   | "PENDING"
   | "ACCEPTED"
-  | "CONFIRMED"
   | "DECLINED"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "CONFLICTED";
 
 export type StayStatus =
   | "SCHEDULED"
@@ -27,9 +25,19 @@ export type StayStatus =
 
 export type StayOrigin = "STAYORA" | "EXTERNAL";
 
-export type CommitmentKind = "HOLD" | "CONFIRMED_ACCOMMODATION";
+export type CommitmentKind = "HOLD" | "CONFIRMED_ACCOMMODATION" | "AVAILABILITY_BLOCK";
+
+export type CommitmentStatus = "ACTIVE" | "ENDED";
+
+export type EndedReason = "EXPIRED" | "SUPERSEDED" | "RELEASED";
+
+export type CommitmentBasis = "STAYORA_BOOKING" | "EXTERNAL" | "BLOCK";
+
+export type BlockKind = "OWNER" | "MAINTENANCE";
 
 export type CommissionStatus = "PENDING" | "EARNED";
+
+export type PaymentOutcome = "SUCCEEDED" | "FAILED" | "UNKNOWN";
 
 export type StayRequest = {
   id: string;
@@ -41,18 +49,15 @@ export type StayRequest = {
   nightly: number;
   nights: number;
   total: number;
-  paymentRule: PaymentRule;
   source: RequestSource;
   saleId?: string;
   status: RequestStatus;
   createdAt: string;
   acceptedAt?: string;
   holdExpiresAt?: string;
-  confirmedAt?: string;
   declinedAt?: string;
-  reference?: string;
-  bookingId?: string;
-  stayId?: string;
+  expiredAt?: string;
+  conflictedAt?: string;
 };
 
 export type Booking = {
@@ -68,7 +73,6 @@ export type Booking = {
   nightly: number;
   nights: number;
   total: number;
-  paymentRule: PaymentRule;
   saleId?: string;
   status: "CONFIRMED";
   confirmedAt: string;
@@ -100,8 +104,37 @@ export type Commitment = {
   start: string;
   end: string;
   kind: CommitmentKind;
+  status: CommitmentStatus;
+  endedReason?: EndedReason;
+  expiresAt?: string;
+  basis: CommitmentBasis;
+  blockKind?: BlockKind;
   requestId?: string;
   bookingId?: string;
+};
+
+export type PaymentObligation = {
+  id: string;
+  requestId: string;
+  kind: "INITIAL" | "BALANCE";
+  amount: number;
+  dueAt: string;
+};
+
+export type PaymentAttempt = {
+  id: string;
+  obligationId: string;
+  status: PaymentOutcome;
+  at: string;
+};
+
+export type ExternalAccommodation = {
+  id: string;
+  villaId: string;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  source: "Airbnb" | "Booking.com" | "Zalo" | "Khách quen";
 };
 
 export type Incident = {
@@ -137,6 +170,9 @@ export type World = {
   commitments: Commitment[];
   incidents: Incident[];
   commissions: Commission[];
+  obligations: PaymentObligation[];
+  attempts: PaymentAttempt[];
+  externalAccommodations: ExternalAccommodation[];
   sales: Person[];
   butlers: Person[];
 };

@@ -33,13 +33,9 @@ export type Villa = {
   sleeps: number;
   sqm: number;
   nightly: number;
-  rating: number;
-  reviewCount: number;
   amenities: AmenityId[];
   sleeping: { title: string; detail: string }[];
   images: StayImage[];
-  blocked: { start: string; end: string }[];
-  reviews: { name: string; when: string; text: string }[];
 };
 
 export const DESTINATION = {
@@ -69,8 +65,6 @@ export const villas: Villa[] = [
     sleeps: 8,
     sqm: 320,
     nightly: 16_500_000,
-    rating: 4.94,
-    reviewCount: 28,
     amenities: [
       "pool",
       "beach",
@@ -92,32 +86,19 @@ export const villas: Villa[] = [
     images: [
       {
         src: "/images/villas/sao-bien-hero.jpg",
-        alt: "Infinity pool of Villa Sao Biển looking out to the East Sea",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/sao-bien-living.jpg",
-        alt: "Open living room with linen sofas facing the pool and ocean",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/bedroom.jpg",
-        alt: "King bedroom with white linen and a garden window",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/beach-club.jpg",
-        alt: "Oceanami beach club along Phước Hải beach",
-      },
-    ],
-    blocked: [{ start: "2026-10-23", end: "2026-10-27" }],
-    reviews: [
-      {
-        name: "Mai",
-        when: "August 2026",
-        text: "The pool really does meet the sea. We cooked one night and ate at the beach club the next. Easy with two children.",
-      },
-      {
-        name: "James",
-        when: "May 2026",
-        text: "Quiet in the mornings, staff nearby without hovering. The house is the stay — we barely left the deck.",
+        alt: "Ảnh minh hoạ",
       },
     ],
   },
@@ -137,8 +118,6 @@ export const villas: Villa[] = [
     sleeps: 6,
     sqm: 240,
     nightly: 9_400_000,
-    rating: 4.9,
-    reviewCount: 41,
     amenities: [
       "pool",
       "kitchen",
@@ -158,32 +137,19 @@ export const villas: Villa[] = [
     images: [
       {
         src: "/images/villas/huong-tram-hero.jpg",
-        alt: "Garden pool of Villa Hương Tràm framed by tropical plants",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/huong-tram-living.jpg",
-        alt: "Dining room with rattan and teak looking onto the garden",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/bedroom.jpg",
-        alt: "Quiet bedroom with garden light",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/spa.jpg",
-        alt: "Oceanami spa treatment room",
-      },
-    ],
-    blocked: [{ start: "2026-11-12", end: "2026-11-16" }],
-    reviews: [
-      {
-        name: "Linh",
-        when: "July 2026",
-        text: "We could hear the sea and still felt hidden. The garden is the whole character of the house.",
-      },
-      {
-        name: "Anh",
-        when: "March 2026",
-        text: "Beautifully kept, and the walk to the beach club is short. Would return for a long weekend.",
+        alt: "Ảnh minh hoạ",
       },
     ],
   },
@@ -203,8 +169,6 @@ export const villas: Villa[] = [
     sleeps: 10,
     sqm: 480,
     nightly: 22_400_000,
-    rating: 4.97,
-    reviewCount: 19,
     amenities: [
       "pool",
       "kitchen",
@@ -228,32 +192,19 @@ export const villas: Villa[] = [
     images: [
       {
         src: "/images/villas/minh-dam-hero.jpg",
-        alt: "Hillside Villa Minh Đạm at dusk overlooking sea and mountain",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/minh-dam-terrace.jpg",
-        alt: "Terrace dining table looking toward the East Sea",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/bedroom.jpg",
-        alt: "King bedroom with garden and sea light",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/oceanami-hero.jpg",
-        alt: "Oceanami villas between Phước Hải beach and Minh Đạm mountain",
-      },
-    ],
-    blocked: [{ start: "2026-10-15", end: "2026-10-21" }],
-    reviews: [
-      {
-        name: "Hạnh",
-        when: "April 2026",
-        text: "We were twelve at dinner on the terrace and it still felt considered. The view does half the hosting.",
-      },
-      {
-        name: "Daniel",
-        when: "January 2026",
-        text: "A proper family house. High enough to be quiet, close enough to walk down for a swim.",
+        alt: "Ảnh minh hoạ",
       },
     ],
   },
@@ -273,8 +224,6 @@ export const villas: Villa[] = [
     sleeps: 4,
     sqm: 160,
     nightly: 6_200_000,
-    rating: 4.88,
-    reviewCount: 36,
     amenities: [
       "pool",
       "kitchen",
@@ -292,32 +241,19 @@ export const villas: Villa[] = [
     images: [
       {
         src: "/images/villas/sen-hong-hero.jpg",
-        alt: "Courtyard of Villa Sen Hồng with a still lotus pond",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/sen-hong-courtyard.jpg",
-        alt: "Lotus pond and daybed in the Sen Hồng courtyard",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/bedroom.jpg",
-        alt: "Calm bedroom with white linen",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/spa.jpg",
-        alt: "Quiet spa room at Oceanami",
-      },
-    ],
-    blocked: [{ start: "2026-11-01", end: "2026-11-05" }],
-    reviews: [
-      {
-        name: "Trang",
-        when: "June 2026",
-        text: "We wanted somewhere small. The courtyard is the whole stay — we read, we swam, we didn't perform a holiday.",
-      },
-      {
-        name: "Olivier",
-        when: "February 2026",
-        text: "Tactile and quiet. Not a show villa, which is exactly why we booked it.",
+        alt: "Ảnh minh hoạ",
       },
     ],
   },
@@ -337,8 +273,6 @@ export const villas: Villa[] = [
     sleeps: 6,
     sqm: 260,
     nightly: 10_800_000,
-    rating: 4.91,
-    reviewCount: 33,
     amenities: [
       "pool",
       "kitchen",
@@ -359,32 +293,19 @@ export const villas: Villa[] = [
     images: [
       {
         src: "/images/villas/gio-bien-hero.jpg",
-        alt: "Family pool and lawn at Villa Gió Biển",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/gio-bien-living.jpg",
-        alt: "Open kitchen and dining table looking onto the pool",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/bedroom.jpg",
-        alt: "Bedroom with garden light",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/beach-club.jpg",
-        alt: "Beach club a short walk from the villa",
-      },
-    ],
-    blocked: [{ start: "2026-10-30", end: "2026-11-03" }],
-    reviews: [
-      {
-        name: "Hương",
-        when: "August 2026",
-        text: "The kitchen saved us. We had three children and never felt packed. Pool shelf is a gift.",
-      },
-      {
-        name: "Tom",
-        when: "May 2026",
-        text: "Family stay without the resort-room feeling. We walked to the beach club every afternoon.",
+        alt: "Ảnh minh hoạ",
       },
     ],
   },
@@ -404,8 +325,6 @@ export const villas: Villa[] = [
     sleeps: 8,
     sqm: 340,
     nightly: 18_200_000,
-    rating: 4.93,
-    reviewCount: 22,
     amenities: [
       "pool",
       "beach",
@@ -428,32 +347,19 @@ export const villas: Villa[] = [
     images: [
       {
         src: "/images/villas/cat-vang-hero.jpg",
-        alt: "Pavilion living and pool at Villa Cát Vàng beside the beach",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/cat-vang-pool.jpg",
-        alt: "Private pool with Phước Hải beach just beyond",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/sao-bien-living.jpg",
-        alt: "Open living looking toward water",
+        alt: "Ảnh minh hoạ",
       },
       {
         src: "/images/villas/bedroom.jpg",
-        alt: "Bedroom with white linen and garden light",
-      },
-    ],
-    blocked: [{ start: "2026-09-28", end: "2026-10-03" }],
-    reviews: [
-      {
-        name: "Ngọc",
-        when: "July 2026",
-        text: "We were in the sea before breakfast. The outdoor kitchen is the heart of the house.",
-      },
-      {
-        name: "Elena",
-        when: "April 2026",
-        text: "As close to the beach as I would want with children. Beautiful at golden hour.",
+        alt: "Ảnh minh hoạ",
       },
     ],
   },

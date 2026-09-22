@@ -19,21 +19,6 @@ export type StaySearch = {
   guests?: number;
 };
 
-export type StayRequest = {
-  id: string;
-  villaId: string;
-  checkIn: string;
-  checkOut: string;
-  guests: number;
-  nightly: number;
-  nights: number;
-  total: number;
-  status: "waiting" | "confirmed";
-  createdAt: string;
-  confirmedAt?: string;
-  reference?: string;
-};
-
 export type Bookability =
   | { state: "ready" }
   | { state: "missing-dates" }
@@ -97,15 +82,6 @@ export function bedroomLabel(count: number): string {
   return count === 1 ? "1 bedroom" : `${count} bedrooms`;
 }
 
-function rangesOverlap(
-  start: string,
-  end: string,
-  blockedStart: string,
-  blockedEnd: string,
-): boolean {
-  return start < blockedEnd && end > blockedStart;
-}
-
 export function isRangeAvailable(
   villa: Villa,
   checkIn: string,
@@ -114,10 +90,8 @@ export function isRangeAvailable(
 ): boolean {
   if (!isIsoDate(checkIn) || !isIsoDate(checkOut)) return false;
   if (nightsBetween(checkIn, checkOut) < 1) return false;
-  if (world) return isAvailable(world, villa.id, checkIn, checkOut);
-  return !villa.blocked.some((block) =>
-    rangesOverlap(checkIn, checkOut, block.start, block.end),
-  );
+  if (!world) return true;
+  return isAvailable(world, villa.id, checkIn, checkOut);
 }
 
 export function bookability(
@@ -157,9 +131,8 @@ export function disabledMatchers(villa?: Villa, world?: World) {
   const matchers: Array<{ before: Date } | { from: Date; to: Date }> = [
     { before: today },
   ];
-  if (!villa) return matchers;
-  const ranges = world ? occupiedRanges(world, villa.id) : villa.blocked;
-  for (const block of ranges) {
+  if (!villa || !world) return matchers;
+  for (const block of occupiedRanges(world, villa.id)) {
     const from = parseISO(block.start);
     const to = addDays(parseISO(block.end), -1);
     if (isAfter(to, addDays(from, -1))) {
@@ -168,4 +141,3 @@ export function disabledMatchers(villa?: Villa, world?: World) {
   }
   return matchers;
 }
-

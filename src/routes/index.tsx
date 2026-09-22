@@ -60,7 +60,7 @@ function MarketplacePage() {
         <div className="relative h-[72vh] min-h-100 overflow-hidden">
           <Photo
             src="/images/oceanami-hero.jpg"
-            alt="Oceanami villas along Phước Hải beach with Minh Đạm mountain behind"
+            alt="Ảnh minh hoạ"
           />
           <div className="absolute inset-0 bg-linear-to-t from-ink/70 via-ink/20 to-ink/10" />
           <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-24 sm:px-6 sm:pb-28">
@@ -126,8 +126,11 @@ function MarketplacePage() {
 
       <section className="mx-auto grid max-w-6xl items-stretch gap-6 px-4 pb-16 sm:px-6 lg:grid-cols-2">
         <div className="overflow-hidden rounded-2xl">
-          <div className="h-72 lg:h-full">
-            <Photo src="/images/beach-club.jpg" alt="Oceanami beach club on Phước Hải" />
+          <div className="relative h-72 lg:h-full">
+            <Photo src="/images/beach-club.jpg" alt="Ảnh minh hoạ" />
+            <span className="absolute right-3 bottom-3 rounded-full bg-paper/92 px-2.5 py-1 text-[11px] text-muted">
+              Ảnh minh hoạ
+            </span>
           </div>
         </div>
         <div className="flex flex-col justify-center rounded-2xl bg-paper p-8 shadow-[var(--shadow-border)] sm:p-10">
@@ -135,8 +138,7 @@ function MarketplacePage() {
           <h2 className="mt-3 font-serif text-title">A beach club, a spa, and your own kitchen.</h2>
           <p className="mt-4 text-ink-soft">
             Days here are unscheduled on purpose. Swim from the villa, walk to the club, cook if you
-            want the house to yourselves. Stayora will send your request to Oceanami — confirmation
-            comes before the stay begins.
+            want the house to yourselves. Chủ nhà sẽ xem và phản hồi.
           </p>
         </div>
       </section>

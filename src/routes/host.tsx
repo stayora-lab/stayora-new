@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { parseISO } from "date-fns";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   domainMessageVi,
   holdCountdown,
-  paymentRuleLabel,
+  paymentPlanLabel,
   requestStatusVi,
   viDateRange,
 } from "@/lib/domain";
-import type { StayRequest } from "@/lib/domain";
+import type { PaymentOutcome, StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
@@ -22,22 +23,28 @@ function HostPage() {
   const setPersona = useBookingStore((state) => state.setPersona);
   const world = useBookingStore((state) => state.world);
   const hostAccept = useBookingStore((state) => state.hostAccept);
-  const hostConfirm = useBookingStore((state) => state.hostConfirm);
+  const hostRecordPayment = useBookingStore((state) => state.hostRecordPayment);
+  const hostResolveUnknown = useBookingStore((state) => state.hostResolveUnknown);
+  const advanceDemo = useBookingStore((state) => state.advanceDemo);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(() => new Date());
+  const clock = parseISO(world.now);
 
   useEffect(() => {
     if (persona !== "HOST") setPersona("HOST");
   }, [persona, setPersona]);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
   const pending = world.requests.filter((item) => item.status === "PENDING");
-  const accepted = world.requests.filter((item) => item.status === "ACCEPTED");
-  const confirmed = world.requests.filter((item) => item.status === "CONFIRMED");
+  const holding = world.requests.filter(
+    (item) =>
+      item.status === "ACCEPTED" &&
+      !world.bookings.some((booking) => booking.requestId === item.id),
+  );
+  const bookedRequests = world.requests.filter((item) =>
+    world.bookings.some((booking) => booking.requestId === item.id),
+  );
+  const occupancyBookings = world.bookings.filter(
+    (booking) => !world.requests.some((request) => request.id === booking.requestId),
+  );
 
   function run(action: () => void) {
     setError(null);
@@ -53,8 +60,13 @@ function HostPage() {
       <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Host · Oceanami</p>
       <h1 className="mt-1 font-serif text-title">Yêu cầu cần xử lý</h1>
       <p className="mt-3 text-sm text-muted">
-        Chỉ Host chấp nhận và xác nhận. Sale không giữ chỗ giúp khách.
+        Chỉ Host chấp nhận. Thanh toán được ghi nhận tại đây — khách không tự xác nhận.
       </p>
+      <div className="mt-4">
+        <Button variant="outline" className="w-full" onClick={() => run(() => advanceDemo())}>
+          Tua nhanh 30 phút
+        </Button>
+      </div>
       {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
 
       <Section title="Chờ chấp nhận" count={pending.length} empty="Không có yêu cầu mới.">
@@ -62,34 +74,128 @@ function HostPage() {
           <RequestCard
             key={request.id}
             request={request}
-            now={now}
+            clock={clock}
             action={
               <Button className="w-full" onClick={() => run(() => hostAccept(request.id))}>
-                Chấp nhận · giữ 24 giờ
+                Chấp nhận · giữ 30 phút
               </Button>
             }
           />
         ))}
       </Section>
 
-      <Section title="Đang giữ chỗ" count={accepted.length} empty="Không có chỗ đang giữ.">
-        {accepted.map((request) => (
+      <Section title="Đang giữ chỗ" count={holding.length} empty="Không có chỗ đang giữ.">
+        {holding.map((request) => {
+          const initial = world.obligations.find(
+            (item) => item.requestId === request.id && item.kind === "INITIAL",
+          );
+          const unknown = world.attempts.find(
+            (item) => item.obligationId === initial?.id && item.status === "UNKNOWN",
+          );
+          return (
+            <RequestCard
+              key={request.id}
+              request={request}
+              clock={clock}
+              extra={
+                initial ? (
+                  <p className="mt-3 text-sm">
+                    Cần thu {formatVnd(initial.amount)}
+                  </p>
+                ) : null
+              }
+              action={
+                unknown ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-lotus-deep">
+                      Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.
+                    </p>
+                    <p className="text-xs font-semibold tracking-wider text-muted uppercase">
+                      Gỡ không xác định
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        className="w-full"
+                        onClick={() => run(() => hostResolveUnknown(unknown.id, "SUCCEEDED"))}
+                      >
+                        Thành công
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => run(() => hostResolveUnknown(unknown.id, "FAILED"))}
+                      >
+                        Thất bại
+                      </Button>
+                    </div>
+                  </div>
+                ) : initial ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold tracking-wider text-muted uppercase">
+                      Kết quả thanh toán
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          ["SUCCEEDED", "Thành công"],
+                          ["FAILED", "Thất bại"],
+                          ["UNKNOWN", "Không xác định"],
+                        ] as [PaymentOutcome, string][]
+                      ).map(([outcome, label]) => (
+                        <Button
+                          key={outcome}
+                          size="sm"
+                          variant={outcome === "SUCCEEDED" ? "primary" : "outline"}
+                          className="h-11 px-2 text-xs"
+                          onClick={() => run(() => hostRecordPayment(initial.id, outcome))}
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              }
+            />
+          );
+        })}
+      </Section>
+
+      <Section
+        title="Đã xác nhận"
+        count={bookedRequests.length + occupancyBookings.length}
+        empty="Chưa có booking."
+      >
+        {bookedRequests.map((request) => (
           <RequestCard
             key={request.id}
             request={request}
-            now={now}
-            action={
-              <Button className="w-full" onClick={() => run(() => hostConfirm(request.id))}>
-                Xác nhận đặt
-              </Button>
+            clock={clock}
+            booked
+            extra={
+              <p className="mt-3 text-sm text-muted">
+                Mã{" "}
+                <span className="font-medium text-ink">
+                  {world.bookings.find((item) => item.requestId === request.id)?.reference}
+                </span>
+              </p>
             }
           />
         ))}
-      </Section>
-
-      <Section title="Đã xác nhận" count={confirmed.length} empty="Chưa có booking.">
-        {confirmed.map((request) => (
-          <RequestCard key={request.id} request={request} now={now} />
+        {occupancyBookings.map((booking) => (
+          <article
+            key={booking.id}
+            className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
+          >
+            <p className="font-medium">{getVilla(booking.villaId)?.name ?? booking.villaId}</p>
+            <p className="mt-1 text-sm text-ink-soft">{booking.guestName}</p>
+            <p className="mt-3 text-sm text-muted">
+              {viDateRange(booking.checkIn, booking.checkOut)} · {booking.guests} khách
+            </p>
+            <p className="mt-3 text-sm text-muted">
+              Mã <span className="font-medium text-ink">{booking.reference}</span>
+            </p>
+          </article>
         ))}
       </Section>
     </main>
@@ -128,15 +234,20 @@ function Section({
 
 function RequestCard({
   request,
-  now,
+  clock,
   action,
+  extra,
+  booked,
 }: {
   request: StayRequest;
-  now: Date;
+  clock: Date;
   action?: ReactNode;
+  extra?: ReactNode;
+  booked?: boolean;
 }) {
   const villa = getVilla(request.villaId);
   const source = request.source === "SALE" ? "Sale · Mai" : "Khách trực tiếp";
+  const plan = paymentPlanLabel(request.total, request.checkIn, request.createdAt);
 
   return (
     <article className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]">
@@ -146,7 +257,7 @@ function RequestCard({
           <p className="mt-1 text-sm text-ink-soft">{request.guestName}</p>
         </div>
         <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
-          {requestStatusVi(request.status)}
+          {booked ? "Đã xác nhận" : requestStatusVi(request.status)}
         </span>
       </div>
       <p className="mt-3 text-sm text-muted">
@@ -154,19 +265,15 @@ function RequestCard({
       </p>
       <p className="mt-1 text-sm">
         <span className="font-semibold tabular-nums">{formatVnd(request.total)}</span>
-        <span className="text-muted"> · {paymentRuleLabel(request.paymentRule)}</span>
+        <span className="text-muted"> · {plan}</span>
       </p>
       <p className="mt-2 text-xs font-medium tracking-wide text-ink-soft uppercase">{source}</p>
-      {request.status === "ACCEPTED" && request.holdExpiresAt ? (
+      {!booked && request.status === "ACCEPTED" && request.holdExpiresAt ? (
         <p className="mt-3 text-sm text-lotus-deep">
-          Giữ còn {holdCountdown(request.holdExpiresAt, now)}
+          Giữ còn {holdCountdown(request.holdExpiresAt, clock)}
         </p>
       ) : null}
-      {request.reference ? (
-        <p className="mt-3 text-sm text-muted">
-          Mã <span className="font-medium text-ink">{request.reference}</span>
-        </p>
-      ) : null}
+      {extra}
       {action ? <div className="mt-4">{action}</div> : null}
     </article>
   );

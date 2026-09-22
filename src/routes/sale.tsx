@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
@@ -10,8 +11,7 @@ import {
   holdCountdown,
   isAvailable,
   paymentLinkText,
-  paymentRuleLabel,
-  paymentRuleOf,
+  paymentPlanLabel,
   quoteText,
   requestStatusVi,
   commissionStatusVi,
@@ -43,26 +43,22 @@ function SalePage() {
   const setSaleSearch = useBookingStore((state) => state.setSaleSearch);
   const saleCreateRequest = useBookingStore((state) => state.saleCreateRequest);
   const [tab, setTab] = useState<SaleTab>("search");
-  const [now, setNow] = useState(() => new Date());
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState<Villa | null>(null);
   const [guestName, setGuestName] = useState("");
+  const clock = parseISO(world.now);
 
   useEffect(() => {
     if (persona !== "SALE") setPersona("SALE");
   }, [persona, setPersona]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const ready =
     isIsoDate(search.checkIn) &&
     isIsoDate(search.checkOut) &&
     nightsBetween(search.checkIn, search.checkOut) >= 1;
   const nights = ready ? nightsBetween(search.checkIn, search.checkOut) : 0;
+  const evaluatedAt = world.now;
 
   const grouped = useMemo(() => {
     if (!ready) {
@@ -83,13 +79,14 @@ function SalePage() {
   async function copyQuote(villa: Villa) {
     if (!ready) return;
     const origin = `${window.location.origin}/villas/${villa.id}`;
+    const total = villa.nightly * nights;
     const text = quoteText({
       villaId: villa.id,
       checkIn: search.checkIn,
       checkOut: search.checkOut,
       guests: search.guests,
-      total: villa.nightly * nights,
-      paymentRule: paymentRuleOf(villa.id),
+      total,
+      paymentLabel: paymentPlanLabel(total, search.checkIn, evaluatedAt),
       origin,
     });
     const ok = await copyText(text);
@@ -200,6 +197,11 @@ function SalePage() {
                 nights={nights}
                 guests={search.guests}
                 ready={ready}
+                planLabel={
+                  ready
+                    ? paymentPlanLabel(villa.nightly * nights, search.checkIn, evaluatedAt)
+                    : ""
+                }
                 copied={copied === `quote-${villa.id}`}
                 onQuote={() => void copyQuote(villa)}
                 onCreate={() => {
@@ -224,6 +226,11 @@ function SalePage() {
                 nights={nights}
                 guests={search.guests}
                 ready={ready}
+                planLabel={
+                  ready
+                    ? paymentPlanLabel(villa.nightly * nights, search.checkIn, evaluatedAt)
+                    : ""
+                }
                 copied={false}
                 onQuote={() => void copyQuote(villa)}
                 onCreate={() => undefined}
@@ -240,6 +247,7 @@ function SalePage() {
           ) : (
             myRequests.map((request) => {
               const villa = villas.find((item) => item.id === request.villaId);
+              const booking = world.bookings.find((item) => item.requestId === request.id);
               return (
                 <article
                   key={request.id}
@@ -252,16 +260,18 @@ function SalePage() {
                         {viDateRange(request.checkIn, request.checkOut)} · {request.guests} khách
                       </p>
                     </div>
-                    <StatusPill>{requestStatusVi(request.status)}</StatusPill>
+                    <StatusPill>
+                      {booking ? "Đã xác nhận" : requestStatusVi(request.status)}
+                    </StatusPill>
                   </div>
                   <p className="mt-3 text-sm">
                     {request.guestName}
                     <span className="text-muted"> · {formatVnd(request.total)}</span>
                   </p>
-                  {request.status === "ACCEPTED" && request.holdExpiresAt ? (
+                  {request.status === "ACCEPTED" && !booking && request.holdExpiresAt ? (
                     <div className="mt-4 rounded-xl bg-lotus-soft p-3">
                       <p className="text-sm font-medium text-lotus-deep">
-                        Giữ chỗ còn {holdCountdown(request.holdExpiresAt, now)}
+                        Giữ chỗ còn {holdCountdown(request.holdExpiresAt, clock)}
                       </p>
                       <Button
                         size="sm"
@@ -272,10 +282,10 @@ function SalePage() {
                       </Button>
                     </div>
                   ) : null}
-                  {request.status === "CONFIRMED" && request.reference ? (
+                  {booking ? (
                     <p className="mt-3 text-sm text-muted">
                       Mã đặt{" "}
-                      <span className="font-medium text-ink">{request.reference}</span>
+                      <span className="font-medium text-ink">{booking.reference}</span>
                     </p>
                   ) : null}
                   {request.status === "PENDING" ? (
@@ -341,7 +351,7 @@ function SalePage() {
               <p className="mt-2 text-sm text-ink-soft">
                 {creating.name} · {viDateRange(search.checkIn, search.checkOut)} · {search.guests}{" "}
                 khách · {formatVnd(creating.nightly * nights)} · thanh toán{" "}
-                {paymentRuleLabel(paymentRuleOf(creating.id))}
+                {paymentPlanLabel(creating.nightly * nights, search.checkIn, evaluatedAt)}
               </p>
             ) : null}
             <label className="mt-5 block">
@@ -401,6 +411,7 @@ function SaleVillaRow({
   nights,
   guests,
   ready,
+  planLabel,
   copied,
   onQuote,
   onCreate,
@@ -410,6 +421,7 @@ function SaleVillaRow({
   nights: number;
   guests: number;
   ready: boolean;
+  planLabel: string;
   copied: boolean;
   onQuote: () => void;
   onCreate: () => void;
@@ -422,8 +434,8 @@ function SaleVillaRow({
   return (
     <article className="overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)]">
       <div className="flex gap-3 p-3">
-        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl">
-          {hero ? <Photo src={hero.src} alt={hero.alt} /> : null}
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl">
+          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -440,7 +452,7 @@ function SaleVillaRow({
           {ready ? (
             <p className="mt-2 text-sm">
               <span className="font-semibold tabular-nums">{formatVnd(total)}</span>
-              <span className="text-muted"> · {paymentRuleLabel(paymentRuleOf(villa.id))}</span>
+              <span className="text-muted"> · {planLabel}</span>
             </p>
           ) : null}
         </div>

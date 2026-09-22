@@ -17,14 +17,16 @@ function YourStayPage() {
   const hydrated = useBookingStore((state) => state.hydrated);
   const world = useBookingStore((state) => state.world);
   const stay = world.stays.find((item) => item.id === stayId);
-  const request = world.requests.find((item) => item.stayId === stayId);
   const booking = world.bookings.find((item) => item.stayId === stayId);
+  const request = booking
+    ? world.requests.find((item) => item.id === booking.requestId)
+    : undefined;
 
   if (!hydrated) {
     return <main className="mx-auto max-w-3xl px-4 py-24 text-muted">Opening your stay…</main>;
   }
 
-  if (!stay && request && request.status !== "CONFIRMED") {
+  if (!stay && request) {
     return <Navigate to="/requests/$requestId" params={{ requestId: request.id }} />;
   }
 
@@ -63,7 +65,7 @@ function YourStayPage() {
   return (
     <main className="pb-16">
       <div className="relative h-72 overflow-hidden sm:h-96">
-        {hero ? <Photo src={hero.src} alt={hero.alt} /> : null}
+        {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
         <div className="absolute inset-0 bg-linear-to-t from-ink/65 via-ink/10 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-4xl px-4 pb-8 sm:px-6">
           <p className="text-xs font-semibold tracking-[0.16em] text-cream/80 uppercase">
@@ -123,8 +125,8 @@ function YourStayPage() {
         </div>
 
         <section className="mt-6 overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)] md:grid md:grid-cols-2">
-          <div className="h-52 md:h-auto">
-            <Photo src="/images/beach-club.jpg" alt="Oceanami beach club" />
+          <div className="relative h-52 md:h-auto">
+            <Photo src="/images/beach-club.jpg" alt="Ảnh minh hoạ" />
           </div>
           <div className="p-6 sm:p-8">
             <p className="text-xs font-semibold tracking-wider text-lotus uppercase">

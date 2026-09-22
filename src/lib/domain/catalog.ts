@@ -1,28 +1,41 @@
+import { differenceInCalendarDays, parseISO } from "date-fns";
 import { getVilla, villas } from "../villas.ts";
-import type { PaymentRule } from "./types.ts";
+import type { PaymentObligation } from "./types.ts";
 
 export const SALE_MAI = "sale-mai";
 export const BUTLER_LINH = "butler-linh";
-export const HOLD_MS = 24 * 60 * 60 * 1000;
-export const COMMISSION_RATE = 0.1;
-export const PILOT_NOW = "2026-09-22T03:00:00.000Z";
-export const PILOT_TODAY = "2026-09-22";
 
-export const PAYMENT_RULE: Record<string, PaymentRule> = {
-  "sao-bien": "FIFTY_FIFTY",
-  "huong-tram": "FULL",
-  "minh-dam": "FIFTY_FIFTY",
-  "sen-hong": "FULL",
-  "gio-bien": "FIFTY_FIFTY",
-  "cat-vang": "FIFTY_FIFTY",
-};
+export type PaymentPlanLine = Pick<PaymentObligation, "kind" | "amount" | "dueAt">;
 
-export function paymentRuleOf(villaId: string): PaymentRule {
-  return PAYMENT_RULE[villaId] ?? "FULL";
+/** DEMO ASSUMPTION: evaluatedAt is Request.createdAt. */
+export function paymentPlan(
+  total: number,
+  checkIn: string,
+  evaluatedAt: string,
+): PaymentPlanLine[] {
+  const checkInMs = parseISO(checkIn).getTime();
+  const evaluatedMs = parseISO(evaluatedAt).getTime();
+  const moreThan24h = checkInMs - evaluatedMs > 24 * 60 * 60 * 1000;
+  if (moreThan24h) {
+    const initial = Math.round(total / 2);
+    return [
+      { kind: "INITIAL", amount: initial, dueAt: evaluatedAt },
+      {
+        kind: "BALANCE",
+        amount: total - initial,
+        dueAt: new Date(checkInMs - 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ];
+  }
+  return [{ kind: "INITIAL", amount: total, dueAt: evaluatedAt }];
 }
 
-export function paymentRuleLabel(rule: PaymentRule): string {
-  return rule === "FIFTY_FIFTY" ? "50/50" : "100%";
+export function paymentPlanLabel(total: number, checkIn: string, evaluatedAt: string): string {
+  return paymentPlan(total, checkIn, evaluatedAt).length === 2 ? "50/50" : "100%";
+}
+
+export function nightsBetween(checkIn: string, checkOut: string): number {
+  return differenceInCalendarDays(parseISO(checkOut), parseISO(checkIn));
 }
 
 export function requireVilla(villaId: string) {

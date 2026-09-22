@@ -15,14 +15,28 @@ const APP_NAME = "Stayora";
 
 function HydrateStore() {
   const setHydrated = useBookingStore((state) => state.setHydrated);
+  const tickExpiry = useBookingStore((state) => state.tickExpiry);
   useEffect(() => {
     const persistApi = useBookingStore.persist;
+    const startTick = () => {
+      tickExpiry();
+      const id = window.setInterval(() => {
+        useBookingStore.getState().tickExpiry();
+      }, 30_000);
+      return id;
+    };
     if (persistApi.hasHydrated()) {
       setHydrated(true);
-      return;
+      const id = startTick();
+      return () => window.clearInterval(id);
     }
-    void persistApi.rehydrate();
-  }, [setHydrated]);
+    let interval = 0;
+    const result = persistApi.rehydrate();
+    void Promise.resolve(result).then(() => {
+      interval = startTick();
+    });
+    return () => window.clearInterval(interval);
+  }, [setHydrated, tickExpiry]);
   return null;
 }
 
@@ -35,7 +49,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Stayora — private villas at Oceanami, Phước Hải. Request a stay, wait for confirmation, then arrive.",
+          "Stayora — private villas at Oceanami, Phước Hải. Chủ nhà sẽ xem và phản hồi.",
       },
       { name: "theme-color", content: "#F6F1EA" },
     ],

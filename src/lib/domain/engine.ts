@@ -1,33 +1,32 @@
-import { differenceInCalendarDays, parseISO } from "date-fns";
-import { isAvailable } from "./availability.ts";
+import { parseISO } from "date-fns";
+import { isAvailable, isHoldActive } from "./availability.ts";
 import {
   BUTLER_LINH,
-  COMMISSION_RATE,
-  HOLD_MS,
-  paymentRuleOf,
+  nightsBetween,
+  paymentPlan,
   requireVilla,
   SALE_MAI,
 } from "./catalog.ts";
+import { COMMISSION_RATE, HOLD_MS } from "./config.ts";
 import type {
   Actor,
   Booking,
   Commission,
   Commitment,
+  PaymentAttempt,
+  PaymentObligation,
+  PaymentOutcome,
   Stay,
   StayRequest,
   World,
 } from "./types.ts";
 import { DomainError } from "./types.ts";
 
-export { DomainError, isAvailable };
+export { DomainError, isAvailable, isHoldActive };
 export type { World };
 
 function nid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
-}
-
-function nightsBetween(checkIn: string, checkOut: string): number {
-  return differenceInCalendarDays(parseISO(checkOut), parseISO(checkIn));
 }
 
 function reference(): string {
@@ -49,9 +48,15 @@ function requireStay(world: World, stayId: string): Stay {
   return stay;
 }
 
+function requireObligation(world: World, obligationId: string): PaymentObligation {
+  const obligation = world.obligations.find((item) => item.id === obligationId);
+  if (!obligation) throw new DomainError("NOT_FOUND", "Obligation not found");
+  return obligation;
+}
+
 function assertHost(actor: Actor): void {
   if (actor.persona !== "HOST") {
-    throw new DomainError("FORBIDDEN", "Only Host can accept or confirm a request");
+    throw new DomainError("FORBIDDEN", "Only Host can accept or record payment");
   }
 }
 
@@ -79,6 +84,67 @@ function replaceStay(world: World, stay: Stay): World {
   };
 }
 
+function hasUnresolvedUnknown(world: World, obligationId: string): boolean {
+  return world.attempts.some(
+    (attempt) => attempt.obligationId === obligationId && attempt.status === "UNKNOWN",
+  );
+}
+
+function activeHoldFor(world: World, requestId: string): Commitment | undefined {
+  return world.commitments.find(
+    (commitment) =>
+      commitment.kind === "HOLD" &&
+      commitment.requestId === requestId &&
+      isHoldActive(commitment, world.now),
+  );
+}
+
+export function expireHolds(world: World): World {
+  let changed = false;
+  const commitments = world.commitments.map((commitment) => {
+    if (
+      commitment.kind === "HOLD" &&
+      commitment.status === "ACTIVE" &&
+      commitment.expiresAt &&
+      commitment.expiresAt <= world.now
+    ) {
+      changed = true;
+      return { ...commitment, status: "ENDED" as const, endedReason: "EXPIRED" as const };
+    }
+    return commitment;
+  });
+  const expiredHoldRequestIds = new Set(
+    commitments
+      .filter(
+        (commitment) =>
+          commitment.kind === "HOLD" &&
+          commitment.status === "ENDED" &&
+          commitment.endedReason === "EXPIRED" &&
+          commitment.requestId,
+      )
+      .map((commitment) => commitment.requestId as string),
+  );
+  const bookedRequestIds = new Set(world.bookings.map((booking) => booking.requestId));
+  const requests = world.requests.map((request) => {
+    if (
+      request.status === "ACCEPTED" &&
+      expiredHoldRequestIds.has(request.id) &&
+      !bookedRequestIds.has(request.id)
+    ) {
+      changed = true;
+      return { ...request, status: "EXPIRED" as const, expiredAt: world.now };
+    }
+    return request;
+  });
+  if (!changed) return world;
+  return { ...world, commitments, requests };
+}
+
+export function advanceTime(world: World, ms: number): World {
+  const now = new Date(parseISO(world.now).getTime() + ms).toISOString();
+  return expireHolds({ ...world, now });
+}
+
 export function createEmptyWorld(now: string): World {
   return {
     now,
@@ -88,6 +154,9 @@ export function createEmptyWorld(now: string): World {
     commitments: [],
     incidents: [],
     commissions: [],
+    obligations: [],
+    attempts: [],
+    externalAccommodations: [],
     sales: [{ id: SALE_MAI, name: "Mai" }],
     butlers: [
       { id: BUTLER_LINH, name: "Linh", villaIds: ["sao-bien", "gio-bien", "cat-vang"] },
@@ -107,6 +176,7 @@ export function createRequest(
     id?: string;
   },
 ): { world: World; request: StayRequest } {
+  world = expireHolds(world);
   if (input.actor.persona !== "GUEST" && input.actor.persona !== "SALE") {
     throw new DomainError("FORBIDDEN", "Only Guest or Sale can create a request");
   }
@@ -131,7 +201,6 @@ export function createRequest(
     nightly: villa.nightly,
     nights,
     total: villa.nightly * nights,
-    paymentRule: paymentRuleOf(input.villaId),
     source,
     saleId,
     status: "PENDING",
@@ -144,10 +213,19 @@ export function acceptRequest(
   world: World,
   input: { requestId: string; actor: Actor },
 ): { world: World; request: StayRequest } {
+  world = expireHolds(world);
   assertHost(input.actor);
   const current = requireRequest(world, input.requestId);
   if (current.status !== "PENDING") {
     throw new DomainError("INVALID_TRANSITION", "Only a pending request can be accepted");
+  }
+  if (!isAvailable(world, current.villaId, current.checkIn, current.checkOut)) {
+    const request: StayRequest = {
+      ...current,
+      status: "CONFLICTED",
+      conflictedAt: world.now,
+    };
+    return { world: replaceRequest(world, request), request };
   }
   const holdExpiresAt = new Date(parseISO(world.now).getTime() + HOLD_MS).toISOString();
   const request: StayRequest = {
@@ -162,37 +240,70 @@ export function acceptRequest(
     start: request.checkIn,
     end: request.checkOut,
     kind: "HOLD",
+    status: "ACTIVE",
+    expiresAt: holdExpiresAt,
+    basis: "STAYORA_BOOKING",
     requestId: request.id,
   };
+  const obligations: PaymentObligation[] = [
+    ...world.obligations,
+    ...paymentPlan(request.total, request.checkIn, request.createdAt).map((line) => ({
+      id: nid("obl"),
+      requestId: request.id,
+      kind: line.kind,
+      amount: line.amount,
+      dueAt: line.dueAt,
+    })),
+  ];
   return {
     world: {
       ...replaceRequest(world, request),
       commitments: [...world.commitments, hold],
+      obligations,
     },
     request,
   };
 }
 
-export function confirmRequest(
+export function rejectRequest(
   world: World,
   input: { requestId: string; actor: Actor },
-): { world: World; request: StayRequest; booking: Booking; stay: Stay } {
+): { world: World; request: StayRequest } {
+  world = expireHolds(world);
   assertHost(input.actor);
   const current = requireRequest(world, input.requestId);
-  if (current.status !== "ACCEPTED") {
-    throw new DomainError("INVALID_TRANSITION", "Only an accepted request can be confirmed");
+  if (current.status === "ACCEPTED") {
+    throw new DomainError("INVALID_TRANSITION", "Cannot reject an accepted request");
+  }
+  if (current.status !== "PENDING") {
+    throw new DomainError("INVALID_TRANSITION", "Only a pending request can be rejected");
+  }
+  const request: StayRequest = {
+    ...current,
+    status: "DECLINED",
+    declinedAt: world.now,
+  };
+  return { world: replaceRequest(world, request), request };
+}
+
+function fulfillInitialSuccess(
+  world: World,
+  obligation: PaymentObligation,
+): { world: World; booking: Booking; stay: Stay } {
+  if (world.bookings.some((booking) => booking.requestId === obligation.requestId)) {
+    throw new DomainError("INVALID_TRANSITION", "Booking already exists");
+  }
+  const request = requireRequest(world, obligation.requestId);
+  const hold = activeHoldFor(world, request.id);
+  if (!hold) {
+    throw new DomainError(
+      "HOLD_EXPIRED",
+      "Hết thời gian giữ phòng — cần xử lý hoàn tiền",
+    );
   }
   const bookingId = nid("bkg");
   const stayId = nid("sty");
   const ref = reference();
-  const request: StayRequest = {
-    ...current,
-    status: "CONFIRMED",
-    confirmedAt: world.now,
-    reference: ref,
-    bookingId,
-    stayId,
-  };
   const booking: Booking = {
     id: bookingId,
     requestId: request.id,
@@ -206,7 +317,6 @@ export function confirmRequest(
     nightly: request.nightly,
     nights: request.nights,
     total: request.total,
-    paymentRule: request.paymentRule,
     saleId: request.saleId,
     status: "CONFIRMED",
     confirmedAt: world.now,
@@ -226,12 +336,14 @@ export function confirmRequest(
     status: "SCHEDULED",
     assignedButlerId: butler?.id,
   };
-  const commitment: Commitment = {
+  const confirmed: Commitment = {
     id: nid("cmt"),
     villaId: request.villaId,
     start: request.checkIn,
     end: request.checkOut,
     kind: "CONFIRMED_ACCOMMODATION",
+    status: "ACTIVE",
+    basis: "STAYORA_BOOKING",
     requestId: request.id,
     bookingId,
   };
@@ -248,45 +360,78 @@ export function confirmRequest(
   }
   return {
     world: {
-      ...replaceRequest(world, request),
+      ...world,
       bookings: [booking, ...world.bookings],
       stays: [stay, ...world.stays],
       commitments: [
-        ...world.commitments.filter(
-          (item) => !(item.kind === "HOLD" && item.requestId === request.id),
+        ...world.commitments.map((item) =>
+          item.id === hold.id
+            ? { ...item, status: "ENDED" as const, endedReason: "SUPERSEDED" as const }
+            : item,
         ),
-        commitment,
+        confirmed,
       ],
       commissions,
     },
-    request,
     booking,
     stay,
   };
 }
 
-export function confirmGuestRequest(world: World, requestId: string) {
-  const pending = requireRequest(world, requestId);
-  let next = world;
-  if (pending.status === "PENDING") {
-    next = acceptRequest(next, { requestId, actor: { persona: "HOST" } }).world;
+export function recordPayment(
+  world: World,
+  input: { obligationId: string; outcome: PaymentOutcome; actor: Actor },
+): { world: World; attempt: PaymentAttempt; booking?: Booking; stay?: Stay } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  const obligation = requireObligation(world, input.obligationId);
+  if (hasUnresolvedUnknown(world, obligation.id)) {
+    throw new DomainError("ATTEMPT_UNRESOLVED", "An unknown attempt must be resolved first");
   }
-  const accepted = requireRequest(next, requestId);
-  if (accepted.status === "CONFIRMED") {
-    return {
-      world: next,
-      request: accepted,
-      booking: next.bookings.find((item) => item.id === accepted.bookingId)!,
-      stay: next.stays.find((item) => item.id === accepted.stayId)!,
-    };
+  const attempt: PaymentAttempt = {
+    id: nid("att"),
+    obligationId: obligation.id,
+    status: input.outcome,
+    at: world.now,
+  };
+  world = { ...world, attempts: [attempt, ...world.attempts] };
+
+  if (input.outcome !== "SUCCEEDED" || obligation.kind !== "INITIAL") {
+    return { world, attempt };
   }
-  return confirmRequest(next, { requestId, actor: { persona: "HOST" } });
+
+  const fulfilled = fulfillInitialSuccess(world, obligation);
+  return { world: fulfilled.world, attempt, booking: fulfilled.booking, stay: fulfilled.stay };
+}
+
+export function resolveUnknown(
+  world: World,
+  input: { attemptId: string; outcome: "SUCCEEDED" | "FAILED"; actor: Actor },
+): { world: World; attempt: PaymentAttempt; booking?: Booking; stay?: Stay } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  const current = world.attempts.find((item) => item.id === input.attemptId);
+  if (!current) throw new DomainError("NOT_FOUND", "Attempt not found");
+  if (current.status !== "UNKNOWN") {
+    throw new DomainError("INVALID_TRANSITION", "Only an unknown attempt can be resolved");
+  }
+  const attempt: PaymentAttempt = { ...current, status: input.outcome, at: world.now };
+  world = {
+    ...world,
+    attempts: world.attempts.map((item) => (item.id === attempt.id ? attempt : item)),
+  };
+  if (input.outcome !== "SUCCEEDED") return { world, attempt };
+  const obligation = requireObligation(world, attempt.obligationId);
+  if (obligation.kind !== "INITIAL") return { world, attempt };
+  const fulfilled = fulfillInitialSuccess(world, obligation);
+  return { world: fulfilled.world, attempt, booking: fulfilled.booking, stay: fulfilled.stay };
 }
 
 export function checkInStay(
   world: World,
   input: { stayId: string; actor: Actor },
 ): { world: World; stay: Stay } {
+  world = expireHolds(world);
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status !== "SCHEDULED") {
@@ -300,19 +445,16 @@ export function checkOutStay(
   world: World,
   input: { stayId: string; actor: Actor },
 ): { world: World; stay: Stay } {
+  world = expireHolds(world);
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status !== "CHECKED_IN") {
     throw new DomainError("INVALID_TRANSITION", "Check-out is only possible after check-in");
   }
-  const checkedOut: Stay = {
-    ...stay,
-    status: "CHECKED_OUT",
-    checkedOutAt: world.now,
-  };
   const completed: Stay = {
-    ...checkedOut,
+    ...stay,
     status: "COMPLETED",
+    checkedOutAt: world.now,
     completedAt: world.now,
   };
   const commissions = world.commissions.map((item) =>
@@ -328,6 +470,7 @@ export function markDidNotOccur(
   world: World,
   input: { stayId: string; actor: Actor; reason: string },
 ): { world: World; stay: Stay } {
+  world = expireHolds(world);
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status === "CHECKED_IN") {
@@ -352,6 +495,7 @@ export function reportIncident(
   world: World,
   input: { stayId: string; actor: Actor; note: string; hasPhoto: boolean },
 ): { world: World } {
+  world = expireHolds(world);
   if (input.actor.persona !== "BUTLER") {
     throw new DomainError("FORBIDDEN", "Only a Butler can report an incident");
   }
@@ -408,4 +552,3 @@ export function publicStayTotal(villaId: string, checkIn: string, checkOut: stri
   return villa.nightly * nightsBetween(checkIn, checkOut);
 }
 
-export { BUTLER_LINH, SALE_MAI };

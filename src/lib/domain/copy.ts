@@ -1,6 +1,6 @@
 import { format, parseISO } from "date-fns";
 import { getVilla } from "../villas.ts";
-import { paymentRuleLabel } from "./catalog.ts";
+import { paymentPlanLabel } from "./catalog.ts";
 import { DomainError } from "./types.ts";
 import type { CommissionStatus, RequestStatus, StayRequest } from "./types.ts";
 
@@ -23,7 +23,7 @@ export function quoteText(request: {
   checkOut: string;
   guests: number;
   total: number;
-  paymentRule: StayRequest["paymentRule"];
+  paymentLabel: string;
   origin: string;
 }): string {
   const villa = getVilla(request.villaId);
@@ -33,7 +33,7 @@ export function quoteText(request: {
     `${name} · Oceanami`,
     `${viDateRange(request.checkIn, request.checkOut)} · ${request.guests} khách · ngủ ${sleeps}`,
     `${formatVnd(request.total)} (giá công khai)`,
-    `Thanh toán ${paymentRuleLabel(request.paymentRule)}`,
+    `Thanh toán ${request.paymentLabel}`,
     request.origin,
   ].join("\n");
 }
@@ -43,10 +43,11 @@ export function paymentLinkText(request: StayRequest, origin: string): string {
   const until = request.holdExpiresAt
     ? format(parseISO(request.holdExpiresAt), "HH:mm d/M")
     : "";
+  const plan = paymentPlanLabel(request.total, request.checkIn, request.createdAt);
   return [
     `Stayora · giữ chỗ ${villa?.name ?? ""}`,
     `${viDateRange(request.checkIn, request.checkOut)} · ${request.guests} khách`,
-    `Tổng ${formatVnd(request.total)} · ${paymentRuleLabel(request.paymentRule)}`,
+    `Tổng ${formatVnd(request.total)} · ${plan}`,
     until ? `Giữ đến ${until}` : "",
     `${origin}/requests/${request.id}`,
   ]
@@ -68,12 +69,12 @@ export function requestStatusVi(status: RequestStatus): string {
       return "Chờ Host";
     case "ACCEPTED":
       return "Đang giữ chỗ";
-    case "CONFIRMED":
-      return "Đã xác nhận";
     case "DECLINED":
       return "Từ chối";
     case "EXPIRED":
       return "Hết hạn";
+    case "CONFLICTED":
+      return "Trùng lịch";
   }
 }
 
@@ -98,6 +99,10 @@ export function domainMessageVi(error: unknown): string {
         return "Villa này không thuộc butler đang đăng nhập";
       case "NOT_FOUND":
         return "Không tìm thấy";
+      case "HOLD_EXPIRED":
+        return "Hết thời gian giữ phòng — cần xử lý hoàn tiền";
+      case "ATTEMPT_UNRESOLVED":
+        return "Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.";
       default:
         return error.message;
     }

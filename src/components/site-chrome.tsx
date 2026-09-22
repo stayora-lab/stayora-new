@@ -42,9 +42,11 @@ export function PersonaSwitch() {
 export function SiteHeader() {
   const hydrated = useBookingStore((state) => state.hydrated);
   const persona = useBookingStore((state) => state.persona);
-  const latest = useBookingStore((state) =>
-    state.world.requests.find((item) => item.source === "GUEST"),
-  );
+  const world = useBookingStore((state) => state.world);
+  const latest = world.requests.find((item) => item.source === "GUEST");
+  const latestBooking = latest
+    ? world.bookings.find((item) => item.requestId === latest.id)
+    : undefined;
   const path = useRouterState({ select: (state) => state.location.pathname });
   const workspace = path.startsWith("/sale") || path.startsWith("/ops") || path.startsWith("/host");
 
@@ -59,10 +61,10 @@ export function SiteHeader() {
         </p>
         <div className="flex items-center gap-2">
           {hydrated && persona === "GUEST" && latest ? (
-            latest.status === "CONFIRMED" && latest.stayId ? (
+            latestBooking ? (
               <Link
                 to="/your-stay/$stayId"
-                params={{ stayId: latest.stayId }}
+                params={{ stayId: latestBooking.stayId }}
                 className="rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep"
               >
                 Your stay

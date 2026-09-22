@@ -23,7 +23,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
           onClick={() => openAt(0)}
           className="relative h-64 overflow-hidden rounded-lg md:col-span-2 md:row-span-2 md:h-full md:rounded-l-2xl md:rounded-r-lg"
         >
-          {hero ? <Photo src={hero.src} alt={hero.alt} /> : null}
+          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
         </button>
         {rest.map((image, index) => (
           <button
@@ -36,7 +36,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
               index > 1 && rest.length < 3 ? "md:hidden" : "",
             )}
           >
-            <Photo src={image.src} alt={image.alt} />
+            <Photo src={image.src} alt="Ảnh minh hoạ" />
           </button>
         ))}
         <button
@@ -47,6 +47,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
           See all photos
         </button>
       </div>
+      <p className="mt-2 text-xs text-muted">Ảnh minh hoạ</p>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[92vh] overflow-hidden p-0">
@@ -54,9 +55,10 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
           <div className="bg-ink">
             <div className="relative aspect-photo max-h-[70vh] w-full">
               {images[active] ? (
-                <Photo src={images[active].src} alt={images[active].alt} />
+                <Photo src={images[active].src} alt="Ảnh minh hoạ" />
               ) : null}
             </div>
+            <p className="px-3 pt-2 text-xs text-cream/70">Ảnh minh hoạ</p>
             <div className="flex gap-2 overflow-x-auto p-3">
               {images.map((image, index) => (
                 <button
@@ -68,7 +70,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
                     active === index ? "ring-2 ring-cream" : "opacity-70",
                   )}
                 >
-                  <Photo src={image.src} alt={image.alt} />
+                  <Photo src={image.src} alt="Ảnh minh hoạ" />
                 </button>
               ))}
             </div>
