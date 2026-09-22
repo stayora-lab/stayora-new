@@ -1,16 +1,21 @@
 import type { ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { format, parseISO } from "date-fns";
+import { vi } from "date-fns/locale";
 import { StaySummary } from "@/components/stay-summary";
 import { Photo } from "@/components/photo";
 import { Button } from "@/components/ui/button";
-import { stayGuestLabel } from "@/lib/domain";
+import { balanceLine, obligationSucceeded, stayGuestLabel } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
-import { formatLongDate, guestLabel } from "@/lib/stay";
 import { DESTINATION, getVilla } from "@/lib/villas";
 
 export const Route = createFileRoute("/your-stay/$stayId")({
   component: YourStayPage,
 });
+
+function formatViDate(iso: string): string {
+  return format(parseISO(iso), "EEEE d/M/yyyy", { locale: vi });
+}
 
 function YourStayPage() {
   const { stayId } = Route.useParams();
@@ -21,9 +26,13 @@ function YourStayPage() {
   const request = booking
     ? world.requests.find((item) => item.id === booking.requestId)
     : undefined;
+  const balance = request
+    ? world.obligations.find((item) => item.requestId === request.id && item.kind === "BALANCE")
+    : undefined;
+  const balancePaid = balance ? obligationSucceeded(world, balance.id) : false;
 
   if (!hydrated) {
-    return <main className="mx-auto max-w-3xl px-4 py-24 text-muted">Opening your stay…</main>;
+    return <main className="mx-auto max-w-3xl px-4 py-24 text-muted">Đang mở kỳ nghỉ…</main>;
   }
 
   if (!stay && request) {
@@ -32,10 +41,10 @@ function YourStayPage() {
 
   if (!stay) {
     return (
-      <main className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">We can't find that stay</h1>
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Không tìm thấy kỳ nghỉ này</h1>
         <Button asChild className="mt-8">
-          <Link to="/">Browse Oceanami</Link>
+          <Link to="/">Xem villa Oceanami</Link>
         </Button>
       </main>
     );
@@ -44,10 +53,10 @@ function YourStayPage() {
   const villa = getVilla(stay.villaId);
   if (!villa) {
     return (
-      <main className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">This stay is no longer listed</h1>
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Villa này không còn được niêm yết</h1>
         <Button asChild className="mt-8">
-          <Link to="/">Browse Oceanami</Link>
+          <Link to="/">Xem villa Oceanami</Link>
         </Button>
       </main>
     );
@@ -63,13 +72,13 @@ function YourStayPage() {
   };
 
   return (
-    <main className="pb-16">
+    <main lang="vi" className="pb-16">
       <div className="relative h-72 overflow-hidden sm:h-96">
         {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
         <div className="absolute inset-0 bg-linear-to-t from-ink/65 via-ink/10 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-4xl px-4 pb-8 sm:px-6">
           <p className="text-xs font-semibold tracking-[0.16em] text-cream/80 uppercase">
-            Your stay · Oceanami
+            Kỳ nghỉ của bạn · Oceanami
           </p>
           <h1 className="mt-2 font-serif text-title text-cream">{villa.name}</h1>
         </div>
@@ -77,7 +86,7 @@ function YourStayPage() {
 
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <div className="-mt-8">
-          <StaySummary villa={villa} request={summary} />
+          <StaySummary villa={villa} request={summary} totalLabel="Tổng kỳ nghỉ" />
         </div>
 
         <p className="mt-6 flex flex-wrap items-center gap-3 text-sm">
@@ -86,28 +95,33 @@ function YourStayPage() {
           </span>
           {booking?.reference ? (
             <span className="text-muted">
-              Confirmation <span className="font-medium text-ink">{booking.reference}</span>
+              Mã xác nhận <span className="font-medium text-ink">{booking.reference}</span>
             </span>
           ) : null}
         </p>
 
+        {balance ? (
+          <p className={`mt-4 text-sm ${balancePaid ? "text-ink-soft" : "text-lotus-deep"}`}>
+            {balanceLine(balance, balancePaid)}
+          </p>
+        ) : null}
+
         <div className="mt-10 grid gap-4 md:grid-cols-2">
-          <StayCard title="Arrival">
-            <p>{formatLongDate(stay.checkIn)}</p>
+          <StayCard title="Nhận phòng">
+            <p>{formatViDate(stay.checkIn)}</p>
             <p className="mt-2 text-sm text-muted">
-              Arrival notes will be shared before the stay. {guestLabel(stay.guests)} are
-              expected.
+              Hướng dẫn nhận phòng sẽ được gửi trước ngày đến. {stay.guests} khách.
             </p>
           </StayCard>
-          <StayCard title="Departure">
-            <p>{formatLongDate(stay.checkOut)}</p>
+          <StayCard title="Trả phòng">
+            <p>{formatViDate(stay.checkOut)}</p>
             <p className="mt-2 text-sm text-muted">
-              Departure details will be shared with your arrival notes.
+              Chi tiết trả phòng sẽ được gửi cùng hướng dẫn nhận phòng.
             </p>
           </StayCard>
-          <StayCard title="The villa">
+          <StayCard title="Villa">
             <p>
-              {villa.bedrooms} bedrooms · {guestLabel(villa.sleeps)} · private pool
+              {villa.bedrooms} phòng ngủ · ngủ {villa.sleeps} · hồ bơi riêng
             </p>
             <p className="mt-2 text-sm text-muted">{villa.summary}</p>
             <Link
@@ -115,36 +129,18 @@ function YourStayPage() {
               params={{ villaId: villa.id }}
               className="mt-4 inline-block text-sm font-medium text-lotus hover:text-lotus-deep"
             >
-              View the villa
+              Xem villa
             </Link>
           </StayCard>
-          <StayCard title="Getting here">
+          <StayCard title="Đường đến">
             <p>{DESTINATION.address}</p>
-            <p className="mt-2 text-sm text-muted">{DESTINATION.travel}.</p>
+            <p className="mt-2 text-sm text-muted">Khoảng 2,5 giờ từ TP. Hồ Chí Minh.</p>
           </StayCard>
         </div>
 
-        <section className="mt-6 overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)] md:grid md:grid-cols-2">
-          <div className="relative h-52 md:h-auto">
-            <Photo src="/images/beach-club.jpg" alt="Ảnh minh hoạ" />
-          </div>
-          <div className="p-6 sm:p-8">
-            <p className="text-xs font-semibold tracking-wider text-lotus uppercase">
-              While you're here
-            </p>
-            <h2 className="mt-2 font-serif text-2xl">Beach club, spa, and the house kitchen</h2>
-            <p className="mt-3 text-ink-soft">
-              Your stay includes the villa and access to the Oceanami beach club. A fuller guide
-              will sit here before arrival — this is the doorway into it.
-            </p>
-          </div>
-        </section>
-
         <section className="mt-6 rounded-2xl bg-cream-deep/70 p-6 sm:p-8">
-          <h2 className="font-medium">Need a hand</h2>
-          <p className="mt-2 max-w-2xl text-ink-soft">
-            The Stayora team will be in touch before you arrive. For around the grounds,
-            the destination team at Oceanami looks after guests on site.
+          <p className="max-w-2xl text-ink-soft">
+            Hướng dẫn nhận phòng sẽ được gửi trước ngày đến.
           </p>
         </section>
       </div>

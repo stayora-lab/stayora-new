@@ -1,5 +1,6 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { getVilla, villas } from "../villas.ts";
+import { CHECK_IN_TIME, TIMEZONE } from "./config.ts";
 import type { PaymentObligation } from "./types.ts";
 
 export const SALE_MAI = "sale-mai";
@@ -7,13 +8,22 @@ export const BUTLER_LINH = "butler-linh";
 
 export type PaymentPlanLine = Pick<PaymentObligation, "kind" | "amount" | "dueAt">;
 
+const OFFSET_BY_ZONE: Record<string, string> = {
+  "Asia/Ho_Chi_Minh": "+07:00",
+};
+
+export function checkInInstant(checkIn: string): Date {
+  const offset = OFFSET_BY_ZONE[TIMEZONE] ?? "+07:00";
+  return new Date(`${checkIn}T${CHECK_IN_TIME}:00${offset}`);
+}
+
 /** DEMO ASSUMPTION: evaluatedAt is Request.createdAt. */
 export function paymentPlan(
   total: number,
   checkIn: string,
   evaluatedAt: string,
 ): PaymentPlanLine[] {
-  const checkInMs = parseISO(checkIn).getTime();
+  const checkInMs = checkInInstant(checkIn).getTime();
   const evaluatedMs = parseISO(evaluatedAt).getTime();
   const moreThan24h = checkInMs - evaluatedMs > 24 * 60 * 60 * 1000;
   if (moreThan24h) {

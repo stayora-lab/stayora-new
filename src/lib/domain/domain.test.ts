@@ -49,6 +49,14 @@ function initialOf(world: World, requestId: string) {
   return obligation;
 }
 
+function balanceOf(world: World, requestId: string) {
+  const obligation = world.obligations.find(
+    (item) => item.requestId === requestId && item.kind === "BALANCE",
+  );
+  assert.ok(obligation, "missing BALANCE obligation");
+  return obligation;
+}
+
 function pay(
   world: World,
   requestId: string,
@@ -470,7 +478,7 @@ describe("Payment confirmation", () => {
     assertNoOverlap(world);
   });
 
-  it("advance time 31 min → Request EXPIRED, villa available; SUCCEEDED afterwards → error HOLD_EXPIRED, no Booking", () => {
+  it("late SUCCEEDED after expiry → attempt stored as SUCCEEDED, 1 OPEN RefundCase, 0 Bookings", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
       villaId: "sen-hong",
@@ -484,15 +492,117 @@ describe("Payment confirmation", () => {
     world = advanceTime(world, 31 * 60 * 1000);
     assert.equal(world.requests.find((item) => item.id === created.request.id)?.status, "EXPIRED");
     assert.equal(isAvailable(world, "sen-hong", "2026-12-01", "2026-12-04"), true);
-    const hold = world.commitments.find((item) => item.kind === "HOLD");
-    assert.equal(hold?.status, "ENDED");
-    assert.equal(hold?.endedReason, "EXPIRED");
+    const paid = pay(world, created.request.id, "SUCCEEDED");
+    world = paid.world;
+    assert.equal(paid.attempt.status, "SUCCEEDED");
+    assert.equal(world.attempts.filter((item) => item.status === "SUCCEEDED").length, 1);
+    assert.equal(world.refundCases.length, 1);
+    assert.equal(world.refundCases[0]?.status, "OPEN");
+    assert.equal(world.refundCases[0]?.reason, "HOLD_EXPIRED");
+    assert.equal(world.refundCases[0]?.attemptId, paid.attempt.id);
+    assert.equal(world.refundCases[0]?.requestId, created.request.id);
+    assert.equal(world.bookings.length, 0);
+    assert.equal(paid.refund?.status, "OPEN");
+    assertNoOverlap(world);
+  });
+
+  it("UNKNOWN → expiry → another guest books → resolveUnknown(SUCCEEDED) → attempt stored SUCCEEDED, RefundCase OPEN, still exactly 1 Booking and no overlap", () => {
+    let world = createEmptyWorld(NOW);
+    const first = createRequest(world, {
+      villaId: "sen-hong",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    world = acceptRequest(first.world, { requestId: first.request.id, actor: HOST }).world;
+    const unknown = pay(world, first.request.id, "UNKNOWN");
+    world = unknown.world;
+    world = advanceTime(world, 31 * 60 * 1000);
+    assert.equal(isAvailable(world, "sen-hong", "2026-12-01", "2026-12-04"), true);
+
+    const second = createRequest(world, {
+      villaId: "sen-hong",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "Bình",
+      actor: GUEST,
+    });
+    world = acceptRequest(second.world, { requestId: second.request.id, actor: HOST }).world;
+    world = pay(world, second.request.id, "SUCCEEDED").world;
+    assert.equal(world.bookings.length, 1);
+    assert.equal(world.bookings[0]?.requestId, second.request.id);
+
+    const resolved = resolveUnknown(world, {
+      attemptId: unknown.attempt.id,
+      outcome: "SUCCEEDED",
+      actor: HOST,
+    });
+    world = resolved.world;
+    const firstAttempt = world.attempts.find((item) => item.id === unknown.attempt.id);
+    assert.equal(firstAttempt?.status, "SUCCEEDED");
+    assert.equal(world.refundCases.length, 1);
+    assert.equal(world.refundCases[0]?.status, "OPEN");
+    assert.equal(world.refundCases[0]?.requestId, first.request.id);
+    assert.equal(world.bookings.length, 1);
+    assert.equal(world.bookings[0]?.requestId, second.request.id);
+    assert.equal(resolved.booking, undefined);
+    assertNoOverlap(world);
+  });
+
+  it("BALANCE before Booking → NO_BOOKING_YET, nothing stored", () => {
+    let world = createEmptyWorld(NOW);
+    const created = createRequest(world, {
+      villaId: "sen-hong",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    const balance = balanceOf(world, created.request.id);
     assert.throws(
-      () => pay(world, created.request.id, "SUCCEEDED"),
-      (error: unknown) => error instanceof DomainError && error.code === "HOLD_EXPIRED",
+      () =>
+        recordPayment(world, {
+          obligationId: balance.id,
+          outcome: "SUCCEEDED",
+          actor: HOST,
+        }),
+      (error: unknown) => error instanceof DomainError && error.code === "NO_BOOKING_YET",
     );
+    assert.equal(world.attempts.length, 0);
     assert.equal(world.bookings.length, 0);
     assertNoOverlap(world);
+  });
+
+  it("BALANCE after Booking → stored; Booking unchanged", () => {
+    const booked = bookedStay();
+    const booking = booked.world.bookings.find((item) => item.id === booked.bookingId);
+    assert.ok(booking);
+    const balance = balanceOf(booked.world, booked.requestId);
+    const paid = recordPayment(booked.world, {
+      obligationId: balance.id,
+      outcome: "SUCCEEDED",
+      actor: HOST,
+    });
+    assert.equal(paid.attempt.status, "SUCCEEDED");
+    assert.equal(paid.attempt.obligationId, balance.id);
+    assert.equal(paid.world.attempts[0]?.id, paid.attempt.id);
+    assert.deepEqual(paid.world.bookings[0], booking);
+    assert.equal(paid.world.bookings.length, 1);
+    assert.equal(paid.booking, undefined);
+    assertNoOverlap(paid.world);
+  });
+
+  it("check-in 2026-11-02 → BALANCE dueAt = 2026-11-01T07:00:00.000Z", () => {
+    const plan = paymentPlan(10_000_000, "2026-11-02", NOW);
+    assert.equal(plan.length, 2);
+    assert.equal(plan[1]?.kind, "BALANCE");
+    assert.equal(plan[1]?.dueAt, "2026-11-01T07:00:00.000Z");
+    assertNoOverlap(createEmptyWorld(NOW));
   });
 
   it("check-in 10 days ahead → 50/50; check-in 12h ahead → 100%, same villa", () => {

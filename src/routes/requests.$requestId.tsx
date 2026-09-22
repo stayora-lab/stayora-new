@@ -3,7 +3,7 @@ import { parseISO } from "date-fns";
 import { Check, Clock } from "lucide-react";
 import { StaySummary } from "@/components/stay-summary";
 import { Button } from "@/components/ui/button";
-import { holdCountdown, paymentPlanLabel } from "@/lib/domain";
+import { balanceLine, holdCountdown, obligationSucceeded, paymentPlanLabel } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
@@ -25,9 +25,13 @@ function RequestPage() {
   const initial = world.obligations.find(
     (item) => item.requestId === requestId && item.kind === "INITIAL",
   );
+  const balance = world.obligations.find(
+    (item) => item.requestId === requestId && item.kind === "BALANCE",
+  );
   const unknown = world.attempts.find(
     (item) => item.obligationId === initial?.id && item.status === "UNKNOWN",
   );
+  const balancePaid = balance ? obligationSucceeded(world, balance.id) : false;
 
   if (!hydrated) {
     return <main className="mx-auto max-w-lg px-4 py-24 text-muted">Đang mở yêu cầu…</main>;
@@ -74,6 +78,12 @@ function RequestPage() {
           Mã xác nhận <span className="font-medium text-ink">{booking.reference}</span>
         </p>
 
+        {balance ? (
+          <p className={`mt-4 text-sm ${balancePaid ? "text-ink-soft" : "text-lotus-deep"}`}>
+            {balanceLine(balance, balancePaid)}
+          </p>
+        ) : null}
+
         <div className="mt-8">
           <StaySummary villa={villa} request={request} totalLabel="Tổng kỳ nghỉ" />
         </div>
@@ -81,7 +91,7 @@ function RequestPage() {
         <div className="mt-8 space-y-3 rounded-2xl bg-paper p-5 shadow-[var(--shadow-border)]">
           <p className="font-medium">Bước tiếp theo</p>
           <ul className="space-y-2 text-sm text-ink-soft">
-            <li>Ghi chú nhận phòng sẽ được gửi trước ngày đến.</li>
+            <li>Hướng dẫn nhận phòng sẽ được gửi trước ngày đến.</li>
             <li>Mở kỳ nghỉ để xem hướng dẫn villa.</li>
           </ul>
         </div>
@@ -153,6 +163,9 @@ function RequestPage() {
               ? ` · giữ còn ${holdCountdown(request.holdExpiresAt, clock)}`
               : ""}
           </p>
+          {balance ? (
+            <p className="mt-3 text-sm text-lotus-deep">{balanceLine(balance, false)}</p>
+          ) : null}
         </div>
       ) : null}
 

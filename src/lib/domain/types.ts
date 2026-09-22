@@ -128,6 +128,16 @@ export type PaymentAttempt = {
   at: string;
 };
 
+export type RefundCase = {
+  id: string;
+  requestId: string;
+  attemptId: string;
+  amount: number;
+  reason: "HOLD_EXPIRED";
+  status: "OPEN";
+  createdAt: string;
+};
+
 export type ExternalAccommodation = {
   id: string;
   villaId: string;
@@ -172,6 +182,7 @@ export type World = {
   commissions: Commission[];
   obligations: PaymentObligation[];
   attempts: PaymentAttempt[];
+  refundCases: RefundCase[];
   externalAccommodations: ExternalAccommodation[];
   sales: Person[];
   butlers: Person[];

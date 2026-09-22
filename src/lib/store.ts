@@ -77,6 +77,13 @@ function actorFor(persona: Persona): Actor {
   return { persona: "GUEST" };
 }
 
+function withWorldDefaults(world: World): World {
+  return {
+    ...world,
+    refundCases: world.refundCases ?? [],
+  };
+}
+
 export const useBookingStore = create<BookingState>()(
   persist(
     (set, get) => ({
@@ -102,14 +109,14 @@ export const useBookingStore = create<BookingState>()(
         set((state) => ({ saleSearch: { ...state.saleSearch, ...search } })),
       setOpsDate: (opsDate) => set({ opsDate }),
       tickExpiry: () => {
-        const next = expireHolds(get().world);
+        const next = expireHolds(withWorldDefaults(get().world));
         if (next !== get().world) set({ world: next });
       },
       advanceDemo: () => {
-        set({ world: advanceTime(get().world, HOLD_MS) });
+        set({ world: advanceTime(withWorldDefaults(get().world), HOLD_MS) });
       },
       guestCreateRequest: (input) => {
-        const result = createRequest(get().world, {
+        const result = createRequest(withWorldDefaults(get().world), {
           ...input,
           guestName: "Khách",
           actor: { persona: "GUEST" },
@@ -118,7 +125,7 @@ export const useBookingStore = create<BookingState>()(
         return { requestId: result.request.id };
       },
       saleCreateRequest: (input) => {
-        const result = createRequest(get().world, {
+        const result = createRequest(withWorldDefaults(get().world), {
           ...input,
           actor: { persona: "SALE", saleId: SALE_MAI },
         });
@@ -126,14 +133,14 @@ export const useBookingStore = create<BookingState>()(
         return { requestId: result.request.id };
       },
       hostAccept: (requestId) => {
-        const result = acceptRequest(get().world, {
+        const result = acceptRequest(withWorldDefaults(get().world), {
           requestId,
           actor: { persona: "HOST" },
         });
         set({ world: result.world });
       },
       hostRecordPayment: (obligationId, outcome) => {
-        const result = recordPayment(get().world, {
+        const result = recordPayment(withWorldDefaults(get().world), {
           obligationId,
           outcome,
           actor: { persona: "HOST" },
@@ -141,7 +148,7 @@ export const useBookingStore = create<BookingState>()(
         set({ world: result.world });
       },
       hostResolveUnknown: (attemptId, outcome) => {
-        const result = resolveUnknown(get().world, {
+        const result = resolveUnknown(withWorldDefaults(get().world), {
           attemptId,
           outcome,
           actor: { persona: "HOST" },
@@ -149,21 +156,21 @@ export const useBookingStore = create<BookingState>()(
         set({ world: result.world });
       },
       butlerCheckIn: (stayId) => {
-        const result = checkInStay(get().world, {
+        const result = checkInStay(withWorldDefaults(get().world), {
           stayId,
           actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
         });
         set({ world: result.world });
       },
       butlerCheckOut: (stayId) => {
-        const result = checkOutStay(get().world, {
+        const result = checkOutStay(withWorldDefaults(get().world), {
           stayId,
           actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
         });
         set({ world: result.world });
       },
       butlerNoShow: (stayId, reason) => {
-        const result = markDidNotOccur(get().world, {
+        const result = markDidNotOccur(withWorldDefaults(get().world), {
           stayId,
           actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
           reason,
@@ -171,7 +178,7 @@ export const useBookingStore = create<BookingState>()(
         set({ world: result.world });
       },
       butlerIncident: (stayId, note, hasPhoto) => {
-        const result = reportIncident(get().world, {
+        const result = reportIncident(withWorldDefaults(get().world), {
           stayId,
           actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
           note,
@@ -193,7 +200,7 @@ export const useBookingStore = create<BookingState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          state.world = expireHolds(state.world);
+          state.world = expireHolds(withWorldDefaults(state.world));
           state.setHydrated(true);
         }
       },

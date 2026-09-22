@@ -1,8 +1,9 @@
 import { format, parseISO } from "date-fns";
 import { getVilla } from "../villas.ts";
 import { paymentPlanLabel } from "./catalog.ts";
+import { TIMEZONE } from "./config.ts";
 import { DomainError } from "./types.ts";
-import type { CommissionStatus, RequestStatus, StayRequest } from "./types.ts";
+import type { CommissionStatus, PaymentObligation, RequestStatus, StayRequest } from "./types.ts";
 
 function formatVnd(amount: number): string {
   return `₫${amount.toLocaleString("en-US")}`;
@@ -15,6 +16,25 @@ export function viDateRange(checkIn: string, checkOut: string): string {
     return `${format(start, "d")}–${format(end, "d/M/yyyy")}`;
   }
   return `${format(start, "d/M")}–${format(end, "d/M/yyyy")}`;
+}
+
+export function formatDueAt(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+    hour12: false,
+  }).formatToParts(parseISO(iso));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("hour")}:${get("minute")} ${get("day")}/${get("month")}/${get("year")}`;
+}
+
+export function balanceLine(obligation: PaymentObligation, paid: boolean): string {
+  if (paid) return "Đã thanh toán đủ";
+  return `Còn lại ${formatVnd(obligation.amount)} — hạn ${formatDueAt(obligation.dueAt)}`;
 }
 
 export function quoteText(request: {
@@ -103,6 +123,8 @@ export function domainMessageVi(error: unknown): string {
         return "Hết thời gian giữ phòng — cần xử lý hoàn tiền";
       case "ATTEMPT_UNRESOLVED":
         return "Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.";
+      case "NO_BOOKING_YET":
+        return "Chưa có booking — không ghi phần còn lại";
       default:
         return error.message;
     }

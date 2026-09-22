@@ -16,6 +16,7 @@ import type {
   PaymentAttempt,
   PaymentObligation,
   PaymentOutcome,
+  RefundCase,
   Stay,
   StayRequest,
   World,
@@ -156,6 +157,7 @@ export function createEmptyWorld(now: string): World {
     commissions: [],
     obligations: [],
     attempts: [],
+    refundCases: [],
     externalAccommodations: [],
     sales: [{ id: SALE_MAI, name: "Mai" }],
     butlers: [
@@ -289,18 +291,9 @@ export function rejectRequest(
 function fulfillInitialSuccess(
   world: World,
   obligation: PaymentObligation,
+  hold: Commitment,
 ): { world: World; booking: Booking; stay: Stay } {
-  if (world.bookings.some((booking) => booking.requestId === obligation.requestId)) {
-    throw new DomainError("INVALID_TRANSITION", "Booking already exists");
-  }
   const request = requireRequest(world, obligation.requestId);
-  const hold = activeHoldFor(world, request.id);
-  if (!hold) {
-    throw new DomainError(
-      "HOLD_EXPIRED",
-      "Hết thời gian giữ phòng — cần xử lý hoàn tiền",
-    );
-  }
   const bookingId = nid("bkg");
   const stayId = nid("sty");
   const ref = reference();
@@ -378,13 +371,54 @@ function fulfillInitialSuccess(
   };
 }
 
+function applyInitialSuccess(
+  world: World,
+  obligation: PaymentObligation,
+  attempt: PaymentAttempt,
+): { world: World; booking?: Booking; stay?: Stay; refund?: RefundCase } {
+  if (obligation.kind !== "INITIAL") return { world };
+  if (world.bookings.some((booking) => booking.requestId === obligation.requestId)) {
+    return { world };
+  }
+  const hold = activeHoldFor(world, obligation.requestId);
+  if (!hold) {
+    const refund: RefundCase = {
+      id: nid("ref"),
+      requestId: obligation.requestId,
+      attemptId: attempt.id,
+      amount: obligation.amount,
+      reason: "HOLD_EXPIRED",
+      status: "OPEN",
+      createdAt: world.now,
+    };
+    return {
+      world: { ...world, refundCases: [refund, ...(world.refundCases ?? [])] },
+      refund,
+    };
+  }
+  return fulfillInitialSuccess(world, obligation, hold);
+}
+
+type PaymentResult = {
+  world: World;
+  attempt: PaymentAttempt;
+  booking?: Booking;
+  stay?: Stay;
+  refund?: RefundCase;
+};
+
 export function recordPayment(
   world: World,
   input: { obligationId: string; outcome: PaymentOutcome; actor: Actor },
-): { world: World; attempt: PaymentAttempt; booking?: Booking; stay?: Stay } {
+): PaymentResult {
   world = expireHolds(world);
   assertHost(input.actor);
   const obligation = requireObligation(world, input.obligationId);
+  if (obligation.kind === "BALANCE") {
+    if (!world.bookings.some((booking) => booking.requestId === obligation.requestId)) {
+      throw new DomainError("NO_BOOKING_YET", "Balance cannot be recorded before a Booking exists");
+    }
+  }
   if (hasUnresolvedUnknown(world, obligation.id)) {
     throw new DomainError("ATTEMPT_UNRESOLVED", "An unknown attempt must be resolved first");
   }
@@ -400,14 +434,14 @@ export function recordPayment(
     return { world, attempt };
   }
 
-  const fulfilled = fulfillInitialSuccess(world, obligation);
-  return { world: fulfilled.world, attempt, booking: fulfilled.booking, stay: fulfilled.stay };
+  const applied = applyInitialSuccess(world, obligation, attempt);
+  return { world: applied.world, attempt, booking: applied.booking, stay: applied.stay, refund: applied.refund };
 }
 
 export function resolveUnknown(
   world: World,
   input: { attemptId: string; outcome: "SUCCEEDED" | "FAILED"; actor: Actor },
-): { world: World; attempt: PaymentAttempt; booking?: Booking; stay?: Stay } {
+): PaymentResult {
   world = expireHolds(world);
   assertHost(input.actor);
   const current = world.attempts.find((item) => item.id === input.attemptId);
@@ -422,9 +456,8 @@ export function resolveUnknown(
   };
   if (input.outcome !== "SUCCEEDED") return { world, attempt };
   const obligation = requireObligation(world, attempt.obligationId);
-  if (obligation.kind !== "INITIAL") return { world, attempt };
-  const fulfilled = fulfillInitialSuccess(world, obligation);
-  return { world: fulfilled.world, attempt, booking: fulfilled.booking, stay: fulfilled.stay };
+  const applied = applyInitialSuccess(world, obligation, attempt);
+  return { world: applied.world, attempt, booking: applied.booking, stay: applied.stay, refund: applied.refund };
 }
 
 export function checkInStay(
@@ -552,3 +585,8 @@ export function publicStayTotal(villaId: string, checkIn: string, checkOut: stri
   return villa.nightly * nightsBetween(checkIn, checkOut);
 }
 
+export function obligationSucceeded(world: World, obligationId: string): boolean {
+  return world.attempts.some(
+    (attempt) => attempt.obligationId === obligationId && attempt.status === "SUCCEEDED",
+  );
+}

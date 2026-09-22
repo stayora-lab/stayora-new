@@ -3,13 +3,15 @@ import { parseISO } from "date-fns";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  balanceLine,
   domainMessageVi,
   holdCountdown,
+  obligationSucceeded,
   paymentPlanLabel,
   requestStatusVi,
   viDateRange,
 } from "@/lib/domain";
-import type { PaymentOutcome, StayRequest } from "@/lib/domain";
+import type { PaymentObligation, PaymentOutcome, StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
@@ -17,6 +19,8 @@ import { getVilla } from "@/lib/villas";
 export const Route = createFileRoute("/host")({
   component: HostPage,
 });
+
+const DEMO_PAY_LABEL = "Ghi nhận thanh toán (demo — sau này do Stayora xác minh)";
 
 function HostPage() {
   const persona = useBookingStore((state) => state.persona);
@@ -28,6 +32,7 @@ function HostPage() {
   const advanceDemo = useBookingStore((state) => state.advanceDemo);
   const [error, setError] = useState<string | null>(null);
   const clock = parseISO(world.now);
+  const refundCases = world.refundCases ?? [];
 
   useEffect(() => {
     if (persona !== "HOST") setPersona("HOST");
@@ -45,6 +50,7 @@ function HostPage() {
   const occupancyBookings = world.bookings.filter(
     (booking) => !world.requests.some((request) => request.id === booking.requestId),
   );
+  const openRefunds = refundCases.filter((item) => item.status === "OPEN");
 
   function run(action: () => void) {
     setError(null);
@@ -99,61 +105,18 @@ function HostPage() {
               clock={clock}
               extra={
                 initial ? (
-                  <p className="mt-3 text-sm">
-                    Cần thu {formatVnd(initial.amount)}
-                  </p>
+                  <p className="mt-3 text-sm">Cần thu {formatVnd(initial.amount)}</p>
                 ) : null
               }
               action={
-                unknown ? (
-                  <div className="space-y-2">
-                    <p className="text-sm text-lotus-deep">
-                      Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.
-                    </p>
-                    <p className="text-xs font-semibold tracking-wider text-muted uppercase">
-                      Gỡ không xác định
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        className="w-full"
-                        onClick={() => run(() => hostResolveUnknown(unknown.id, "SUCCEEDED"))}
-                      >
-                        Thành công
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => run(() => hostResolveUnknown(unknown.id, "FAILED"))}
-                      >
-                        Thất bại
-                      </Button>
-                    </div>
-                  </div>
+                unknown && initial ? (
+                  <ResolveUnknown
+                    onResolve={(outcome) => run(() => hostResolveUnknown(unknown.id, outcome))}
+                  />
                 ) : initial ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold tracking-wider text-muted uppercase">
-                      Kết quả thanh toán
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(
-                        [
-                          ["SUCCEEDED", "Thành công"],
-                          ["FAILED", "Thất bại"],
-                          ["UNKNOWN", "Không xác định"],
-                        ] as [PaymentOutcome, string][]
-                      ).map(([outcome, label]) => (
-                        <Button
-                          key={outcome}
-                          size="sm"
-                          variant={outcome === "SUCCEEDED" ? "primary" : "outline"}
-                          className="h-11 px-2 text-xs"
-                          onClick={() => run(() => hostRecordPayment(initial.id, outcome))}
-                        >
-                          {label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
+                  <PaymentButtons
+                    onRecord={(outcome) => run(() => hostRecordPayment(initial.id, outcome))}
+                  />
                 ) : null
               }
             />
@@ -166,22 +129,45 @@ function HostPage() {
         count={bookedRequests.length + occupancyBookings.length}
         empty="Chưa có booking."
       >
-        {bookedRequests.map((request) => (
-          <RequestCard
-            key={request.id}
-            request={request}
-            clock={clock}
-            booked
-            extra={
-              <p className="mt-3 text-sm text-muted">
-                Mã{" "}
-                <span className="font-medium text-ink">
-                  {world.bookings.find((item) => item.requestId === request.id)?.reference}
-                </span>
-              </p>
-            }
-          />
-        ))}
+        {bookedRequests.map((request) => {
+          const balance = world.obligations.find(
+            (item) => item.requestId === request.id && item.kind === "BALANCE",
+          );
+          const unknown = world.attempts.find(
+            (item) => item.obligationId === balance?.id && item.status === "UNKNOWN",
+          );
+          const paid = balance ? obligationSucceeded(world, balance.id) : false;
+          return (
+            <RequestCard
+              key={request.id}
+              request={request}
+              clock={clock}
+              booked
+              extra={
+                <>
+                  <p className="mt-3 text-sm text-muted">
+                    Mã{" "}
+                    <span className="font-medium text-ink">
+                      {world.bookings.find((item) => item.requestId === request.id)?.reference}
+                    </span>
+                  </p>
+                  {balance ? <BalanceStatus obligation={balance} paid={paid} /> : null}
+                </>
+              }
+              action={
+                !balance ? null : unknown ? (
+                  <ResolveUnknown
+                    onResolve={(outcome) => run(() => hostResolveUnknown(unknown.id, outcome))}
+                  />
+                ) : paid ? null : (
+                  <PaymentButtons
+                    onRecord={(outcome) => run(() => hostRecordPayment(balance.id, outcome))}
+                  />
+                )
+              }
+            />
+          );
+        })}
         {occupancyBookings.map((booking) => (
           <article
             key={booking.id}
@@ -198,7 +184,98 @@ function HostPage() {
           </article>
         ))}
       </Section>
+
+      <Section title="Cần hoàn tiền" count={openRefunds.length} empty="Không có khoản cần hoàn.">
+        {openRefunds.map((refund) => {
+          const request = world.requests.find((item) => item.id === refund.requestId);
+          const villa = request ? getVilla(request.villaId) : undefined;
+          return (
+            <article
+              key={refund.id}
+              className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{villa?.name ?? request?.villaId ?? refund.requestId}</p>
+                  <p className="mt-1 text-sm text-ink-soft">{request?.guestName ?? "Khách"}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
+                  Mở
+                </span>
+              </div>
+              <p className="mt-3 font-semibold tabular-nums">{formatVnd(refund.amount)}</p>
+              <p className="mt-1 text-sm text-muted">Hết hạn giữ chỗ</p>
+            </article>
+          );
+        })}
+      </Section>
     </main>
+  );
+}
+
+function BalanceStatus({
+  obligation,
+  paid,
+}: {
+  obligation: PaymentObligation;
+  paid: boolean;
+}) {
+  return (
+    <p className={`mt-3 text-sm ${paid ? "text-ink-soft" : "text-lotus-deep"}`}>
+      {balanceLine(obligation, paid)}
+    </p>
+  );
+}
+
+function PaymentButtons({ onRecord }: { onRecord: (outcome: PaymentOutcome) => void }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Kết quả thanh toán</p>
+      <p className="text-xs text-muted">{DEMO_PAY_LABEL}</p>
+      <div className="grid grid-cols-3 gap-2">
+        {(
+          [
+            ["SUCCEEDED", "Thành công"],
+            ["FAILED", "Thất bại"],
+            ["UNKNOWN", "Không xác định"],
+          ] as [PaymentOutcome, string][]
+        ).map(([outcome, label]) => (
+          <Button
+            key={outcome}
+            size="sm"
+            variant={outcome === "SUCCEEDED" ? "primary" : "outline"}
+            className="h-11 px-2 text-xs"
+            onClick={() => onRecord(outcome)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResolveUnknown({
+  onResolve,
+}: {
+  onResolve: (outcome: "SUCCEEDED" | "FAILED") => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-lotus-deep">
+        Chưa xác định được kết quả thanh toán. Đừng thanh toán lại.
+      </p>
+      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Gỡ không xác định</p>
+      <p className="text-xs text-muted">{DEMO_PAY_LABEL}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button className="w-full" onClick={() => onResolve("SUCCEEDED")}>
+          Thành công
+        </Button>
+        <Button variant="outline" className="w-full" onClick={() => onResolve("FAILED")}>
+          Thất bại
+        </Button>
+      </div>
+    </div>
   );
 }
 
