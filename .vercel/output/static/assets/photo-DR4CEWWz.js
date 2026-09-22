@@ -1,0 +1,1 @@
+import{et as e,tt as t}from"./store-D0mHzsaL.js";var n=t();function r({src:t,alt:r,className:i}){return(0,n.jsx)(`img`,{src:t,alt:r,className:e(`size-full object-cover photo-frame`,i)})}export{r as t};

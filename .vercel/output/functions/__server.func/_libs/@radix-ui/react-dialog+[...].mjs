@@ -1,6 +1,6 @@
 import { i as __toESM } from "../../_runtime.mjs";
-import { l as require_react_dom, u as require_react } from "../@floating-ui/react-dom+[...].mjs";
 import { n as require_jsx_runtime, t as createContextScope } from "../radix-ui__react-context+react.mjs";
+import { l as require_react_dom, u as require_react } from "../@floating-ui/react-dom+[...].mjs";
 import { t as useComposedRefs } from "../radix-ui__react-compose-refs.mjs";
 import { t as composeEventHandlers } from "../radix-ui__primitive.mjs";
 import { __assign, __rest, __spreadArray } from "tslib";

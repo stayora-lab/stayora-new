@@ -1,1 +1,0 @@
-import{$ as e,Z as t}from"./store-BsmxCYOD.js";var n=e();function r({src:e,alt:r,className:i}){return(0,n.jsx)(`img`,{src:e,alt:r,className:t(`size-full object-cover photo-frame`,i)})}export{r as t};
