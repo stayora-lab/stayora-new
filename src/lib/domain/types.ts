@@ -47,7 +47,8 @@ export type RefundReason =
   | "HOLD_EXPIRED"
   | "DUPLICATE_PAYMENT"
   | "INVENTORY_CONFLICT"
-  | "CONFLICT_RESOLUTION";
+  | "CONFLICT_RESOLUTION"
+  | "BOOKING_CANCELLED";
 
 export type StayRequest = {
   id: string;

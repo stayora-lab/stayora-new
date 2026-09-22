@@ -189,6 +189,8 @@ export function refundReasonVi(reason: string): string {
       return "Xung đột lịch";
     case "CONFLICT_RESOLUTION":
       return "Giải quyết xung đột";
+    case "BOOKING_CANCELLED":
+      return "Booking đã huỷ";
     default:
       return reason;
   }

@@ -489,11 +489,16 @@ function applyInitialSuccess(
   }
   const hold = activeHoldFor(world, obligation.requestId);
   if (!hold) {
+    const endedHold = world.commitments.find(
+      (item) => item.kind === "HOLD" && item.requestId === request.id,
+    );
+    const byConflict =
+      request.status === "CONFLICTED" || endedHold?.endedReason === "RELEASED";
     return makeRefund(world, {
       requestId: request.id,
       attemptId: attempt.id,
       amount: obligation.amount,
-      reason: "HOLD_EXPIRED",
+      reason: byConflict ? "INVENTORY_CONFLICT" : "HOLD_EXPIRED",
     });
   }
   return fulfillInitialSuccess(world, obligation, hold, actor);
@@ -530,10 +535,8 @@ export function recordPayment(
   world = expireHolds(world);
   assertAdmin(input.actor);
   const obligation = requireObligation(world, input.obligationId);
-  if (obligation.kind === "BALANCE") {
-    if (!world.bookings.some((booking) => booking.requestId === obligation.requestId && booking.status === "CONFIRMED")) {
-      throw new DomainError("NO_BOOKING_YET", "Balance cannot be recorded before a Booking exists");
-    }
+  if (obligation.kind === "BALANCE" && !bookingForRequest(world, obligation.requestId)) {
+    throw new DomainError("NO_BOOKING_YET", "Balance cannot be recorded before a Booking exists");
   }
   if (hasUnresolvedUnknown(world, obligation.id)) {
     throw new DomainError("ATTEMPT_UNRESOLVED", "An unknown attempt must be resolved first");
@@ -557,6 +560,15 @@ export function recordPayment(
     return finishPayment(refunded.world, input.actor, "RECORD_PAYMENT", attempt, {
       refund: refunded.refund,
     });
+  }
+
+  if (input.outcome === "SUCCEEDED") {
+    const cancelled = refundCancelledBalance(world, obligation, attempt);
+    if (cancelled) {
+      return finishPayment(cancelled.world, input.actor, "RECORD_PAYMENT", attempt, {
+        refund: cancelled.refund,
+      });
+    }
   }
 
   if (input.outcome !== "SUCCEEDED" || obligation.kind !== "INITIAL") {
@@ -597,6 +609,12 @@ export function resolveUnknown(
     });
     return finishPayment(refunded.world, input.actor, "RESOLVE_UNKNOWN", attempt, {
       refund: refunded.refund,
+    });
+  }
+  const cancelled = refundCancelledBalance(world, obligation, attempt);
+  if (cancelled) {
+    return finishPayment(cancelled.world, input.actor, "RESOLVE_UNKNOWN", attempt, {
+      refund: cancelled.refund,
     });
   }
   const applied = applyInitialSuccess(world, obligation, attempt, input.actor);
@@ -1037,6 +1055,26 @@ export function resolveConflict(
     conflict,
     refund,
   };
+}
+
+function bookingForRequest(world: World, requestId: string): Booking | undefined {
+  return world.bookings.find((item) => item.requestId === requestId);
+}
+
+function refundCancelledBalance(
+  world: World,
+  obligation: PaymentObligation,
+  attempt: PaymentAttempt,
+): { world: World; refund: RefundCase } | undefined {
+  if (obligation.kind !== "BALANCE") return undefined;
+  const booking = bookingForRequest(world, obligation.requestId);
+  if (!booking || booking.status !== "CANCELLED") return undefined;
+  return makeRefund(world, {
+    requestId: obligation.requestId,
+    attemptId: attempt.id,
+    amount: obligation.amount,
+    reason: "BOOKING_CANCELLED",
+  });
 }
 
 function stayForCommitment(world: World, commitment: Commitment): Stay | undefined {
