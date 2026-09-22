@@ -3,20 +3,30 @@ import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
 
+/** Runtime env — `process.env.NAME` is inlined empty by Vite at build. */
+function readEnv(name: string): string | undefined {
+  if (typeof process === "undefined") return undefined;
+  const raw = process.env[name];
+  return raw && raw.trim() ? raw : undefined;
+}
+
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
-const rawDatabaseUrl =
-  typeof process !== "undefined" ? process.env.DATABASE_URL : undefined;
-const databaseUrl =
-  rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
+const databaseUrl = readEnv("DATABASE_URL");
 
 /**
  * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
  * sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
  * the app has a working database even with nothing configured — the live preview
  * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
+ *
+ * Vercel serverless cannot boot PGLite WASM — never fall through to it there.
  */
-export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
+export const dbSource: DbSource = databaseUrl
+  ? "neon"
+  : readEnv("VERCEL")
+    ? "neon"
+    : "pglite";
 
 /**
  * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
@@ -93,6 +103,11 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
+    if (!databaseUrl) {
+      throw new Error(
+        "DATABASE_URL is required on Vercel (PGLite cannot run in serverless)",
+      );
+    }
     const pool = new Pool({ connectionString: databaseUrl });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
