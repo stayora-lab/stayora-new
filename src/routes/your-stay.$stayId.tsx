@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
+import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
 import { StaySummary } from "@/components/stay-summary";
 import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
@@ -77,8 +78,8 @@ function YourStayPage() {
         {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={villa.name} />}
         <div className="absolute inset-0 bg-linear-to-t from-ink/65 via-ink/10 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-4xl px-4 pb-8 sm:px-6">
-          <p className="text-xs font-semibold tracking-[0.16em] text-cream/80 uppercase">
-            Kỳ nghỉ của bạn · Oceanami
+          <p className="text-xs font-semibold tracking-wider text-cream/80 uppercase">
+            Kỳ nghỉ của bạn
           </p>
           <h1 className="mt-2 font-serif text-title text-cream">{villa.name}</h1>
         </div>
@@ -93,22 +94,15 @@ function YourStayPage() {
           <span className="rounded-full bg-lotus-soft px-3 py-1 font-medium text-lotus-deep">
             {stayGuestLabel(stay.status)}
           </span>
-          {booking?.reference ? (
-            <span className="text-muted">
-              Mã xác nhận <span className="font-medium text-ink">{booking.reference}</span>
-            </span>
-          ) : null}
         </p>
+        <StayoraServiceNote
+          reference={booking?.reference}
+          payment={balance ? balanceLine(balance, balancePaid) : undefined}
+        />
 
         {stay.status === "CANCELLED" && stay.origin === "STAYORA" ? (
           <p className="mt-4 rounded-2xl bg-[#fdecea] px-4 py-3 text-sm text-[#7a1f16]">
             Lượt ở này đã bị huỷ — Stayora sẽ liên hệ về hoàn tiền
-          </p>
-        ) : null}
-
-        {balance ? (
-          <p className={`mt-4 text-sm ${balancePaid ? "text-ink-soft" : "text-lotus-deep"}`}>
-            {balanceLine(balance, balancePaid)}
           </p>
         ) : null}
 
@@ -149,6 +143,7 @@ function YourStayPage() {
             Hướng dẫn nhận phòng sẽ được gửi trước ngày đến.
           </p>
         </section>
+        <DestinationAbout />
       </div>
     </main>
   );

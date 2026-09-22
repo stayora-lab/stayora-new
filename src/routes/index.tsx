@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { DateRangeField, FieldSplit, GuestField } from "@/components/dates-guests";
-import { OceanamiEmblem } from "@/components/mark";
+import { OceanamiLockup } from "@/components/mark";
 import { Photo } from "@/components/photo";
 import { Button } from "@/components/ui/button";
 import { VillaCard } from "@/components/villa-card";
@@ -63,14 +63,14 @@ function MarketplacePage() {
             alt="Ảnh minh hoạ"
           />
           <div className="absolute inset-0 bg-linear-to-t from-ink/70 via-ink/20 to-ink/10" />
+          <span className="absolute top-4 right-4 rounded-full bg-paper/92 px-2.5 py-1 text-xs text-muted">
+            Ảnh minh hoạ
+          </span>
           <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-24 sm:px-6 sm:pb-28">
-            <OceanamiEmblem className="mb-5 h-14 w-14" />
-            <p className="text-sm font-medium tracking-[0.18em] text-cream/80 uppercase">
-              Điểm đến · {DESTINATION.region}
-            </p>
-            <h1 className="mt-3 font-serif text-display text-cream italic">Oceanami</h1>
+            <p className="text-xs font-semibold tracking-wider text-cream/80 uppercase">Điểm đến</p>
+            <OceanamiLockup tone="on-photo" className="mt-3 h-12 max-w-full sm:h-16" />
             <p className="mt-4 max-w-xl text-lead text-cream/90">
-              Private villas between the East Sea and Minh Đạm mountain.
+              Đặt villa của các chủ nhà tại Oceanami qua Stayora.
             </p>
           </div>
         </div>

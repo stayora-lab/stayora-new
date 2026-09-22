@@ -85,6 +85,16 @@
     outline-offset: -1px;
   }
 
+  /* Oceanami marks inside Stayora UI: monochrome, never the lotus accent. */
+  .oceanami-mono-white {
+    filter: brightness(0) invert(1);
+  }
+
+  .oceanami-mono-ink {
+    filter: brightness(0);
+    opacity: 0.55;
+  }
+
   .rdp-root {
     --rdp-accent-color: var(--color-lotus);
     --rdp-accent-background-color: var(--color-lotus-soft);

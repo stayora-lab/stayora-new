@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { useState, type ReactNode } from "react";
-import { DualBrandLockup, OceanamiLockup, StayoraLockup } from "@/components/mark";
+import { OceanamiLockup, StayoraLockup } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
 import { PILOT_SEED } from "@/lib/pilot-data";
@@ -62,6 +62,14 @@ export function PersonaSwitch() {
   );
 }
 
+function DestinationChip() {
+  return (
+    <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-paper px-3 text-xs font-medium text-ink-soft shadow-[var(--shadow-border)] sm:text-sm">
+      Điểm đến: Oceanami
+    </span>
+  );
+}
+
 export function SiteHeader() {
   const hydrated = useBookingStore((state) => state.hydrated);
   const persona = useBookingStore((state) => state.persona);
@@ -78,7 +86,6 @@ export function SiteHeader() {
     path.startsWith("/host") ||
     path.startsWith("/admin");
   const stamp = fetchedAt ? format(parseISO(fetchedAt), "HH:mm:ss") : null;
-  const showDestination = persona === "GUEST" && !workspace;
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-cream/90 backdrop-blur-md">
@@ -86,22 +93,23 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/" className="shrink-0" aria-label="Stayora home">
-            {showDestination ? <DualBrandLockup /> : <StayoraLockup />}
+            <StayoraLockup />
           </Link>
-          {showDestination ? null : (
+          {workspace ? (
             <div className="hidden min-w-0 md:block">
               <p className="truncate text-sm text-ink-soft">{workspaceTitle(path, persona)}</p>
-              {stamp ? <p className="text-[11px] text-muted">Cập nhật lúc {stamp}</p> : null}
+              {stamp ? <p className="text-xs text-muted">Cập nhật lúc {stamp}</p> : null}
             </div>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
+          <DestinationChip />
           {hydrated && persona === "GUEST" && latest ? (
             latestBooking ? (
               <Link
                 to="/your-stay/$stayId"
                 params={{ stayId: latestBooking.stayId }}
-                className="rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep"
+                className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep sm:inline"
               >
                 Your stay
               </Link>
@@ -109,14 +117,14 @@ export function SiteHeader() {
               <Link
                 to="/requests/$requestId"
                 params={{ requestId: latest.id }}
-                className="rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep"
+                className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep sm:inline"
               >
                 Your request
               </Link>
             )
           ) : null}
           {stamp ? (
-            <p className="text-[11px] text-muted md:hidden">Cập nhật lúc {stamp}</p>
+            <p className="text-xs text-muted md:hidden">Cập nhật lúc {stamp}</p>
           ) : null}
           <PersonaSwitch />
         </div>
@@ -141,28 +149,65 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-cream-deep/60">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div>
-          <p className="text-[10px] font-medium tracking-[0.18em] text-muted uppercase">
-            Thương hiệu cho thuê
+          <p className="text-xs font-medium tracking-widest text-muted uppercase">
+            Thương hiệu đặt phòng · Stayora
           </p>
           <div className="mt-3">
             <StayoraLockup />
           </div>
           <p className="mt-3 max-w-sm text-sm text-muted">
-            The rental brand. Unique homes and villas across Vietnam, starting at this
-            destination.
+            Villa do chủ nhà sở hữu và cho thuê. Stayora vận hành đặt phòng và thanh toán.
           </p>
         </div>
         <div className="text-left sm:text-right">
-          <p className="text-[10px] font-medium tracking-[0.18em] text-muted uppercase">
-            Điểm đến
+          <p className="text-xs font-medium tracking-widest text-muted uppercase">
+            Điểm đến · Oceanami
           </p>
           <div className="mt-3 sm:flex sm:justify-end">
-            <OceanamiLockup />
+            <OceanamiLockup tone="on-paper" />
           </div>
-          <p className="mt-3 text-sm text-muted">Phước Hải · Bà Rịa–Vũng Tàu</p>
         </div>
       </div>
     </footer>
+  );
+}
+
+export function StayoraServiceNote({
+  reference,
+  payment,
+}: {
+  reference?: string;
+  payment?: string;
+}) {
+  return (
+    <div className="mt-6 space-y-2 rounded-2xl bg-paper p-5 shadow-[var(--shadow-border)]">
+      {reference ? (
+        <p className="text-sm">
+          <span className="text-muted">Mã xác nhận Stayora</span>{" "}
+          <span className="font-medium text-ink">{reference}</span>
+        </p>
+      ) : null}
+      {payment ? (
+        <p className="text-sm">
+          <span className="text-muted">Thanh toán Stayora</span>{" "}
+          <span className="text-ink">{payment}</span>
+        </p>
+      ) : null}
+      <p className="text-sm text-muted">Hỗ trợ Stayora — đặt phòng và thanh toán.</p>
+    </div>
+  );
+}
+
+export function DestinationAbout() {
+  return (
+    <section className="mt-12 border-t border-border pt-8">
+      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Về điểm đến</p>
+      <OceanamiLockup tone="on-paper" className="mt-4" />
+      <p className="mt-3 max-w-md text-sm text-ink-soft">
+        Oceanami là khu villas và beach club tại Phước Hải. Villa do chủ nhà sở hữu và cho thuê;
+        Stayora vận hành đặt phòng.
+      </p>
+    </section>
   );
 }
 

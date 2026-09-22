@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { Check, Clock } from "lucide-react";
+import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
 import { StaySummary } from "@/components/stay-summary";
 import { Button } from "@/components/ui/button";
 import { balanceLine, holdCountdown, obligationSucceeded, paymentPlanLabel } from "@/lib/domain";
@@ -74,15 +75,10 @@ function RequestPage() {
         <p className="mt-3 text-ink-soft">
           {villa.name} đã được giữ cho {request.guests} khách.
         </p>
-        <p className="mt-4 text-sm text-muted">
-          Mã xác nhận <span className="font-medium text-ink">{booking.reference}</span>
-        </p>
-
-        {balance ? (
-          <p className={`mt-4 text-sm ${balancePaid ? "text-ink-soft" : "text-lotus-deep"}`}>
-            {balanceLine(balance, balancePaid)}
-          </p>
-        ) : null}
+        <StayoraServiceNote
+          reference={booking.reference}
+          payment={balance ? balanceLine(balance, balancePaid) : "Đã xác nhận qua Stayora"}
+        />
 
         <div className="mt-8">
           <StaySummary villa={villa} request={request} totalLabel="Tổng kỳ nghỉ" />
@@ -115,6 +111,7 @@ function RequestPage() {
             </Link>
           </Button>
         </div>
+        <DestinationAbout />
       </main>
     );
   }
@@ -153,8 +150,8 @@ function RequestPage() {
 
       {request.status === "ACCEPTED" && initial && !unknown ? (
         <div className="mt-6 rounded-2xl bg-paper p-5 shadow-[var(--shadow-border)]">
-          <p className="text-xs font-semibold tracking-wider text-muted uppercase">
-            Số tiền cần thanh toán
+          <p className="text-xs font-semibold tracking-wider text-lotus uppercase">
+            Thanh toán Stayora
           </p>
           <p className="mt-2 font-serif text-3xl tabular-nums">{formatVnd(initial.amount)}</p>
           <p className="mt-1 text-sm text-muted">
@@ -173,6 +170,16 @@ function RequestPage() {
         <StaySummary villa={villa} request={request} totalLabel="Tổng kỳ nghỉ" />
       </div>
 
+      <StayoraServiceNote
+        payment={
+          unknown
+            ? "Stayora đang xác minh thanh toán."
+            : request.status === "ACCEPTED" && initial
+              ? undefined
+              : "Chưa thanh toán — Stayora sẽ gửi hướng dẫn khi chủ nhà giữ chỗ."
+        }
+      />
+
       <ol className="mt-8 space-y-4">
         <Step done title="Đã gửi yêu cầu" body="Chủ nhà đã nhận ngày và số khách." />
         <Step
@@ -190,6 +197,7 @@ function RequestPage() {
           </Link>
         </Button>
       </div>
+      <DestinationAbout />
     </main>
   );
 }

@@ -23,7 +23,7 @@ export function StaySummary({
           </span>
         </div>
         <div className="space-y-2 p-5">
-          <p className="text-xs font-semibold tracking-wider text-lotus uppercase">
+          <p className="text-xs font-semibold tracking-wider text-muted uppercase">
             Oceanami · {villa.settingLabel}
           </p>
           <h2 className="font-medium">{villa.name}</h2>

@@ -32,58 +32,52 @@ export function StayoraIcon({ className }: { className?: string }) {
   );
 }
 
+type OceanamiTone = "on-photo" | "on-paper";
+
+function oceanamiToneClass(tone: OceanamiTone) {
+  return tone === "on-photo" ? "oceanami-mono-white" : "oceanami-mono-ink";
+}
+
 /**
  * Official Oceanami seal from oceanami.com — Núi, Biển, Hoa Anh Đào.
- * Magenta circle; not the Stayora lotus.
+ * Always rendered monochrome in Stayora UI (CSS filter; files are untouched).
  */
 export function OceanamiEmblem({
-  variant = "color",
+  tone = "on-paper",
   className,
 }: {
-  variant?: "color" | "white";
+  tone?: OceanamiTone;
   className?: string;
 }) {
   return (
     <img
-      src={variant === "white" ? "/brand/oceanami-mark-white.png" : "/brand/oceanami-mark.png"}
+      src="/brand/oceanami-mark.png"
       alt=""
-      className={cn("h-8 w-8 shrink-0 object-contain", className)}
+      className={cn("h-8 w-8 shrink-0 object-contain", oceanamiToneClass(tone), className)}
       aria-hidden="true"
     />
   );
 }
 
 export function OceanamiLockup({
-  variant = "color",
+  tone = "on-paper",
   compact = false,
   className,
 }: {
-  variant?: "color" | "white";
+  tone?: OceanamiTone;
   compact?: boolean;
   className?: string;
 }) {
   return (
     <img
-      src={variant === "white" ? "/brand/oceanami-lockup-white.png" : "/brand/oceanami-lockup.png"}
+      src="/brand/oceanami-lockup.png"
       alt="Oceanami Villas & Beach Club"
       className={cn(
         "w-auto object-contain object-left",
         compact ? "h-8 sm:h-9" : "h-10 sm:h-12",
+        oceanamiToneClass(tone),
         className,
       )}
     />
   );
 }
-
-/** Six Senses-style dual lockup: rental brand + destination. */
-export function DualBrandLockup({ className }: { className?: string }) {
-  return (
-    <span className={cn("inline-flex items-center gap-3", className)}>
-      <StayoraLockup />
-      <span className="h-8 w-px bg-border-strong" aria-hidden />
-      <OceanamiEmblem className="h-8 w-8 sm:hidden" />
-      <OceanamiLockup compact className="hidden sm:block" />
-    </span>
-  );
-}
-

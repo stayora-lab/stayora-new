@@ -156,7 +156,7 @@ function VillaDetail({ villa }: { villa: Villa }) {
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_22rem] lg:items-start lg:py-12">
         <article className="space-y-10">
           <header>
-            <p className="text-xs font-semibold tracking-wider text-lotus uppercase">
+            <p className="text-xs font-semibold tracking-wider text-muted uppercase">
               Oceanami · {villa.settingLabel}
             </p>
             <h1 className="mt-2 font-serif text-title">{villa.name}</h1>
