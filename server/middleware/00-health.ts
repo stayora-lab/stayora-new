@@ -1,58 +1,42 @@
 /**
- * Field-test diagnostics + AbortSignal polyfill.
+ * Zero-import field-test middleware (same scan path as grok-pwa.ts).
  *
- * Grok-pwa middleware already runs on Vercel; this file uses the same
- * registration path so /health cannot be swallowed by TanStack, and so we can
- * attach `request.signal` before Start's SSR entry reads it.
+ * 1. Attach AbortSignal — TanStack SSR crashes with opaque HTTPError when
+ *    `request.signal` is missing on Vercel's Request-like object.
+ * 2. Serve /health so we can tell this build is actually live.
  */
-import { withAbortSignal } from "../lib/with-signal.ts";
-
-function headerNames(headers: { keys?: () => Iterable<string> } | undefined): string[] {
-  if (!headers) return [];
+function withAbortSignal(req: Request): Request {
+  if (typeof req?.signal?.throwIfAborted === "function") return req;
+  const ac = new AbortController();
   try {
-    if (typeof headers.keys === "function") return [...headers.keys()];
+    Object.defineProperty(req, "signal", {
+      configurable: true,
+      enumerable: true,
+      get: () => ac.signal,
+    });
+    if (typeof req.signal?.throwIfAborted === "function") return req;
   } catch {
-    /* ignore */
+    /* frozen / brand-checked Request */
   }
-  return Object.keys(headers);
+  return new Proxy(req, {
+    get(target, prop, receiver) {
+      if (prop === "signal") return ac.signal;
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function"
+        ? (value as (...args: unknown[]) => unknown).bind(target)
+        : value;
+    },
+  }) as Request;
 }
 
-function pathnameOf(event: { url?: URL; req?: { url?: string } }): string {
+function pathOf(event: { url?: URL; req?: { url?: string } }): string {
   try {
     if (event.url?.pathname) return event.url.pathname;
-    if (event.req?.url) return new URL(event.req.url, "https://dev.stayora.vn").pathname;
+    if (event.req?.url) return new URL(event.req.url, "https://localhost/").pathname;
   } catch {
     /* ignore */
   }
   return "";
-}
-
-function present(name: string): boolean {
-  const raw = process.env[name];
-  return Boolean(raw && raw.trim());
-}
-
-function healthBody(event: {
-  url?: URL;
-  req?: Request & { url?: string; method?: string; headers?: Headers; signal?: AbortSignal };
-}) {
-  const req = event.req;
-  return {
-    ok: true,
-    app: "stayora-field-test",
-    node: process.version,
-    path: pathnameOf(event),
-    method: req?.method ?? null,
-    reqUrl: req?.url ?? null,
-    extensible: req ? Object.isExtensible(req) : null,
-    hasSignal: typeof req?.signal?.throwIfAborted === "function",
-    headerNames: headerNames(req?.headers),
-    accept: req?.headers?.get?.("accept") ?? null,
-    vercel: present("VERCEL"),
-    hasDatabaseUrl: present("DATABASE_URL"),
-    hasAdminKey: present("ADMIN_KEY"),
-    authFlag: process.env["VITE_AUTH_ENABLED"] ?? null,
-  };
 }
 
 export default async function healthMiddleware(
@@ -63,15 +47,32 @@ export default async function healthMiddleware(
     try {
       event.req = withAbortSignal(event.req);
     } catch {
-      /* assignment may fail on a read-only event; plugin still patches fetch */
+      /* event.req may be read-only */
     }
   }
 
-  const path = pathnameOf(event);
+  const path = pathOf(event);
   if (path === "/health") {
-    return new Response(JSON.stringify(healthBody(event), null, 2), {
-      headers: { "content-type": "application/json; charset=utf-8" },
-    });
+    const req = event.req;
+    return new Response(
+      JSON.stringify(
+        {
+          ok: true,
+          app: "stayora-field-test",
+          node: process.version,
+          path,
+          method: req?.method ?? null,
+          hasSignal: typeof req?.signal?.throwIfAborted === "function",
+          extensible: req ? Object.isExtensible(req) : null,
+          vercel: Boolean(process.env.VERCEL),
+          hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
+          authFlag: process.env.VITE_AUTH_ENABLED ?? null,
+        },
+        null,
+        2,
+      ),
+      { headers: { "content-type": "application/json; charset=utf-8" } },
+    );
   }
 
   try {
@@ -87,15 +88,11 @@ export default async function healthMiddleware(
           stack: err.stack,
           path,
           node: process.version,
-          hasSignal: typeof event.req?.signal?.throwIfAborted === "function",
         },
         null,
         2,
       ),
-      {
-        status: 500,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      },
+      { status: 500, headers: { "content-type": "application/json; charset=utf-8" } },
     );
   }
 }
