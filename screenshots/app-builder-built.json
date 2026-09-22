@@ -7,8 +7,8 @@
       "status": 200,
       "title": "Stayora",
       "hasCanvas": false,
-      "bodyTextLen": 1810,
-      "bodyTextHash": "360560ca7ebf821fd84db4dbd706e19405b23d8c0077d1b1b9035aa1bf9e10f5",
+      "bodyTextLen": 1883,
+      "bodyTextHash": "796887a6ade28e05df07b6c190a2d358b397d8d184bd7543cd1104aeaace4f0e",
       "bodyTextPrefix": "Stayora Oceanami · Phước Hải Vai Khách Sale Host Butler BQL PHƯỚ",
       "horizontalOverflow": false,
       "consoleErrors": [],
@@ -21,8 +21,8 @@
       "status": 200,
       "title": "Stayora",
       "hasCanvas": false,
-      "bodyTextLen": 1785,
-      "bodyTextHash": "633ab7d435a5c92175eff372709877702244b1dadc4e56abd9df78a1ec72fe6b",
+      "bodyTextLen": 1858,
+      "bodyTextHash": "498ce2bd985880646d6d9c309b46b68944567b086b6ce01139631bc0e5ee2510",
       "bodyTextPrefix": "Stayora Khách Sale Host Butler BQL PHƯỚC HẢI, BÀ RỊA–VŨNG TÀU Oc",
       "horizontalOverflow": false,
       "consoleErrors": [],
@@ -33,6 +33,9 @@
   "brandWarnings": [],
   "authWarnings": [],
   "verdictFile": "/workspace/screenshots/app-builder-built.json",
-  "divergesFromBaseline": false,
-  "baselineReasons": []
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "desktop: body text replaced (similar length, page start changed)",
+    "mobile: body text replaced (similar length, page start changed)"
+  ]
 }
