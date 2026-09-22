@@ -223,6 +223,8 @@ export function domainMessageVi(error: unknown): string {
         return "Khách đang lưu trú — không thể kết thúc commitment này";
       case "STILL_OVERLAPPING":
         return "Vẫn còn chỗ chồng lịch — chọn commitment khác";
+      case "CONCURRENT_CHANGE":
+        return "Có người vừa thay đổi — thử lại";
       default:
         return error.message;
     }

@@ -1,27 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import {
-  acceptRequest,
-  advanceTime,
-  BUTLER_LINH,
-  checkInStay,
-  checkOutStay,
-  createBlock,
-  createRequest,
+  createEmptyWorld,
   DomainError,
-  expireHolds,
-  HOLD_MS,
-  markDidNotOccur,
-  markRefundDone,
-  recordExternalBooking,
-  recordPayment,
-  releaseBlock,
-  reportIncident,
-  resolveConflict,
-  resolveUnknown,
-  SALE_MAI,
-  seedWorld,
-  type Actor,
+  PILOT_NOW,
   type BlockKind,
   type ExternalSource,
   type PaymentOutcome,
@@ -33,6 +15,9 @@ import {
   DEFAULT_CHECK_OUT,
   DEFAULT_GUESTS,
 } from "@/lib/stay";
+import { fetchWorld, submitWorldAction } from "./world-api.ts";
+import type { WorldAction } from "./world-actions.ts";
+import { parseVai, ROLE_STORAGE_KEY, type RoleSession } from "./role.ts";
 
 export type SearchState = {
   checkIn: string;
@@ -43,31 +28,43 @@ export type SearchState = {
 type BookingState = {
   hydrated: boolean;
   persona: Persona;
+  saleId?: string;
+  hostId?: string;
+  butlerId?: string;
+  demoMode: boolean;
   world: World;
+  version: number;
+  updatedAt: string | null;
+  fetchedAt: string | null;
   search: SearchState;
   saleSearch: SearchState;
   opsDate: string;
   setHydrated: (value: boolean) => void;
   setPersona: (persona: Persona) => void;
+  setRole: (role: RoleSession) => void;
+  setDemoMode: (value: boolean) => void;
   setSearch: (search: Partial<SearchState>) => void;
   setSaleSearch: (search: Partial<SearchState>) => void;
   setOpsDate: (date: string) => void;
-  tickExpiry: () => void;
-  advanceDemo: () => void;
+  refreshWorld: () => Promise<void>;
+  applyVaiFromUrl: () => RoleSession | null;
+  runAction: (action: WorldAction) => Promise<{ requestId?: string }>;
+  advanceDemo: () => Promise<void>;
+  resetWorld: () => Promise<void>;
   guestCreateRequest: (input: {
     villaId: string;
     checkIn: string;
     checkOut: string;
     guests: number;
-  }) => { requestId: string };
+  }) => Promise<{ requestId: string }>;
   saleCreateRequest: (input: {
     villaId: string;
     checkIn: string;
     checkOut: string;
     guests: number;
     guestName: string;
-  }) => { requestId: string };
-  hostAccept: (requestId: string) => void;
+  }) => Promise<{ requestId: string }>;
+  hostAccept: (requestId: string) => Promise<void>;
   hostExternal: (input: {
     villaId: string;
     checkIn: string;
@@ -75,45 +72,36 @@ type BookingState = {
     guests: number;
     source: ExternalSource;
     guestName?: string;
-  }) => void;
+  }) => Promise<void>;
   hostCreateBlock: (input: {
     villaId: string;
     start: string;
     end: string;
     blockKind: BlockKind;
     note?: string;
-  }) => void;
-  hostReleaseBlock: (commitmentId: string) => void;
-  adminRecordPayment: (obligationId: string, outcome: PaymentOutcome) => void;
-  adminResolveUnknown: (attemptId: string, outcome: "SUCCEEDED" | "FAILED") => void;
-  adminMarkRefundDone: (refundId: string, note: string) => void;
+  }) => Promise<void>;
+  hostReleaseBlock: (commitmentId: string) => Promise<void>;
+  adminRecordPayment: (obligationId: string, outcome: PaymentOutcome) => Promise<void>;
+  adminResolveUnknown: (attemptId: string, outcome: "SUCCEEDED" | "FAILED") => Promise<void>;
+  adminMarkRefundDone: (refundId: string, note: string) => Promise<void>;
   adminResolveConflict: (input: {
     conflictId: string;
     keepCommitmentId: string;
     endCommitmentId: string;
     reason: string;
-  }) => void;
-  butlerCheckIn: (stayId: string) => void;
-  butlerCheckOut: (stayId: string) => void;
-  butlerNoShow: (stayId: string, reason: string) => void;
-  butlerIncident: (stayId: string, note: string, hasPhoto: boolean) => void;
+  }) => Promise<void>;
+  butlerCheckIn: (stayId: string) => Promise<void>;
+  butlerCheckOut: (stayId: string) => Promise<void>;
+  butlerNoShow: (stayId: string, reason: string) => Promise<void>;
+  butlerIncident: (stayId: string, note: string, hasPhoto: boolean) => Promise<void>;
 };
 
-function actorFor(persona: Persona): Actor {
-  if (persona === "SALE") return { persona: "SALE", saleId: SALE_MAI };
-  if (persona === "BUTLER") return { persona: "BUTLER", butlerId: BUTLER_LINH };
-  if (persona === "HOST") return { persona: "HOST" };
-  if (persona === "BQL") return { persona: "BQL" };
-  if (persona === "ADMIN") return { persona: "ADMIN" };
-  return { persona: "GUEST" };
-}
-
-function withWorldDefaults(world: World): World {
+function roleOf(state: BookingState): RoleSession {
   return {
-    ...world,
-    refundCases: world.refundCases ?? [],
-    conflicts: world.conflicts ?? [],
-    auditLog: world.auditLog ?? [],
+    persona: state.persona,
+    saleId: state.saleId,
+    hostId: state.hostId,
+    butlerId: state.butlerId,
   };
 }
 
@@ -122,7 +110,11 @@ export const useBookingStore = create<BookingState>()(
     (set, get) => ({
       hydrated: false,
       persona: "GUEST",
-      world: seedWorld(),
+      demoMode: false,
+      world: createEmptyWorld(PILOT_NOW),
+      version: 0,
+      updatedAt: null,
+      fetchedAt: null,
       search: {
         checkIn: DEFAULT_CHECK_IN,
         checkOut: DEFAULT_CHECK_OUT,
@@ -136,142 +128,123 @@ export const useBookingStore = create<BookingState>()(
       opsDate: "2026-09-22",
       setHydrated: (value) => set({ hydrated: value }),
       setPersona: (persona) => set({ persona }),
+      setRole: (role) =>
+        set({
+          persona: role.persona,
+          saleId: role.saleId,
+          hostId: role.hostId,
+          butlerId: role.butlerId,
+        }),
+      setDemoMode: (demoMode) => set({ demoMode }),
       setSearch: (search) =>
         set((state) => ({ search: { ...state.search, ...search } })),
       setSaleSearch: (search) =>
         set((state) => ({ saleSearch: { ...state.saleSearch, ...search } })),
       setOpsDate: (opsDate) => set({ opsDate }),
-      tickExpiry: () => {
-        const next = expireHolds(withWorldDefaults(get().world));
-        if (next !== get().world) set({ world: next });
+      refreshWorld: async () => {
+        try {
+          const payload = await fetchWorld();
+          set({
+            world: payload.world,
+            version: payload.version,
+            updatedAt: payload.updatedAt,
+            fetchedAt: new Date().toISOString(),
+            hydrated: true,
+          });
+        } catch {
+          set({ hydrated: true });
+        }
       },
-      advanceDemo: () => {
-        set({ world: advanceTime(withWorldDefaults(get().world), HOLD_MS) });
+      applyVaiFromUrl: () => {
+        if (typeof window === "undefined") return null;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("demo") === "1") set({ demoMode: true });
+        const role = parseVai(params.get("vai"));
+        if (role) get().setRole(role);
+        return role;
       },
-      guestCreateRequest: (input) => {
-        const result = createRequest(withWorldDefaults(get().world), {
-          ...input,
-          guestName: "Khách",
-          actor: { persona: "GUEST" },
+      runAction: async (action) => {
+        const result = await submitWorldAction({ data: { action, role: roleOf(get()) } });
+        if (!result.ok) {
+          throw new DomainError(result.code, result.message);
+        }
+        set({
+          world: result.world,
+          version: result.version,
+          updatedAt: result.updatedAt,
+          fetchedAt: new Date().toISOString(),
         });
-        set({ world: result.world });
-        return { requestId: result.request.id };
+        return { requestId: result.requestId };
       },
-      saleCreateRequest: (input) => {
-        const result = createRequest(withWorldDefaults(get().world), {
-          ...input,
-          actor: { persona: "SALE", saleId: SALE_MAI },
-        });
-        set({ world: result.world });
-        return { requestId: result.request.id };
+      advanceDemo: async () => {
+        await get().runAction({ type: "ADVANCE_TIME" });
       },
-      hostAccept: (requestId) => {
-        const result = acceptRequest(withWorldDefaults(get().world), {
-          requestId,
-          actor: { persona: "HOST" },
-        });
-        set({ world: result.world });
+      resetWorld: async () => {
+        await get().runAction({ type: "RESET" });
       },
-      hostExternal: (input) => {
-        const result = recordExternalBooking(withWorldDefaults(get().world), {
-          ...input,
-          actor: { persona: "HOST" },
-        });
-        set({ world: result.world });
+      guestCreateRequest: async (input) => {
+        const result = await get().runAction({ type: "CREATE_REQUEST", ...input, guestName: "Khách" });
+        if (!result.requestId) throw new DomainError("INVALID", "Không tạo được yêu cầu");
+        return { requestId: result.requestId };
       },
-      hostCreateBlock: (input) => {
-        const result = createBlock(withWorldDefaults(get().world), {
-          ...input,
-          actor: { persona: "HOST" },
-        });
-        set({ world: result.world });
+      saleCreateRequest: async (input) => {
+        const result = await get().runAction({ type: "CREATE_REQUEST", ...input });
+        if (!result.requestId) throw new DomainError("INVALID", "Không tạo được yêu cầu");
+        return { requestId: result.requestId };
       },
-      hostReleaseBlock: (commitmentId) => {
-        const result = releaseBlock(withWorldDefaults(get().world), {
-          commitmentId,
-          actor: { persona: "HOST" },
-        });
-        set({ world: result.world });
+      hostAccept: async (requestId) => {
+        await get().runAction({ type: "ACCEPT_REQUEST", requestId });
       },
-      adminRecordPayment: (obligationId, outcome) => {
-        const result = recordPayment(withWorldDefaults(get().world), {
-          obligationId,
-          outcome,
-          actor: { persona: "ADMIN" },
-        });
-        set({ world: result.world });
+      hostExternal: async (input) => {
+        await get().runAction({ type: "RECORD_EXTERNAL", ...input });
       },
-      adminResolveUnknown: (attemptId, outcome) => {
-        const result = resolveUnknown(withWorldDefaults(get().world), {
-          attemptId,
-          outcome,
-          actor: { persona: "ADMIN" },
-        });
-        set({ world: result.world });
+      hostCreateBlock: async (input) => {
+        await get().runAction({ type: "CREATE_BLOCK", ...input });
       },
-      adminMarkRefundDone: (refundId, note) => {
-        const result = markRefundDone(withWorldDefaults(get().world), {
-          refundId,
-          note,
-          actor: { persona: "ADMIN" },
-        });
-        set({ world: result.world });
+      hostReleaseBlock: async (commitmentId) => {
+        await get().runAction({ type: "RELEASE_BLOCK", commitmentId });
       },
-      adminResolveConflict: (input) => {
-        const result = resolveConflict(withWorldDefaults(get().world), {
-          ...input,
-          actor: { persona: "ADMIN" },
-        });
-        set({ world: result.world });
+      adminRecordPayment: async (obligationId, outcome) => {
+        await get().runAction({ type: "RECORD_PAYMENT", obligationId, outcome });
       },
-      butlerCheckIn: (stayId) => {
-        const result = checkInStay(withWorldDefaults(get().world), {
-          stayId,
-          actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
-        });
-        set({ world: result.world });
+      adminResolveUnknown: async (attemptId, outcome) => {
+        await get().runAction({ type: "RESOLVE_UNKNOWN", attemptId, outcome });
       },
-      butlerCheckOut: (stayId) => {
-        const result = checkOutStay(withWorldDefaults(get().world), {
-          stayId,
-          actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
-        });
-        set({ world: result.world });
+      adminMarkRefundDone: async (refundId, note) => {
+        await get().runAction({ type: "MARK_REFUND", refundId, note });
       },
-      butlerNoShow: (stayId, reason) => {
-        const result = markDidNotOccur(withWorldDefaults(get().world), {
-          stayId,
-          actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
-          reason,
-        });
-        set({ world: result.world });
+      adminResolveConflict: async (input) => {
+        await get().runAction({ type: "RESOLVE_CONFLICT", ...input });
       },
-      butlerIncident: (stayId, note, hasPhoto) => {
-        const result = reportIncident(withWorldDefaults(get().world), {
-          stayId,
-          actor: { persona: "BUTLER", butlerId: BUTLER_LINH },
-          note,
-          hasPhoto,
-        });
-        set({ world: result.world });
+      butlerCheckIn: async (stayId) => {
+        await get().runAction({ type: "CHECK_IN", stayId });
+      },
+      butlerCheckOut: async (stayId) => {
+        await get().runAction({ type: "CHECK_OUT", stayId });
+      },
+      butlerNoShow: async (stayId, reason) => {
+        await get().runAction({ type: "DID_NOT_OCCUR", stayId, reason });
+      },
+      butlerIncident: async (stayId, note, hasPhoto) => {
+        await get().runAction({ type: "REPORT_INCIDENT", stayId, note, hasPhoto });
       },
     }),
     {
-      name: "stayora-phase2",
+      name: ROLE_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       partialize: (state) => ({
         persona: state.persona,
-        world: state.world,
+        saleId: state.saleId,
+        hostId: state.hostId,
+        butlerId: state.butlerId,
+        demoMode: state.demoMode,
         search: state.search,
         saleSearch: state.saleSearch,
         opsDate: state.opsDate,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.world = expireHolds(withWorldDefaults(state.world));
-          state.setHydrated(true);
-        }
+        state?.setHydrated(true);
       },
     },
   ),
@@ -283,4 +256,4 @@ export function useLatestGuestRequest() {
   );
 }
 
-export { actorFor, DomainError, SALE_MAI, BUTLER_LINH };
+export { DomainError };

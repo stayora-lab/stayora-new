@@ -1,0 +1,155 @@
+{
+  "hosts": [{ "id": "host-oceanami", "name": "Oceanami" }],
+  "sales": [{ "id": "sale-mai", "name": "Mai" }],
+  "butlers": [
+    {
+      "id": "butler-linh",
+      "name": "Linh",
+      "villaIds": [
+        "sao-bien",
+        "huong-tram",
+        "minh-dam",
+        "gio-bien",
+        "cat-vang",
+        "sen-hong"
+      ]
+    }
+  ],
+  "villas": [
+    {
+      "id": "sao-bien",
+      "name": "Villa Sao Biển",
+      "hostId": "host-oceanami",
+      "bedrooms": 4,
+      "sleeps": 8,
+      "nightlyPrice": 16500000,
+      "setting": "beachfront",
+      "photos": [
+        "/images/villas/sao-bien-hero.jpg",
+        "/images/villas/sao-bien-living.jpg",
+        "/images/villas/bedroom.jpg",
+        "/images/beach-club.jpg"
+      ]
+    },
+    {
+      "id": "huong-tram",
+      "name": "Villa Hương Tràm",
+      "hostId": "host-oceanami",
+      "bedrooms": 3,
+      "sleeps": 6,
+      "nightlyPrice": 9400000,
+      "setting": "garden",
+      "photos": [
+        "/images/villas/huong-tram-hero.jpg",
+        "/images/villas/huong-tram-living.jpg",
+        "/images/villas/bedroom.jpg",
+        "/images/spa.jpg"
+      ]
+    },
+    {
+      "id": "minh-dam",
+      "name": "Villa Minh Đạm",
+      "hostId": "host-oceanami",
+      "bedrooms": 5,
+      "sleeps": 10,
+      "nightlyPrice": 22400000,
+      "setting": "hillside",
+      "photos": [
+        "/images/villas/minh-dam-hero.jpg",
+        "/images/villas/minh-dam-terrace.jpg",
+        "/images/villas/bedroom.jpg",
+        "/images/oceanami-hero.jpg"
+      ]
+    },
+    {
+      "id": "sen-hong",
+      "name": "Villa Sen Hồng",
+      "hostId": "host-oceanami",
+      "bedrooms": 2,
+      "sleeps": 4,
+      "nightlyPrice": 6200000,
+      "setting": "garden",
+      "photos": []
+    },
+    {
+      "id": "gio-bien",
+      "name": "Villa Gió Biển",
+      "hostId": "host-oceanami",
+      "bedrooms": 3,
+      "sleeps": 6,
+      "nightlyPrice": 10800000,
+      "setting": "garden",
+      "photos": [
+        "/images/villas/gio-bien-hero.jpg",
+        "/images/villas/gio-bien-living.jpg",
+        "/images/villas/bedroom.jpg",
+        "/images/beach-club.jpg"
+      ]
+    },
+    {
+      "id": "cat-vang",
+      "name": "Villa Cát Vàng",
+      "hostId": "host-oceanami",
+      "bedrooms": 4,
+      "sleeps": 8,
+      "nightlyPrice": 18200000,
+      "setting": "beachfront",
+      "photos": [
+        "/images/villas/cat-vang-hero.jpg",
+        "/images/villas/cat-vang-pool.jpg",
+        "/images/villas/sao-bien-living.jpg",
+        "/images/villas/bedroom.jpg"
+      ]
+    }
+  ],
+  "existingStays": [
+    {
+      "villaId": "huong-tram",
+      "checkIn": "2026-09-20",
+      "checkOut": "2026-09-24",
+      "guests": 4,
+      "source": "Khách quen",
+      "guestName": "Gia đình Trần"
+    },
+    {
+      "villaId": "gio-bien",
+      "checkIn": "2026-09-22",
+      "checkOut": "2026-09-25",
+      "guests": 4,
+      "source": "Airbnb",
+      "guestName": "Lê Minh"
+    },
+    {
+      "villaId": "minh-dam",
+      "checkIn": "2026-09-22",
+      "checkOut": "2026-09-26",
+      "guests": 8,
+      "source": "Booking.com",
+      "guestName": "Ngô Hà"
+    },
+    {
+      "villaId": "sao-bien",
+      "checkIn": "2026-09-18",
+      "checkOut": "2026-09-22",
+      "guests": 6,
+      "source": "Khách quen",
+      "guestName": "Mai Phương"
+    },
+    {
+      "villaId": "cat-vang",
+      "checkIn": "2026-10-16",
+      "checkOut": "2026-10-19",
+      "guests": 8,
+      "source": "Zalo",
+      "guestName": "Phạm Gia"
+    }
+  ],
+  "blocks": [
+    { "villaId": "sao-bien", "start": "2026-10-23", "end": "2026-10-27", "kind": "OWNER" },
+    { "villaId": "huong-tram", "start": "2026-11-12", "end": "2026-11-16", "kind": "OWNER" },
+    { "villaId": "minh-dam", "start": "2026-10-15", "end": "2026-10-21", "kind": "OWNER" },
+    { "villaId": "sen-hong", "start": "2026-11-01", "end": "2026-11-05", "kind": "OWNER" },
+    { "villaId": "gio-bien", "start": "2026-10-30", "end": "2026-11-03", "kind": "OWNER" },
+    { "villaId": "cat-vang", "start": "2026-09-28", "end": "2026-10-03", "kind": "OWNER" }
+  ]
+}

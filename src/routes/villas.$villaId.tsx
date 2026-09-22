@@ -109,8 +109,8 @@ function VillaDetail({ villa }: { villa: Villa }) {
     ? world.bookings.find((item) => item.requestId === existing.id)
     : undefined;
 
-  function requestStay() {
-    const { requestId } = guestCreateRequest({
+  async function requestStay() {
+    const { requestId } = await guestCreateRequest({
       villaId: villa.id,
       checkIn,
       checkOut,

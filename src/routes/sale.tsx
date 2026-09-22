@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
+import { RoleGate } from "@/components/site-chrome";
 import { DateRangeField, FieldSplit, GuestField } from "@/components/dates-guests";
-import { Photo } from "@/components/photo";
+import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import {
@@ -36,8 +37,7 @@ const TABS: { id: SaleTab; label: string }[] = [
 ];
 
 function SalePage() {
-  const persona = useBookingStore((state) => state.persona);
-  const setPersona = useBookingStore((state) => state.setPersona);
+  const saleId = useBookingStore((state) => state.saleId) ?? SALE_MAI;
   const world = useBookingStore((state) => state.world);
   const search = useBookingStore((state) => state.saleSearch);
   const setSaleSearch = useBookingStore((state) => state.setSaleSearch);
@@ -48,10 +48,6 @@ function SalePage() {
   const [creating, setCreating] = useState<Villa | null>(null);
   const [guestName, setGuestName] = useState("");
   const clock = parseISO(world.now);
-
-  useEffect(() => {
-    if (persona !== "SALE") setPersona("SALE");
-  }, [persona, setPersona]);
 
   const ready =
     isIsoDate(search.checkIn) &&
@@ -73,8 +69,8 @@ function SalePage() {
     return { open, closed };
   }, [world, search.checkIn, search.checkOut, ready]);
 
-  const myRequests = world.requests.filter((item) => item.saleId === SALE_MAI);
-  const myCommissions = world.commissions.filter((item) => item.saleId === SALE_MAI);
+  const myRequests = world.requests.filter((item) => item.saleId === saleId);
+  const myCommissions = world.commissions.filter((item) => item.saleId === saleId);
 
   async function copyQuote(villa: Villa) {
     if (!ready) return;
@@ -103,11 +99,11 @@ function SalePage() {
     window.setTimeout(() => setCopied(null), 2200);
   }
 
-  function submitRequest() {
+  async function submitRequest() {
     if (!creating || !ready) return;
     setError(null);
     try {
-      saleCreateRequest({
+      await saleCreateRequest({
         villaId: creating.id,
         checkIn: search.checkIn,
         checkOut: search.checkOut,
@@ -123,6 +119,7 @@ function SalePage() {
   }
 
   return (
+    <RoleGate allow={["SALE"]}>
     <main lang="vi" className="pb-24">
       <div className="border-b border-border bg-cream">
         <div className="mx-auto max-w-lg px-4 pt-6 pb-4 sm:px-6">
@@ -378,6 +375,7 @@ function SalePage() {
         </Drawer.Portal>
       </Drawer.Root>
     </main>
+    </RoleGate>
   );
 }
 
@@ -435,7 +433,7 @@ function SaleVillaRow({
     <article className="overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)]">
       <div className="flex gap-3 p-3">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl">
-          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
+          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={villa.name} />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">

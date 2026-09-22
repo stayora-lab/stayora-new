@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Photo } from "@/components/photo";
+import { Photo, VillaPlaceholder } from "@/components/photo";
 import type { StayImage } from "@/lib/villas";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ export function VillaGallery({ images, name }: { images: StayImage[]; name: stri
           onClick={() => openAt(0)}
           className="relative h-64 overflow-hidden rounded-lg md:col-span-2 md:row-span-2 md:h-full md:rounded-l-2xl md:rounded-r-lg"
         >
-          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
+          {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={name} />}
         </button>
         {rest.map((image, index) => (
           <button

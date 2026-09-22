@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import { ImagePlus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Drawer } from "vaul";
+import { RoleGate } from "@/components/site-chrome";
 import { DateField } from "@/components/dates-guests";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,7 @@ type Sheet =
 
 function OpsPage() {
   const persona = useBookingStore((state) => state.persona);
-  const setPersona = useBookingStore((state) => state.setPersona);
+  const butlerId = useBookingStore((state) => state.butlerId);
   const world = useBookingStore((state) => state.world);
   const opsDate = useBookingStore((state) => state.opsDate);
   const setOpsDate = useBookingStore((state) => state.setOpsDate);
@@ -42,22 +43,18 @@ function OpsPage() {
   const [hasPhoto, setHasPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (persona !== "BUTLER" && persona !== "BQL") setPersona("BUTLER");
-  }, [persona, setPersona]);
-
   const isBql = persona === "BQL";
-  const butler = world.butlers.find((person) => person.id === BUTLER_LINH);
+  const butler = world.butlers.find((person) => person.id === (butlerId ?? BUTLER_LINH));
   const lists = opsLists(world, opsDate);
 
   function assigned(stay: Stay): boolean {
     return Boolean(butler?.villaIds?.includes(stay.villaId));
   }
 
-  function run(action: () => void) {
+  async function run(action: () => Promise<void>) {
     setError(null);
     try {
-      action();
+      await action();
     } catch (err) {
       setError(domainMessageVi(err));
     }
@@ -87,6 +84,7 @@ function OpsPage() {
   }
 
   return (
+    <RoleGate allow={["BUTLER", "BQL"]}>
     <main lang="vi" className="pb-20">
       <div className="mx-auto max-w-lg px-4 pt-6 sm:px-6">
         <p className="text-xs font-semibold tracking-wider text-lotus uppercase">
@@ -257,6 +255,7 @@ function OpsPage() {
         </Drawer.Portal>
       </Drawer.Root>
     </main>
+    </RoleGate>
   );
 }
 

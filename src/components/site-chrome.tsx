@@ -1,8 +1,10 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { format, parseISO } from "date-fns";
+import { useState, type ReactNode } from "react";
 import { StayoraMark } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
+import { PILOT_SEED } from "@/lib/pilot-data";
 import { useBookingStore } from "@/lib/store";
 
 const PERSONAS: { id: Persona; label: string; to: string }[] = [
@@ -14,10 +16,20 @@ const PERSONAS: { id: Persona; label: string; to: string }[] = [
   { id: "ADMIN", label: "Stayora vận hành", to: "/admin" },
 ];
 
+export function TrialBanner() {
+  return (
+    <p className="bg-ink px-3 py-2 text-center text-xs font-medium tracking-wide text-cream">
+      Bản thử nghiệm — không có giao dịch thật.
+    </p>
+  );
+}
+
 export function PersonaSwitch() {
   const persona = useBookingStore((state) => state.persona);
-  const setPersona = useBookingStore((state) => state.setPersona);
+  const demoMode = useBookingStore((state) => state.demoMode);
+  const setRole = useBookingStore((state) => state.setRole);
   const navigate = useNavigate();
+  if (!demoMode) return null;
 
   return (
     <label className="flex items-center gap-2 text-xs text-muted">
@@ -26,7 +38,15 @@ export function PersonaSwitch() {
         value={persona}
         onChange={(event) => {
           const next = event.target.value as Persona;
-          setPersona(next);
+          if (next === "SALE") {
+            setRole({ persona: "SALE", saleId: PILOT_SEED.sales[0]?.id });
+          } else if (next === "HOST") {
+            setRole({ persona: "HOST", hostId: PILOT_SEED.hosts[0]?.id });
+          } else if (next === "BUTLER") {
+            setRole({ persona: "BUTLER", butlerId: PILOT_SEED.butlers[0]?.id });
+          } else {
+            setRole({ persona: next });
+          }
           const target = PERSONAS.find((item) => item.id === next);
           if (target) void navigate({ to: target.to });
         }}
@@ -46,6 +66,7 @@ export function SiteHeader() {
   const hydrated = useBookingStore((state) => state.hydrated);
   const persona = useBookingStore((state) => state.persona);
   const world = useBookingStore((state) => state.world);
+  const fetchedAt = useBookingStore((state) => state.fetchedAt);
   const latest = world.requests.find((item) => item.source === "GUEST");
   const latestBooking = latest
     ? world.bookings.find((item) => item.requestId === latest.id)
@@ -56,16 +77,21 @@ export function SiteHeader() {
     path.startsWith("/ops") ||
     path.startsWith("/host") ||
     path.startsWith("/admin");
+  const stamp = fetchedAt ? format(parseISO(fetchedAt), "HH:mm:ss") : null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-cream/90 backdrop-blur-md">
+      <TrialBanner />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link to="/" className="shrink-0" aria-label="Stayora home">
           <StayoraMark />
         </Link>
-        <p className="hidden min-w-0 truncate text-sm text-ink-soft md:block">
-          {workspace ? workspaceTitle(path, persona) : "Oceanami · Phước Hải"}
-        </p>
+        <div className="hidden min-w-0 md:block">
+          <p className="truncate text-sm text-ink-soft">
+            {workspace ? workspaceTitle(path, persona) : "Oceanami · Phước Hải"}
+          </p>
+          {stamp ? <p className="text-[11px] text-muted">Cập nhật lúc {stamp}</p> : null}
+        </div>
         <div className="flex items-center gap-2">
           {hydrated && persona === "GUEST" && latest ? (
             latestBooking ? (
@@ -85,6 +111,9 @@ export function SiteHeader() {
                 Your request
               </Link>
             )
+          ) : null}
+          {stamp ? (
+            <p className="text-[11px] text-muted md:hidden">Cập nhật lúc {stamp}</p>
           ) : null}
           <PersonaSwitch />
         </div>
@@ -123,7 +152,9 @@ export function SiteFooter() {
 
 export function DemoPanel() {
   const [open, setOpen] = useState(false);
+  const persona = useBookingStore((state) => state.persona);
   const advanceDemo = useBookingStore((state) => state.advanceDemo);
+  const resetWorld = useBookingStore((state) => state.resetWorld);
 
   if (!open) {
     return (
@@ -147,9 +178,43 @@ export function DemoPanel() {
           Đóng
         </button>
       </div>
-      <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => advanceDemo()}>
+      <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => void advanceDemo()}>
         Tua nhanh 30 phút
       </Button>
+      {persona === "ADMIN" ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full"
+          onClick={() => void resetWorld()}
+        >
+          Reset dữ liệu
+        </Button>
+      ) : null}
     </div>
   );
+}
+
+export function RoleGate({ allow, children }: { allow: Persona[]; children: ReactNode }) {
+  const hydrated = useBookingStore((state) => state.hydrated);
+  const persona = useBookingStore((state) => state.persona);
+  if (!hydrated) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-24 text-center text-muted">Đang mở dữ liệu…</main>
+    );
+  }
+  if (!allow.includes(persona)) {
+    return (
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Cần đúng link vai trò</h1>
+        <p className="mt-3 text-ink-soft">
+          Trang này không mở bằng vai đang lưu trên thiết bị. Dùng link được gửi cho bạn.
+        </p>
+        <Button asChild className="mt-8">
+          <Link to="/admin/links">Xem danh sách link</Link>
+        </Button>
+      </main>
+    );
+  }
+  return children;
 }

@@ -3,7 +3,7 @@ import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import { StaySummary } from "@/components/stay-summary";
-import { Photo } from "@/components/photo";
+import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
 import { balanceLine, obligationSucceeded, stayGuestLabel } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
@@ -74,7 +74,7 @@ function YourStayPage() {
   return (
     <main lang="vi" className="pb-16">
       <div className="relative h-72 overflow-hidden sm:h-96">
-        {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : null}
+        {hero ? <Photo src={hero.src} alt="Ảnh minh hoạ" /> : <VillaPlaceholder name={villa.name} />}
         <div className="absolute inset-0 bg-linear-to-t from-ink/65 via-ink/10 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-4xl px-4 pb-8 sm:px-6">
           <p className="text-xs font-semibold tracking-[0.16em] text-cream/80 uppercase">

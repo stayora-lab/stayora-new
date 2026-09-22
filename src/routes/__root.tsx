@@ -4,39 +4,45 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useNavigate,
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { SiteFooter, SiteHeader, DemoPanel } from "@/components/site-chrome";
+import { parseVai, workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Stayora";
 
 function HydrateStore() {
-  const setHydrated = useBookingStore((state) => state.setHydrated);
-  const tickExpiry = useBookingStore((state) => state.tickExpiry);
+  const refreshWorld = useBookingStore((state) => state.refreshWorld);
+  const applyVaiFromUrl = useBookingStore((state) => state.applyVaiFromUrl);
+  const navigate = useNavigate();
+
   useEffect(() => {
+    let cancelled = false;
     const persistApi = useBookingStore.persist;
-    const startTick = () => {
-      tickExpiry();
-      const id = window.setInterval(() => {
-        useBookingStore.getState().tickExpiry();
-      }, 30_000);
-      return id;
+    const boot = async () => {
+      if (!persistApi.hasHydrated()) await persistApi.rehydrate();
+      if (cancelled) return;
+      const role = applyVaiFromUrl();
+      await refreshWorld();
+      if (cancelled || !role) return;
+      const dest = workspaceFor(role.persona);
+      if (window.location.pathname === "/" && dest !== "/") {
+        void navigate({ to: dest });
+      }
     };
-    if (persistApi.hasHydrated()) {
-      setHydrated(true);
-      const id = startTick();
-      return () => window.clearInterval(id);
-    }
-    let interval = 0;
-    const result = persistApi.rehydrate();
-    void Promise.resolve(result).then(() => {
-      interval = startTick();
-    });
-    return () => window.clearInterval(interval);
-  }, [setHydrated, tickExpiry]);
+    void boot();
+    const id = window.setInterval(() => {
+      void useBookingStore.getState().refreshWorld();
+    }, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [applyVaiFromUrl, navigate, refreshWorld]);
   return null;
 }
 

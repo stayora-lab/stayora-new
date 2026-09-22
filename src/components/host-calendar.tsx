@@ -12,7 +12,7 @@ import {
   viDateRange,
 } from "@/lib/domain";
 import type { BlockKind, Commitment, ExternalSource, World } from "@/lib/domain";
-import { getVilla, villas } from "@/lib/villas";
+import { getVilla, villas as allVillas, type Villa } from "@/lib/villas";
 
 const SOURCES: ExternalSource[] = ["Airbnb", "Booking.com", "Zalo", "Khách quen", "Khác"];
 
@@ -51,11 +51,13 @@ function Legend({ swatch, label }: { swatch: string; label: string }) {
 
 export function HostCalendar({
   world,
+  villas = allVillas,
   onExternal,
   onBlock,
   onRelease,
 }: {
   world: World;
+  villas?: Villa[];
   onExternal: (input: {
     villaId: string;
     checkIn: string;

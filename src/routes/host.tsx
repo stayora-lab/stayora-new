@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { RoleGate } from "@/components/site-chrome";
 import { HostCalendar } from "@/components/host-calendar";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +18,7 @@ import {
 import type { StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
-import { getVilla } from "@/lib/villas";
+import { getVilla, villasForHost } from "@/lib/villas";
 
 export const Route = createFileRoute("/host")({
   component: HostPage,
@@ -33,8 +34,7 @@ const TABS: { id: HostTab; label: string }[] = [
 ];
 
 function HostPage() {
-  const persona = useBookingStore((state) => state.persona);
-  const setPersona = useBookingStore((state) => state.setPersona);
+  const hostId = useBookingStore((state) => state.hostId);
   const world = useBookingStore((state) => state.world);
   const hostAccept = useBookingStore((state) => state.hostAccept);
   const hostExternal = useBookingStore((state) => state.hostExternal);
@@ -45,31 +45,39 @@ function HostPage() {
   const clock = parseISO(world.now);
   const today = world.now.slice(0, 10);
   const summary = hostToday(world, today);
+  const mine = villasForHost(hostId);
+  const mineIds = new Set(mine.map((villa) => villa.id));
+  const todayPending = summary.pending.filter((item) => mineIds.has(item.villaId));
+  const todayArriving = summary.arriving.filter((item) => mineIds.has(item.villaId));
+  const todayDeparting = summary.departing.filter((item) => mineIds.has(item.villaId));
 
-  useEffect(() => {
-    if (persona !== "HOST") setPersona("HOST");
-  }, [persona, setPersona]);
-
-  const pending = world.requests.filter((item) => item.status === "PENDING");
+  const pending = world.requests.filter(
+    (item) => item.status === "PENDING" && mineIds.has(item.villaId),
+  );
   const holding = world.requests.filter(
     (item) =>
       item.status === "ACCEPTED" &&
+      mineIds.has(item.villaId) &&
       !world.bookings.some((booking) => booking.requestId === item.id && booking.status === "CONFIRMED"),
   );
-  const bookedRequests = world.requests.filter((item) =>
-    world.bookings.some((booking) => booking.requestId === item.id && booking.status === "CONFIRMED"),
+  const bookedRequests = world.requests.filter(
+    (item) =>
+      mineIds.has(item.villaId) &&
+      world.bookings.some((booking) => booking.requestId === item.id && booking.status === "CONFIRMED"),
   );
+  const myStays = world.stays.filter((stay) => mineIds.has(stay.villaId));
 
-  function run(action: () => void) {
+  async function run(action: () => Promise<void>) {
     setError(null);
     try {
-      action();
+      await action();
     } catch (err) {
       setError(domainMessageVi(err));
     }
   }
 
   return (
+    <RoleGate allow={["HOST"]}>
     <main lang="vi" className="pb-20">
       <div className="border-b border-border bg-cream">
         <div className="mx-auto max-w-lg px-4 pt-6 pb-4 sm:px-6">
@@ -104,24 +112,24 @@ function HostPage() {
         <section className="mx-auto max-w-lg space-y-3 px-4 pt-5 sm:px-6">
           <TodayCard
             title="Yêu cầu chờ phản hồi"
-            count={summary.pending.length}
+            count={todayPending.length}
             onClick={() => setTab("requests")}
           >
-            {summary.pending.map((request) => (
+            {todayPending.map((request) => (
               <p key={request.id} className="text-sm">
                 {getVilla(request.villaId)?.name} · {request.guestName}
               </p>
             ))}
           </TodayCard>
-          <TodayCard title="Khách đến hôm nay" count={summary.arriving.length} onClick={() => setTab("stays")}>
-            {summary.arriving.map((stay) => (
+          <TodayCard title="Khách đến hôm nay" count={todayArriving.length} onClick={() => setTab("stays")}>
+            {todayArriving.map((stay) => (
               <p key={stay.id} className="text-sm">
                 {getVilla(stay.villaId)?.name} · {stay.guestName} · {stay.originLabel}
               </p>
             ))}
           </TodayCard>
-          <TodayCard title="Khách đi hôm nay" count={summary.departing.length} onClick={() => setTab("stays")}>
-            {summary.departing.map((stay) => (
+          <TodayCard title="Khách đi hôm nay" count={todayDeparting.length} onClick={() => setTab("stays")}>
+            {todayDeparting.map((stay) => (
               <p key={stay.id} className="text-sm">
                 {getVilla(stay.villaId)?.name} · {stay.guestName}
               </p>
@@ -156,6 +164,7 @@ function HostPage() {
         <section className="pt-4">
           <HostCalendar
             world={world}
+            villas={mine}
             onExternal={(input) => run(() => hostExternal(input))}
             onBlock={(input) => run(() => hostCreateBlock(input))}
             onRelease={(id) => run(() => hostReleaseBlock(id))}
@@ -209,12 +218,12 @@ function HostPage() {
 
       {tab === "stays" ? (
         <section className="mx-auto max-w-lg space-y-3 px-4 pt-5 sm:px-6">
-          {world.stays.length === 0 ? (
+          {myStays.length === 0 ? (
             <p className="rounded-2xl bg-paper px-4 py-8 text-center text-sm text-muted shadow-[var(--shadow-border)]">
               Chưa có lưu trú.
             </p>
           ) : (
-            world.stays.map((stay) => {
+            myStays.map((stay) => {
               const booking = world.bookings.find((item) => item.stayId === stay.id);
               return (
                 <article
@@ -247,6 +256,7 @@ function HostPage() {
         </section>
       ) : null}
     </main>
+    </RoleGate>
   );
 }
 

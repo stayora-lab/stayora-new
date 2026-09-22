@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Photo } from "@/components/photo";
+import { Photo, VillaPlaceholder } from "@/components/photo";
 import {
   bookability,
   bookabilityCopy,
@@ -40,7 +40,9 @@ export function VillaCard({
               alt="Ảnh minh hoạ"
               className="transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
-          ) : null}
+          ) : (
+            <VillaPlaceholder name={villa.name} />
+          )}
           <span className="absolute top-3 left-3 rounded-full bg-paper/92 px-3 py-1 text-xs font-medium">
             {villa.settingLabel}
           </span>

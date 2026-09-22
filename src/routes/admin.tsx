@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
+import { RoleGate } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import {
   commitmentCellLabel,
@@ -31,8 +32,6 @@ const TABS: { id: AdminTab; label: string }[] = [
 ];
 
 function AdminPage() {
-  const persona = useBookingStore((state) => state.persona);
-  const setPersona = useBookingStore((state) => state.setPersona);
   const world = useBookingStore((state) => state.world);
   const adminRecordPayment = useBookingStore((state) => state.adminRecordPayment);
   const adminResolveUnknown = useBookingStore((state) => state.adminResolveUnknown);
@@ -46,10 +45,6 @@ function AdminPage() {
   const [keepId, setKeepId] = useState("");
   const [endId, setEndId] = useState("");
   const [conflictReason, setConflictReason] = useState("");
-
-  useEffect(() => {
-    if (persona !== "ADMIN") setPersona("ADMIN");
-  }, [persona, setPersona]);
 
   const unpaidInitial = world.obligations.filter((obligation) => {
     if (obligation.kind !== "INITIAL") return false;
@@ -78,10 +73,10 @@ function AdminPage() {
   const openConflicts = (world.conflicts ?? []).filter((item) => item.status === "OPEN");
   const log = [...(world.auditLog ?? [])];
 
-  function run(action: () => void) {
+  async function run(action: () => Promise<void>) {
     setError(null);
     try {
-      action();
+      await action();
     } catch (err) {
       setError(domainMessageVi(err));
     }
@@ -90,6 +85,7 @@ function AdminPage() {
   const conflict = openConflicts.find((item) => item.id === conflictId);
 
   return (
+    <RoleGate allow={["ADMIN"]}>
     <main lang="vi" className="pb-20">
       <div className="border-b border-border bg-cream">
         <div className="mx-auto max-w-lg px-4 pt-6 pb-4 sm:px-6">
@@ -379,6 +375,7 @@ function AdminPage() {
         </Drawer.Portal>
       </Drawer.Root>
     </main>
+    </RoleGate>
   );
 }
 
