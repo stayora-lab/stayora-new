@@ -16,7 +16,7 @@ import { getVilla, villas as allVillas, type Villa } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import { useBookingStore } from "@/lib/store";
 
-const SOURCES: ExternalSource[] = ["Airbnb", "Booking.com", "Zalo", "Khách quen", "Khác"];
+const SOURCES: ExternalSource[] = ["Airbnb", "Booking.com", "Agoda", "Zalo", "Khách quen", "Khác"];
 
 type Sheet =
   | { kind: "cell"; villaId: string; date: string; commitments: Commitment[] }

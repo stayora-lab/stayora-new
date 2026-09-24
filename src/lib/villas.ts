@@ -26,6 +26,8 @@ export type Villa = {
   id: string;
   name: string;
   hostId: string;
+  ownerIds: string[];
+  relationship: "own" | "Thuê lại";
   tagline: string;
   summary: string;
   description: string[];
@@ -55,6 +57,8 @@ function villaFromSeed(row: PilotVilla): Villa {
     id: row.id,
     name: row.name,
     hostId: row.hostId,
+    ownerIds: row.ownerIds?.length ? row.ownerIds : [row.hostId],
+    relationship: row.relationship ?? "own",
     tagline: `${row.bedrooms} phòng ngủ · ngủ ${row.sleeps}`,
     summary: `${row.name} · ${row.bedrooms} phòng ngủ, ${row.sleeps} khách.`,
     description: [`${row.name} tại Oceanami · Phước Hải.`],

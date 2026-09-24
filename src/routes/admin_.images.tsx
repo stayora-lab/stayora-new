@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { RoleGate } from "@/components/site-chrome";
+import { RoleGate, AdminAccess } from "@/components/site-chrome";
 import { Photo } from "@/components/photo";
 import { fetchAdminStatus } from "@/lib/world-api";
 import { PHOTO_CATALOG } from "@/lib/photos";
@@ -11,19 +11,11 @@ export const Route = createFileRoute("/admin_/images")({
 
 function AdminImagesPage() {
   const { configured } = Route.useLoaderData();
-
-  if (!configured) {
-    return (
-      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>
-      </main>
-    );
-  }
-
   const generated = PHOTO_CATALOG.filter((photo) => photo.type === "ai-generated");
   const real = PHOTO_CATALOG.filter((photo) => photo.type === "real");
 
   return (
+    <AdminAccess configured={configured}>
     <RoleGate allow={["ADMIN"]}>
       <main lang="vi" className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Stayora vận hành</p>
@@ -45,6 +37,7 @@ function AdminImagesPage() {
         <Group title="Ảnh thật" items={real} />
       </main>
     </RoleGate>
+    </AdminAccess>
   );
 }
 

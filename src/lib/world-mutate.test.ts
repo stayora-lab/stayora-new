@@ -14,7 +14,7 @@ import { applyWorldAction } from "./world-actions.ts";
 
 const HOST: Actor = { persona: "HOST" };
 const NOW = "2026-09-22T03:00:00.000Z";
-const HOST_ROLE = { persona: "HOST" as const, hostId: "host-b" };
+const HOST_ROLE = { persona: "HOST" as const, hostId: "host-co" };
 
 function assertNoOverlap(world: World) {
   const pairs = overlappingActive(world);
@@ -47,7 +47,7 @@ describe("shared world optimistic concurrency", () => {
   it("two concurrent acceptRequest calls on overlapping requests → exactly one ACTIVE hold, the other CONFLICTED", async () => {
     let world = createEmptyWorld(NOW);
     const first = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -55,7 +55,7 @@ describe("shared world optimistic concurrency", () => {
       actor: { persona: "GUEST" },
     });
     const second = createRequest(first.world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,

@@ -19,6 +19,15 @@ const WORKSPACE: Record<Persona, string> = {
   ADMIN: "/admin",
 };
 
+export function roleFromGrant(role: Persona, scopeRef: string | null): RoleSession {
+  if (role === "HOST") return { persona: "HOST", hostId: scopeRef ?? undefined };
+  if (role === "SALE") return { persona: "SALE", saleId: scopeRef ?? undefined };
+  if (role === "BUTLER") return { persona: "BUTLER", butlerId: scopeRef ?? undefined };
+  if (role === "BQL") return { persona: "BQL" };
+  if (role === "ADMIN") return { persona: "ADMIN" };
+  return { persona: "GUEST" };
+}
+
 export function workspaceFor(persona: Persona): string {
   return WORKSPACE[persona];
 }

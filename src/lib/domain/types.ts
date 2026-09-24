@@ -41,7 +41,7 @@ export type CommissionStatus = "PENDING" | "EARNED" | "VOID";
 
 export type PaymentOutcome = "SUCCEEDED" | "FAILED" | "UNKNOWN";
 
-export type ExternalSource = "Airbnb" | "Booking.com" | "Zalo" | "Khách quen" | "Khác";
+export type ExternalSource = "Airbnb" | "Booking.com" | "Agoda" | "Zalo" | "Khách quen" | "Khác";
 
 export type RefundReason =
   | "HOLD_EXPIRED"

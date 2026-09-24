@@ -70,8 +70,8 @@ describe("admin key", () => {
 
   it("non-admin vai does not need a key", () => {
     withAdminKey(SECRET, () => {
-      assert.deepEqual(authorizeRole("host-a"), { persona: "HOST", hostId: "host-a" });
-      assert.deepEqual(authorizeRole("sale-b"), { persona: "SALE", saleId: "sale-b" });
+      assert.deepEqual(authorizeRole("host-an"), { persona: "HOST", hostId: "host-an" });
+      assert.deepEqual(authorizeRole("sale-binh"), { persona: "SALE", saleId: "sale-binh" });
     });
   });
 
@@ -105,19 +105,21 @@ describe("pilot seed hygiene", () => {
     for (const stay of PILOT_SEED.existingStays) {
       assert.notEqual(stay.source.trim().toLowerCase(), DESTINATION_NAME.toLowerCase());
     }
-    assert.ok(PILOT_SEED.hosts.some((person) => person.id === "host-a"));
-    assert.ok(PILOT_SEED.hosts.some((person) => person.id === "host-b"));
-    assert.ok(PILOT_SEED.sales.some((person) => person.id === "sale-b"));
-    assert.ok(PILOT_SEED.sales.some((person) => person.id === "sale-c"));
-    const a = PILOT_SEED.villas.filter((villa) => villa.hostId === "host-a");
-    const b = PILOT_SEED.villas.filter((villa) => villa.hostId === "host-b");
-    assert.equal(a.length, 3);
-    assert.equal(b.length, 3);
+    assert.ok(PILOT_SEED.hosts.some((person) => person.id === "host-an"));
+    assert.ok(PILOT_SEED.hosts.some((person) => person.id === "host-co"));
+    assert.ok(PILOT_SEED.sales.some((person) => person.id === "sale-an"));
+    assert.ok(PILOT_SEED.sales.some((person) => person.id === "sale-binh"));
+    assert.equal(PILOT_SEED.villas.length, 12);
+    assert.ok(PILOT_SEED.villas.every((villa) => /^t\d{2}$/.test(villa.id)));
+    const an = PILOT_SEED.villas.filter((villa) => villa.hostId === "host-an");
+    assert.ok(an.length >= 2);
+    assert.ok(PILOT_SEED.villas.some((villa) => villa.relationship === "Thuê lại"));
+    assert.equal(PILOT_SEED.butlers.length, 2);
   });
 
   it("throws if a host is named Oceanami", () => {
     const seed = cloneSeed();
-    seed.hosts[0] = { id: "host-a", name: "Oceanami" };
+    seed.hosts[0] = { id: "host-an", name: "Oceanami" };
     assert.throws(
       () => assertPilotSeed(seed),
       /must not equal destination/,
@@ -149,19 +151,19 @@ describe("pilot seed hygiene", () => {
 describe("guest name privacy", () => {
   const stay = {
     guestName: "Gia đình Trần",
-    villaId: "huong-tram",
+    villaId: "t02",
     origin: "EXTERNAL" as const,
   };
 
   it("Host of that villa and Butler see the name; BQL and Sale see Khách", () => {
-    assert.equal(visibleGuestName(stay, { persona: "HOST", hostId: "host-a" }), "Gia đình Trần");
-    assert.equal(visibleGuestName(stay, { persona: "HOST", hostId: "host-b" }), "Khách");
+    assert.equal(visibleGuestName(stay, { persona: "HOST", hostId: "host-an" }), "Gia đình Trần");
+    assert.equal(visibleGuestName(stay, { persona: "HOST", hostId: "host-sang" }), "Khách");
     assert.equal(
-      visibleGuestName(stay, { persona: "BUTLER", butlerId: "butler-linh" }),
+      visibleGuestName(stay, { persona: "BUTLER", butlerId: "butler-chi" }),
       "Gia đình Trần",
     );
     assert.equal(visibleGuestName(stay, { persona: "BQL" }), "Khách");
-    assert.equal(visibleGuestName(stay, { persona: "SALE", saleId: "sale-mai" }), "Khách");
+    assert.equal(visibleGuestName(stay, { persona: "SALE", saleId: "sale-an" }), "Khách");
     assert.equal(visibleGuestName(stay, { persona: "ADMIN" }), "Gia đình Trần");
   });
 });

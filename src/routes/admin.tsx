@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
-import { RoleGate } from "@/components/site-chrome";
+import { RoleGate, AdminAccess } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import {
   commitmentCellLabel,
@@ -91,15 +91,8 @@ function AdminPage() {
 
   const conflict = openConflicts.find((item) => item.id === conflictId);
 
-  if (!configured) {
-    return (
-      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>
-      </main>
-    );
-  }
-
   return (
+    <AdminAccess configured={configured}>
     <RoleGate allow={["ADMIN"]}>
     <main lang="vi" className="pb-20">
       <div className="border-b border-border bg-cream">
@@ -117,6 +110,9 @@ function AdminPage() {
             </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/admin/images">Ảnh</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/roles">Vai trò</Link>
             </Button>
           </div>
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
@@ -443,6 +439,7 @@ function AdminPage() {
       </Drawer.Root>
     </main>
     </RoleGate>
+    </AdminAccess>
   );
 }
 

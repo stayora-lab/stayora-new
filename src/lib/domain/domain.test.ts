@@ -119,7 +119,7 @@ function shape(world: World, requestId: string) {
 function bookedStay(actor: Actor = GUEST) {
   let world = createEmptyWorld(NOW);
   const created = createRequest(world, {
-    villaId: "sao-bien",
+    villaId: "t01",
     checkIn: "2026-12-01",
     checkOut: "2026-12-04",
     guests: 4,
@@ -142,7 +142,7 @@ describe("Sale request converges with a direct Guest request", () => {
   it("produces the same Booking and Stay shape after Host accept + payment", () => {
     let guestWorld = createEmptyWorld(NOW);
     const guestCreated = createRequest(guestWorld, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -157,7 +157,7 @@ describe("Sale request converges with a direct Guest request", () => {
 
     let saleWorld = createEmptyWorld(NOW);
     const saleCreated = createRequest(saleWorld, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -188,7 +188,7 @@ describe("Sale commission", () => {
   it("is 10% of accommodation total, only on bookings with that saleId, and stays Chờ until COMPLETED", () => {
     let world = createEmptyWorld(NOW);
     const saleStay = createRequest(world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-10",
       checkOut: "2026-12-13",
       guests: 4,
@@ -197,7 +197,7 @@ describe("Sale commission", () => {
     });
     world = saleStay.world;
     const guestStay = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-10",
       checkOut: "2026-12-13",
       guests: 2,
@@ -281,7 +281,7 @@ describe("Stay transitions", () => {
     );
     assert.ok(commitment);
     assert.equal(commitment.status, "ACTIVE");
-    assert.equal(isAvailable(world, "sao-bien", "2026-12-01", "2026-12-04"), false);
+    assert.equal(isAvailable(world, "t01", "2026-12-01", "2026-12-04"), false);
     assertNoOverlap(world);
   });
 
@@ -298,7 +298,7 @@ describe("Stay transitions", () => {
     );
     assert.ok(commitment);
     assert.equal(commitment.status, "ACTIVE");
-    assert.equal(isAvailable(world, "sao-bien", "2026-12-01", "2026-12-04"), false);
+    assert.equal(isAvailable(world, "t01", "2026-12-01", "2026-12-04"), false);
     assertNoOverlap(world);
   });
 
@@ -326,7 +326,7 @@ describe("Stay transitions", () => {
 
   it("Sale cannot accept a request", () => {
     const created = createRequest(createEmptyWorld(NOW), {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-03",
       guests: 2,
@@ -347,11 +347,11 @@ describe("Butler today board", () => {
     const lists = opsLists(world, "2026-09-22");
     assert.deepEqual(
       lists.arriving.map((stay) => stay.villaId).sort(),
-      ["gio-bien", "minh-dam"],
+      ["t03", "t05"],
     );
     assert.deepEqual(
       lists.departing.map((stay) => stay.villaId),
-      ["sao-bien"],
+      ["t01"],
     );
     assert.equal(lists.inHouse.length, 1);
     assert.equal(lists.inHouse[0]?.origin, "EXTERNAL");
@@ -365,7 +365,7 @@ describe("Availability and overlapping requests", () => {
   it("two PENDING requests on the same dates → villa still available", () => {
     let world = createEmptyWorld(NOW);
     const first = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -374,7 +374,7 @@ describe("Availability and overlapping requests", () => {
     });
     world = first.world;
     const second = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -382,7 +382,7 @@ describe("Availability and overlapping requests", () => {
       actor: GUEST,
     });
     world = second.world;
-    assert.equal(isAvailable(world, "sen-hong", "2026-12-01", "2026-12-04"), true);
+    assert.equal(isAvailable(world, "t04", "2026-12-01", "2026-12-04"), true);
     assert.equal(world.requests.filter((item) => item.status === "PENDING").length, 2);
     assertNoOverlap(world);
   });
@@ -390,7 +390,7 @@ describe("Availability and overlapping requests", () => {
   it("accept first → accept second → second is CONFLICTED, exactly 1 ACTIVE HOLD", () => {
     let world = createEmptyWorld(NOW);
     const first = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -399,7 +399,7 @@ describe("Availability and overlapping requests", () => {
     });
     world = first.world;
     const second = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -422,7 +422,7 @@ describe("Availability and overlapping requests", () => {
   it("reject is refused from ACCEPTED", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -442,7 +442,7 @@ describe("Payment confirmation", () => {
   it("INITIAL SUCCEEDED → 1 Booking, HOLD ENDED/SUPERSEDED (still in the list), 1 CONFIRMED_ACCOMMODATION, 1 Stay; ids all different", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -472,7 +472,7 @@ describe("Payment confirmation", () => {
   it("UNKNOWN → no Booking; second attempt refused; resolveUnknown SUCCEEDED while hold active → Booking created", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -501,7 +501,7 @@ describe("Payment confirmation", () => {
   it("late SUCCEEDED after expiry → attempt stored as SUCCEEDED, 1 OPEN RefundCase, 0 Bookings", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -511,7 +511,7 @@ describe("Payment confirmation", () => {
     world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
     world = advanceTime(world, 31 * 60 * 1000);
     assert.equal(world.requests.find((item) => item.id === created.request.id)?.status, "EXPIRED");
-    assert.equal(isAvailable(world, "sen-hong", "2026-12-01", "2026-12-04"), true);
+    assert.equal(isAvailable(world, "t04", "2026-12-01", "2026-12-04"), true);
     const paid = pay(world, created.request.id, "SUCCEEDED");
     world = paid.world;
     assert.equal(paid.attempt.status, "SUCCEEDED");
@@ -529,7 +529,7 @@ describe("Payment confirmation", () => {
   it("UNKNOWN → expiry → another guest books → resolveUnknown(SUCCEEDED) → attempt stored SUCCEEDED, RefundCase OPEN, still exactly 1 Booking and no overlap", () => {
     let world = createEmptyWorld(NOW);
     const first = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -540,10 +540,10 @@ describe("Payment confirmation", () => {
     const unknown = pay(world, first.request.id, "UNKNOWN");
     world = unknown.world;
     world = advanceTime(world, 31 * 60 * 1000);
-    assert.equal(isAvailable(world, "sen-hong", "2026-12-01", "2026-12-04"), true);
+    assert.equal(isAvailable(world, "t04", "2026-12-01", "2026-12-04"), true);
 
     const second = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -575,7 +575,7 @@ describe("Payment confirmation", () => {
   it("BALANCE before Booking → NO_BOOKING_YET, nothing stored", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -620,7 +620,7 @@ describe("Payment confirmation", () => {
   it("BALANCE after Booking CANCELLED → attempt stored, RefundCase BOOKING_CANCELLED", () => {
     const booked = bookedStay();
     const external = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -665,7 +665,7 @@ describe("Payment confirmation", () => {
   it("SUCCEEDED on INITIAL after hold ended by conflict → RefundCase INVENTORY_CONFLICT, 0 Bookings", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -675,7 +675,7 @@ describe("Payment confirmation", () => {
     world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
     const external = recordExternalBooking(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -727,7 +727,7 @@ describe("Payment confirmation", () => {
 
     let world = createEmptyWorld(NOW);
     const farReq = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-10-02",
       checkOut: "2026-10-05",
       guests: 2,
@@ -742,7 +742,7 @@ describe("Payment confirmation", () => {
 
     world = createEmptyWorld("2026-09-22T12:00:00.000Z");
     const nearReq = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-09-23",
       checkOut: "2026-09-26",
       guests: 2,
@@ -806,7 +806,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("Host cannot recordPayment; ADMIN can", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -834,7 +834,7 @@ describe("Phase 2 host calendar, external, admin", () => {
 
   it("external booking on free dates → commitment + Stay, 0 Bookings, 0 obligations", () => {
     const result = recordExternalBooking(createEmptyWorld(NOW), {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -859,7 +859,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("external overlapping a Stayora booking → both ACTIVE, 1 OPEN conflict", () => {
     const booked = bookedStay();
     const result = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 4,
@@ -881,7 +881,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("external overlapping an ACTIVE HOLD → INITIAL SUCCEEDED → no Booking, RefundCase INVENTORY_CONFLICT", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -892,7 +892,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE");
     assert.ok(hold);
     const external = recordExternalBooking(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -917,7 +917,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assert.throws(
       () =>
         createBlock(booked.world, {
-          villaId: "sao-bien",
+          villaId: "t01",
           start: "2026-12-01",
           end: "2026-12-04",
           blockKind: "OWNER",
@@ -944,7 +944,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("resolveConflict ending the Stayora commitment → Booking CANCELLED, RefundCase CONFLICT_RESOLUTION, conflict RESOLVED, no overlap remaining", () => {
     const booked = bookedStay();
     const external = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 4,
@@ -991,7 +991,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("end Stayora commitment → Booking CANCELLED, Stay CANCELLED, Commission VOID, stay not in opsLists, checkInStay refused, RefundCase CONFLICT_RESOLUTION", () => {
     const booked = bookedStay(SALE);
     const external = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 4,
@@ -1027,7 +1027,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("end EXTERNAL commitment → its Stay CANCELLED, not in opsLists", () => {
     const booked = bookedStay();
     const external = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1056,7 +1056,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("end HOLD → Request CONFLICTED", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1066,7 +1066,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
     const external = recordExternalBooking(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1092,7 +1092,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     const booked = bookedStay();
     const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
     const external = recordExternalBooking(checked, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1124,7 +1124,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("3-way conflict: ending one while two still overlap → STILL_OVERLAPPING, conflict OPEN", () => {
     const booked = bookedStay();
     const first = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1132,7 +1132,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       actor: HOST,
     });
     const second = recordExternalBooking(first.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1161,7 +1161,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("Commission VOID never becomes EARNED", () => {
     const booked = bookedStay(SALE);
     const external = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1194,7 +1194,7 @@ describe("Phase 2 host calendar, external, admin", () => {
   it("every mutating function appends exactly one audit entry", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-10",
       checkOut: "2026-12-13",
       guests: 2,
@@ -1206,7 +1206,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assert.equal(world.auditLog[0]?.action, "CREATE_REQUEST");
 
     const other = createRequest(world, {
-      villaId: "gio-bien",
+      villaId: "t05",
       checkIn: "2026-12-10",
       checkOut: "2026-12-12",
       guests: 2,
@@ -1245,7 +1245,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assert.equal(world.auditLog.length, 10);
 
     const unknownReq = createRequest(world, {
-      villaId: "cat-vang",
+      villaId: "t06",
       checkIn: "2026-12-20",
       checkOut: "2026-12-22",
       guests: 2,
@@ -1267,7 +1267,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assert.equal(world.auditLog.length, 14);
 
     const noShow = createRequest(world, {
-      villaId: "gio-bien",
+      villaId: "t05",
       checkIn: "2026-12-20",
       checkOut: "2026-12-22",
       guests: 2,
@@ -1286,7 +1286,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assert.equal(world.auditLog.length, beforeNoShow + 1);
 
     const blocked = createBlock(world, {
-      villaId: "sen-hong",
+      villaId: "t04",
       start: "2026-12-20",
       end: "2026-12-22",
       blockKind: "MAINTENANCE",
@@ -1298,7 +1298,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assert.equal(world.auditLog.length, afterBlock + 1);
 
     const external = recordExternalBooking(world, {
-      villaId: "minh-dam",
+      villaId: "t03",
       checkIn: "2026-12-01",
       checkOut: "2026-12-03",
       guests: 4,
@@ -1310,7 +1310,7 @@ describe("Phase 2 host calendar, external, admin", () => {
 
     const booked = bookedStay();
     const clash = recordExternalBooking(booked.world, {
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-12-01",
       checkOut: "2026-12-04",
       guests: 2,
@@ -1340,7 +1340,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       assert.throws(
         () =>
           recordExternalBooking(booked.world, {
-            villaId: "sen-hong",
+            villaId: "t04",
             checkIn: "2026-12-20",
             checkOut: "2026-12-22",
             guests: 2,
@@ -1352,7 +1352,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       assert.throws(
         () =>
           createBlock(booked.world, {
-            villaId: "sen-hong",
+            villaId: "t04",
             start: "2026-12-20",
             end: "2026-12-22",
             blockKind: "OWNER",

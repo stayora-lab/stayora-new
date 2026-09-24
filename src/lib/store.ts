@@ -16,8 +16,14 @@ import {
   DEFAULT_GUESTS,
 } from "@/lib/stay";
 import { fetchWorld, resolveRole, submitWorldAction } from "./world-api.ts";
+import {
+  armDemoSession,
+  fetchDevSession,
+  signOutDevAccount,
+  type DevSessionPayload,
+} from "./dev-identity-api.ts";
 import type { WorldAction } from "./world-actions.ts";
-import { parseVai, ROLE_STORAGE_KEY, vaiFor, type RoleSession } from "./role.ts";
+import { parseVai, ROLE_STORAGE_KEY, roleFromGrant, vaiFor, type RoleSession } from "./role.ts";
 
 export type SearchState = {
   checkIn: string;
@@ -33,6 +39,10 @@ type BookingState = {
   butlerId?: string;
   adminKey?: string;
   demoMode: boolean;
+  identity: DevSessionPayload["user"];
+  grants: DevSessionPayload["grants"];
+  grantId?: string;
+  sessionReady: boolean;
   world: World;
   version: number;
   updatedAt: string | null;
@@ -48,6 +58,9 @@ type BookingState = {
   setSaleSearch: (search: Partial<SearchState>) => void;
   setOpsDate: (date: string) => void;
   refreshWorld: () => Promise<void>;
+  refreshIdentity: () => Promise<void>;
+  selectGrant: (grantId: string) => void;
+  signOutIdentity: () => Promise<void>;
   applyVaiFromUrl: () => Promise<RoleSession | null>;
   runAction: (action: WorldAction) => Promise<{ requestId?: string }>;
   advanceDemo: () => Promise<void>;
@@ -112,6 +125,9 @@ export const useBookingStore = create<BookingState>()(
       hydrated: false,
       persona: "GUEST",
       demoMode: false,
+      identity: null,
+      grants: [],
+      sessionReady: false,
       world: createEmptyWorld(PILOT_NOW),
       version: 0,
       updatedAt: null,
@@ -157,10 +173,82 @@ export const useBookingStore = create<BookingState>()(
           set({ hydrated: true });
         }
       },
+      refreshIdentity: async () => {
+        try {
+          const session = await fetchDevSession();
+          if (!session.user) {
+            set({ identity: null, grants: [], grantId: undefined, sessionReady: true });
+            return;
+          }
+          const active = session.grants.filter((grant) => grant.status === "active");
+          const current = get().grantId;
+          const chosen = active.find((grant) => grant.id === current) ?? active[0];
+          if (!chosen) {
+            set({
+              identity: session.user,
+              grants: session.grants,
+              grantId: undefined,
+              persona: "GUEST",
+              saleId: undefined,
+              hostId: undefined,
+              butlerId: undefined,
+              sessionReady: true,
+            });
+            return;
+          }
+          const role = roleFromGrant(chosen.role, chosen.scopeRef);
+          set({
+            identity: session.user,
+            grants: session.grants,
+            grantId: chosen.id,
+            persona: role.persona,
+            saleId: role.saleId,
+            hostId: role.hostId,
+            butlerId: role.butlerId,
+            sessionReady: true,
+          });
+        } catch {
+          set({ identity: null, grants: [], grantId: undefined, sessionReady: true });
+        }
+      },
+      selectGrant: (grantId) => {
+        const grant = get().grants.find((item) => item.id === grantId && item.status === "active");
+        if (!grant) return;
+        const role = roleFromGrant(grant.role, grant.scopeRef);
+        set({
+          grantId,
+          persona: role.persona,
+          saleId: role.saleId,
+          hostId: role.hostId,
+          butlerId: role.butlerId,
+        });
+      },
+      signOutIdentity: async () => {
+        await signOutDevAccount();
+        set({
+          identity: null,
+          grants: [],
+          grantId: undefined,
+          persona: "GUEST",
+          saleId: undefined,
+          hostId: undefined,
+          butlerId: undefined,
+          sessionReady: true,
+        });
+      },
       applyVaiFromUrl: async () => {
         if (typeof window === "undefined") return null;
         const params = new URLSearchParams(window.location.search);
-        if (params.get("demo") === "1") set({ demoMode: true });
+        const urlDemo = params.get("demo") === "1";
+        if (urlDemo) set({ demoMode: true });
+        await get().refreshIdentity();
+        const demo = urlDemo || get().demoMode;
+        if (demo && !get().identity) await armDemoSession();
+        if (get().identity) return roleOf(get());
+        if (!demo) {
+          if (get().persona !== "GUEST") get().setRole({ persona: "GUEST" });
+          return null;
+        }
         const vai = params.get("vai");
         const urlKey = params.get("key");
         if (urlKey) sessionStorage.setItem("stayora-admin-key", urlKey);
@@ -198,9 +286,15 @@ export const useBookingStore = create<BookingState>()(
         return null;
       },
       runAction: async (action) => {
+        if (get().identity) await get().refreshIdentity();
         const state = get();
         const result = await submitWorldAction({
-          data: { action, vai: vaiFor(roleOf(state)), key: state.adminKey },
+          data: {
+            action,
+            vai: state.identity ? undefined : vaiFor(roleOf(state)),
+            key: state.adminKey,
+            grantId: state.grantId,
+          },
         });
         if (!result.ok) {
           throw new DomainError(result.code, result.message);
@@ -276,6 +370,7 @@ export const useBookingStore = create<BookingState>()(
         hostId: state.hostId,
         butlerId: state.butlerId,
         demoMode: state.demoMode,
+        grantId: state.grantId,
         search: state.search,
         saleSearch: state.saleSearch,
         opsDate: state.opsDate,

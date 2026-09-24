@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { RoleGate } from "@/components/site-chrome";
+import { RoleGate, AdminAccess } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/clipboard";
 import { roleLinks } from "@/lib/role";
@@ -20,7 +20,7 @@ function RoleLinksPage() {
   const links = useMemo(() => roleLinks(), []);
 
   function hrefFor(vai: string): string {
-    const params = new URLSearchParams({ vai });
+    const params = new URLSearchParams({ demo: "1", vai });
     if (vai === "admin" && adminKey) params.set("key", adminKey);
     return `/?${params.toString()}`;
   }
@@ -32,22 +32,15 @@ function RoleLinksPage() {
     window.setTimeout(() => setCopied(null), 2000);
   }
 
-  if (!configured) {
-    return (
-      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>
-      </main>
-    );
-  }
-
   return (
+    <AdminAccess configured={configured}>
     <RoleGate allow={["ADMIN"]}>
     <main lang="vi" className="mx-auto max-w-lg px-4 py-8 sm:px-6">
       <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Field test</p>
       <h1 className="mt-1 font-serif text-title">Link vai trò</h1>
       <p className="mt-3 text-sm text-ink-soft">
-        Mỗi người mở link của mình trên điện thoại. Vai trò được nhớ trên thiết bị đó. Không
-        cần đăng nhập. Không có giao dịch thật.
+        Link này chỉ mở bộ chọn vai khi có <span className="font-medium">?demo=1</span>. Tài khoản
+        thử đăng nhập tại trang tài khoản — vai trò do Stayora cấp, không tự nhận.
       </p>
       <ul className="mt-6 space-y-3">
         {links.map((item) => {
@@ -71,10 +64,13 @@ function RoleLinksPage() {
           );
         })}
       </ul>
-      <p className="mt-8 text-xs text-muted">
-        Thêm <code>?demo=1</code> để hiện bộ chọn vai (chỉ dùng khi thử).
+      <p className="mt-8 text-sm">
+        <Link to="/dev/accounts" className="font-medium text-lotus">
+          Tài khoản thử
+        </Link>
       </p>
     </main>
     </RoleGate>
+    </AdminAccess>
   );
 }

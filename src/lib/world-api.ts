@@ -36,11 +36,25 @@ export const fetchAdminStatus = createServerFn({ method: "GET" }).handler(
   },
 );
 export const submitWorldAction = createServerFn({ method: "POST" })
-  .validator((input: { action: WorldAction; vai?: string; key?: string }) => input)
+  .validator(
+    (input: { action: WorldAction; vai?: string; key?: string; grantId?: string | null }) => input,
+  )
   .handler(async ({ data }): Promise<ActionResponse> => {
     const { runWorldAction } = await import("./world.server.ts");
-    const { authorizeRole } = await import("./authorize.ts");
-    const role = authorizeRole(data.vai, data.key);
+    const { resolveWorkingRole } = await import("./access.ts");
+    const { currentDevUser, grantsForUser, demoCookieOn } = await import(
+      "./dev-identity.server.ts"
+    );
+    const user = await currentDevUser();
+    const grants = user ? await grantsForUser(user.id) : [];
+    const role = resolveWorkingRole({
+      signedIn: Boolean(user),
+      grants,
+      grantId: data.grantId,
+      demo: demoCookieOn(),
+      vai: data.vai,
+      key: data.key,
+    });
     try {
       const result = await runWorldAction(data.action, role);
       return { ok: true, ...result };

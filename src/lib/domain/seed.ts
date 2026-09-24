@@ -12,21 +12,21 @@ import type {
 } from "./types.ts";
 
 const NIGHTLY: Record<string, number> = {
-  "sao-bien": 16_500_000,
-  "huong-tram": 9_400_000,
-  "minh-dam": 22_400_000,
-  "gio-bien": 10_800_000,
-  "cat-vang": 18_200_000,
-  "sen-hong": 6_200_000,
+  "t01": 16_500_000,
+  "t02": 9_400_000,
+  "t03": 22_400_000,
+  "t05": 10_800_000,
+  "t06": 18_200_000,
+  "t04": 6_200_000,
 };
 
 const OWNER_BLOCKS: { villaId: string; start: string; end: string }[] = [
-  { villaId: "sao-bien", start: "2026-10-23", end: "2026-10-27" },
-  { villaId: "huong-tram", start: "2026-11-12", end: "2026-11-16" },
-  { villaId: "minh-dam", start: "2026-10-15", end: "2026-10-21" },
-  { villaId: "sen-hong", start: "2026-11-01", end: "2026-11-05" },
-  { villaId: "gio-bien", start: "2026-10-30", end: "2026-11-03" },
-  { villaId: "cat-vang", start: "2026-09-28", end: "2026-10-03" },
+  { villaId: "t01", start: "2026-10-23", end: "2026-10-27" },
+  { villaId: "t02", start: "2026-11-12", end: "2026-11-16" },
+  { villaId: "t03", start: "2026-10-15", end: "2026-10-21" },
+  { villaId: "t04", start: "2026-11-01", end: "2026-11-05" },
+  { villaId: "t05", start: "2026-10-30", end: "2026-11-03" },
+  { villaId: "t06", start: "2026-09-28", end: "2026-10-03" },
 ];
 
 function stayoraBundle(input: {
@@ -174,7 +174,7 @@ export function seedWorld(now = PILOT_NOW): World {
       bookingId: "bkg_seed_depart",
       stayId: "sty_seed_depart",
       commitmentId: "cmt_seed_depart",
-      villaId: "sao-bien",
+      villaId: "t01",
       checkIn: "2026-09-19",
       checkOut: "2026-09-22",
       guests: 6,
@@ -190,7 +190,7 @@ export function seedWorld(now = PILOT_NOW): World {
       bookingId: "bkg_seed_arrive",
       stayId: "sty_seed_arrive",
       commitmentId: "cmt_seed_arrive",
-      villaId: "gio-bien",
+      villaId: "t05",
       checkIn: "2026-09-22",
       checkOut: "2026-09-25",
       guests: 5,
@@ -205,7 +205,7 @@ export function seedWorld(now = PILOT_NOW): World {
       bookingId: "bkg_seed_hill",
       stayId: "sty_seed_hill",
       commitmentId: "cmt_seed_hill",
-      villaId: "minh-dam",
+      villaId: "t03",
       checkIn: "2026-09-22",
       checkOut: "2026-09-26",
       guests: 8,
@@ -219,7 +219,7 @@ export function seedWorld(now = PILOT_NOW): World {
       bookingId: "bkg_seed_sale_future",
       stayId: "sty_seed_sale_future",
       commitmentId: "cmt_seed_sale_future",
-      villaId: "cat-vang",
+      villaId: "t06",
       checkIn: "2026-10-16",
       checkOut: "2026-10-19",
       guests: 8,
@@ -236,7 +236,7 @@ export function seedWorld(now = PILOT_NOW): World {
       bookingId: "bkg_seed_sale_done",
       stayId: "sty_seed_sale_done",
       commitmentId: "cmt_seed_sale_done",
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-08-01",
       checkOut: "2026-08-04",
       guests: 2,
@@ -253,7 +253,7 @@ export function seedWorld(now = PILOT_NOW): World {
 
   const external: ExternalAccommodation = {
     id: "ext_seed_huong",
-    villaId: "huong-tram",
+    villaId: "t02",
     checkIn: "2026-09-20",
     checkOut: "2026-09-24",
     guests: 4,
@@ -261,7 +261,7 @@ export function seedWorld(now = PILOT_NOW): World {
   };
   const externalStay: Stay = {
     id: "sty_seed_ext",
-    villaId: "huong-tram",
+    villaId: "t02",
     checkIn: "2026-09-20",
     checkOut: "2026-09-24",
     guests: 4,
@@ -273,7 +273,7 @@ export function seedWorld(now = PILOT_NOW): World {
   };
   const externalCommitment: Commitment = {
     id: "cmt_seed_ext",
-    villaId: "huong-tram",
+    villaId: "t02",
     start: "2026-09-20",
     end: "2026-09-24",
     kind: "CONFIRMED_ACCOMMODATION",
@@ -301,7 +301,7 @@ export function seedWorld(now = PILOT_NOW): World {
     pendingGuest({
       now,
       id: "req_seed_guest_pending",
-      villaId: "sen-hong",
+      villaId: "t04",
       checkIn: "2026-10-16",
       checkOut: "2026-10-19",
       guests: 2,
@@ -310,7 +310,7 @@ export function seedWorld(now = PILOT_NOW): World {
     pendingGuest({
       now,
       id: "req_seed_guest_pending_2",
-      villaId: "huong-tram",
+      villaId: "t02",
       checkIn: "2026-10-10",
       checkOut: "2026-10-13",
       guests: 4,

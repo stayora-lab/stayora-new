@@ -12,10 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as HostRouteImport } from './routes/host'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as OpsRouteImport } from './routes/ops'
 import { Route as SaleRouteImport } from './routes/sale'
 import { Route as AdminImagesRouteImport } from './routes/admin_.images'
 import { Route as AdminLinksRouteImport } from './routes/admin_.links'
+import { Route as AdminRolesRouteImport } from './routes/admin_.roles'
+import { Route as DevAccountsRouteImport } from './routes/dev.accounts'
 import { Route as RequestsRequestIdRouteImport } from './routes/requests.$requestId'
 import { Route as VillasVillaIdRouteImport } from './routes/villas.$villaId'
 import { Route as YourStayStayIdRouteImport } from './routes/your-stay.$stayId'
@@ -33,6 +36,11 @@ const AdminRoute = AdminRouteImport.update({
 const HostRoute = HostRouteImport.update({
   id: '/host',
   path: '/host',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OpsRoute = OpsRouteImport.update({
@@ -55,6 +63,16 @@ const AdminLinksRoute = AdminLinksRouteImport.update({
   path: '/admin/links',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRolesRoute = AdminRolesRouteImport.update({
+  id: '/admin_/roles',
+  path: '/admin/roles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevAccountsRoute = DevAccountsRouteImport.update({
+  id: '/dev/accounts',
+  path: '/dev/accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RequestsRequestIdRoute = RequestsRequestIdRouteImport.update({
   id: '/requests/$requestId',
   path: '/requests/$requestId',
@@ -75,10 +93,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
+  '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
   '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
+  '/admin/roles': typeof AdminRolesRoute
+  '/dev/accounts': typeof DevAccountsRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
   '/your-stay/$stayId': typeof YourStayStayIdRoute
@@ -87,10 +108,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
+  '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
   '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
+  '/admin/roles': typeof AdminRolesRoute
+  '/dev/accounts': typeof DevAccountsRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
   '/your-stay/$stayId': typeof YourStayStayIdRoute
@@ -100,10 +124,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
+  '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
   '/admin_/images': typeof AdminImagesRoute
   '/admin_/links': typeof AdminLinksRoute
+  '/admin_/roles': typeof AdminRolesRoute
+  '/dev/accounts': typeof DevAccountsRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
   '/your-stay/$stayId': typeof YourStayStayIdRoute
@@ -114,10 +141,13 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/host'
+    | '/login'
     | '/ops'
     | '/sale'
     | '/admin/images'
     | '/admin/links'
+    | '/admin/roles'
+    | '/dev/accounts'
     | '/requests/$requestId'
     | '/villas/$villaId'
     | '/your-stay/$stayId'
@@ -126,10 +156,13 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/host'
+    | '/login'
     | '/ops'
     | '/sale'
     | '/admin/images'
     | '/admin/links'
+    | '/admin/roles'
+    | '/dev/accounts'
     | '/requests/$requestId'
     | '/villas/$villaId'
     | '/your-stay/$stayId'
@@ -138,10 +171,13 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/host'
+    | '/login'
     | '/ops'
     | '/sale'
     | '/admin_/images'
     | '/admin_/links'
+    | '/admin_/roles'
+    | '/dev/accounts'
     | '/requests/$requestId'
     | '/villas/$villaId'
     | '/your-stay/$stayId'
@@ -151,10 +187,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   HostRoute: typeof HostRoute
+  LoginRoute: typeof LoginRoute
   OpsRoute: typeof OpsRoute
   SaleRoute: typeof SaleRoute
   AdminImagesRoute: typeof AdminImagesRoute
   AdminLinksRoute: typeof AdminLinksRoute
+  AdminRolesRoute: typeof AdminRolesRoute
+  DevAccountsRoute: typeof DevAccountsRoute
   RequestsRequestIdRoute: typeof RequestsRequestIdRoute
   VillasVillaIdRoute: typeof VillasVillaIdRoute
   YourStayStayIdRoute: typeof YourStayStayIdRoute
@@ -181,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/host'
       fullPath: '/host'
       preLoaderRoute: typeof HostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ops': {
@@ -211,6 +257,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLinksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/roles': {
+      id: '/admin_/roles'
+      path: '/admin/roles'
+      fullPath: '/admin/roles'
+      preLoaderRoute: typeof AdminRolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev/accounts': {
+      id: '/dev/accounts'
+      path: '/dev/accounts'
+      fullPath: '/dev/accounts'
+      preLoaderRoute: typeof DevAccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/requests/$requestId': {
       id: '/requests/$requestId'
       path: '/requests/$requestId'
@@ -239,10 +299,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   HostRoute: HostRoute,
+  LoginRoute: LoginRoute,
   OpsRoute: OpsRoute,
   SaleRoute: SaleRoute,
   AdminImagesRoute: AdminImagesRoute,
   AdminLinksRoute: AdminLinksRoute,
+  AdminRolesRoute: AdminRolesRoute,
+  DevAccountsRoute: DevAccountsRoute,
   RequestsRequestIdRoute: RequestsRequestIdRoute,
   VillasVillaIdRoute: VillasVillaIdRoute,
   YourStayStayIdRoute: YourStayStayIdRoute,

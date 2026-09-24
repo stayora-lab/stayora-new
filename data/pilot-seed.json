@@ -1,32 +1,134 @@
 {
+  "coverage": [
+    "One person holding several roles (Host of two villas + Sale).",
+    "A Host who operates a villa they do not own (store relationship: Thuê lại).",
+    "A villa with two co-owners sharing one Host scope.",
+    "Two Butlers with split villa assignments; one BQL.",
+    "External bookings from several sources, some overlapping a Stayora booking → OPEN conflict.",
+    "An OWNER block and a MAINTENANCE block.",
+    "A request PENDING, one ACCEPTED with a hold about to expire, one hold EXPIRED, one CONFLICTED, one REJECTED.",
+    "A payment UNKNOWN, a DUPLICATE_PAYMENT refund, a booking CANCELLED by conflict.",
+    "Stays SCHEDULED today, CHECKED_IN, CHECKED_OUT/COMPLETED, DID_NOT_OCCUR."
+  ],
+  "people": [
+    {
+      "id": "an",
+      "name": "Chủ nhà An",
+      "email": "an@test.stayora.vn",
+      "note": "Host of T01+T02 and Sale. Also operates T03 (Thuê lại)."
+    },
+    {
+      "id": "binh",
+      "name": "Chủ nhà Bình",
+      "email": "binh@test.stayora.vn",
+      "note": "Owns T03 but does not operate it."
+    },
+    {
+      "id": "co",
+      "name": "Chủ nhà Cơ",
+      "email": "co@test.stayora.vn",
+      "note": "Co-owner of T04, shared Host scope host-co."
+    },
+    {
+      "id": "dan",
+      "name": "Chủ nhà Dần",
+      "email": "dan@test.stayora.vn",
+      "note": "Co-owner of T04, shared Host scope host-co."
+    },
+    {
+      "id": "phong",
+      "name": "Chủ nhà Phong",
+      "email": "phong@test.stayora.vn"
+    },
+    {
+      "id": "quynh",
+      "name": "Chủ nhà Quỳnh",
+      "email": "quynh@test.stayora.vn"
+    },
+    {
+      "id": "sang",
+      "name": "Chủ nhà Sang",
+      "email": "sang@test.stayora.vn"
+    },
+    {
+      "id": "sale-binh",
+      "name": "Sale Bình",
+      "email": "sale.binh@test.stayora.vn",
+      "note": "Sale only."
+    },
+    {
+      "id": "chi",
+      "name": "Quản gia Chi",
+      "email": "chi@test.stayora.vn",
+      "note": "Butler for T01–T06."
+    },
+    {
+      "id": "dung",
+      "name": "Quản gia Dung",
+      "email": "dung@test.stayora.vn",
+      "note": "Butler for T07–T12."
+    },
+    {
+      "id": "em",
+      "name": "BQL Em",
+      "email": "em@test.stayora.vn",
+      "note": "One BQL."
+    },
+    {
+      "id": "van",
+      "name": "Stayora Vân",
+      "email": "van@test.stayora.vn",
+      "note": "Stayora vận hành — grants roles."
+    }
+  ],
   "hosts": [
-    { "id": "host-a", "name": "Chủ nhà A" },
-    { "id": "host-b", "name": "Chủ nhà B" }
+    { "id": "host-an", "name": "Chủ nhà An" },
+    { "id": "host-binh", "name": "Chủ nhà Bình" },
+    { "id": "host-co", "name": "Đồng chủ Cơ & Dần" },
+    { "id": "host-dan", "name": "Chủ nhà Dần" },
+    { "id": "host-phong", "name": "Chủ nhà Phong" },
+    { "id": "host-quynh", "name": "Chủ nhà Quỳnh" },
+    { "id": "host-sang", "name": "Chủ nhà Sang" }
   ],
   "sales": [
-    { "id": "sale-mai", "name": "Mai" },
-    { "id": "sale-b", "name": "Sale B" },
-    { "id": "sale-c", "name": "Sale C" }
+    { "id": "sale-an", "name": "Chủ nhà An" },
+    { "id": "sale-binh", "name": "Sale Bình" }
   ],
   "butlers": [
     {
-      "id": "butler-linh",
-      "name": "Linh",
-      "villaIds": [
-        "sao-bien",
-        "huong-tram",
-        "minh-dam",
-        "gio-bien",
-        "cat-vang",
-        "sen-hong"
-      ]
+      "id": "butler-chi",
+      "name": "Quản gia Chi",
+      "villaIds": ["t01", "t02", "t03", "t04", "t05", "t06"]
+    },
+    {
+      "id": "butler-dung",
+      "name": "Quản gia Dung",
+      "villaIds": ["t07", "t08", "t09", "t10", "t11", "t12"]
     }
+  ],
+  "bql": [{ "id": "bql-em", "name": "BQL Em" }],
+  "grants": [
+    { "personId": "an", "role": "HOST", "scopeRef": "host-an", "note": "Host of two villas + operator of T03." },
+    { "personId": "an", "role": "SALE", "scopeRef": "sale-an", "note": "Same person also Sale." },
+    { "personId": "co", "role": "HOST", "scopeRef": "host-co", "note": "Co-owner sharing Host scope." },
+    { "personId": "dan", "role": "HOST", "scopeRef": "host-co", "note": "Co-owner sharing Host scope." },
+    { "personId": "phong", "role": "HOST", "scopeRef": "host-phong" },
+    { "personId": "quynh", "role": "HOST", "scopeRef": "host-quynh" },
+    { "personId": "sang", "role": "HOST", "scopeRef": "host-sang" },
+    { "personId": "sale-binh", "role": "SALE", "scopeRef": "sale-binh" },
+    { "personId": "chi", "role": "BUTLER", "scopeRef": "butler-chi" },
+    { "personId": "dung", "role": "BUTLER", "scopeRef": "butler-dung" },
+    { "personId": "em", "role": "BQL", "scopeRef": "bql-em" },
+    { "personId": "van", "role": "ADMIN", "scopeRef": null }
   ],
   "villas": [
     {
-      "id": "sao-bien",
-      "name": "Villa Sao Biển",
-      "hostId": "host-a",
+      "id": "t01",
+      "code": "T01",
+      "name": "Villa T01",
+      "hostId": "host-an",
+      "ownerIds": ["host-an"],
+      "relationship": "own",
       "bedrooms": 4,
       "sleeps": 8,
       "nightlyPrice": 16500000,
@@ -34,9 +136,12 @@
       "photos": []
     },
     {
-      "id": "huong-tram",
-      "name": "Villa Hương Tràm",
-      "hostId": "host-a",
+      "id": "t02",
+      "code": "T02",
+      "name": "Villa T02",
+      "hostId": "host-an",
+      "ownerIds": ["host-an"],
+      "relationship": "own",
       "bedrooms": 3,
       "sleeps": 6,
       "nightlyPrice": 9400000,
@@ -44,29 +149,40 @@
       "photos": []
     },
     {
-      "id": "minh-dam",
-      "name": "Villa Minh Đạm",
-      "hostId": "host-a",
+      "id": "t03",
+      "code": "T03",
+      "name": "Villa T03",
+      "hostId": "host-an",
+      "ownerIds": ["host-binh"],
+      "relationship": "Thuê lại",
       "bedrooms": 5,
       "sleeps": 10,
       "nightlyPrice": 22400000,
       "setting": "hillside",
-      "photos": []
+      "photos": [],
+      "note": "Host An operates a villa owned by Chủ nhà Bình."
     },
     {
-      "id": "sen-hong",
-      "name": "Villa Sen Hồng",
-      "hostId": "host-b",
+      "id": "t04",
+      "code": "T04",
+      "name": "Villa T04",
+      "hostId": "host-co",
+      "ownerIds": ["host-co", "host-dan"],
+      "relationship": "own",
       "bedrooms": 2,
       "sleeps": 4,
       "nightlyPrice": 6200000,
       "setting": "garden",
-      "photos": []
+      "photos": [],
+      "note": "Two co-owners sharing one Host scope."
     },
     {
-      "id": "gio-bien",
-      "name": "Villa Gió Biển",
-      "hostId": "host-b",
+      "id": "t05",
+      "code": "T05",
+      "name": "Villa T05",
+      "hostId": "host-phong",
+      "ownerIds": ["host-phong"],
+      "relationship": "own",
       "bedrooms": 3,
       "sleeps": 6,
       "nightlyPrice": 10800000,
@@ -74,64 +190,163 @@
       "photos": []
     },
     {
-      "id": "cat-vang",
-      "name": "Villa Cát Vàng",
-      "hostId": "host-b",
+      "id": "t06",
+      "code": "T06",
+      "name": "Villa T06",
+      "hostId": "host-phong",
+      "ownerIds": ["host-phong"],
+      "relationship": "own",
       "bedrooms": 4,
       "sleeps": 8,
       "nightlyPrice": 18200000,
       "setting": "beachfront",
       "photos": []
+    },
+    {
+      "id": "t07",
+      "code": "T07",
+      "name": "Villa T07",
+      "hostId": "host-phong",
+      "ownerIds": ["host-phong"],
+      "relationship": "own",
+      "bedrooms": 3,
+      "sleeps": 6,
+      "nightlyPrice": 11200000,
+      "setting": "hillside",
+      "photos": []
+    },
+    {
+      "id": "t08",
+      "code": "T08",
+      "name": "Villa T08",
+      "hostId": "host-quynh",
+      "ownerIds": ["host-quynh"],
+      "relationship": "own",
+      "bedrooms": 2,
+      "sleeps": 4,
+      "nightlyPrice": 7500000,
+      "setting": "garden",
+      "photos": []
+    },
+    {
+      "id": "t09",
+      "code": "T09",
+      "name": "Villa T09",
+      "hostId": "host-quynh",
+      "ownerIds": ["host-quynh"],
+      "relationship": "own",
+      "bedrooms": 4,
+      "sleeps": 8,
+      "nightlyPrice": 14000000,
+      "setting": "beachfront",
+      "photos": []
+    },
+    {
+      "id": "t10",
+      "code": "T10",
+      "name": "Villa T10",
+      "hostId": "host-quynh",
+      "ownerIds": ["host-quynh"],
+      "relationship": "own",
+      "bedrooms": 5,
+      "sleeps": 10,
+      "nightlyPrice": 20500000,
+      "setting": "hillside",
+      "photos": []
+    },
+    {
+      "id": "t11",
+      "code": "T11",
+      "name": "Villa T11",
+      "hostId": "host-sang",
+      "ownerIds": ["host-sang"],
+      "relationship": "own",
+      "bedrooms": 3,
+      "sleeps": 6,
+      "nightlyPrice": 9100000,
+      "setting": "garden",
+      "photos": []
+    },
+    {
+      "id": "t12",
+      "code": "T12",
+      "name": "Villa T12",
+      "hostId": "host-sang",
+      "ownerIds": ["host-sang"],
+      "relationship": "own",
+      "bedrooms": 2,
+      "sleeps": 4,
+      "nightlyPrice": 5800000,
+      "setting": "garden",
+      "photos": []
     }
   ],
   "existingStays": [
     {
-      "villaId": "huong-tram",
-      "checkIn": "2026-09-20",
-      "checkOut": "2026-09-24",
+      "villaId": "t02",
+      "checkInOffset": -2,
+      "nights": 4,
       "guests": 4,
       "source": "Khách quen",
-      "guestName": "Gia đình Trần"
+      "guestName": "Gia đình Thử",
+      "note": "External Khách quen — in-house."
     },
     {
-      "villaId": "gio-bien",
-      "checkIn": "2026-09-22",
-      "checkOut": "2026-09-25",
+      "villaId": "t05",
+      "checkInOffset": 10,
+      "nights": 3,
       "guests": 4,
       "source": "Airbnb",
-      "guestName": "Lê Minh"
+      "guestName": "Khách Airbnb Thử",
+      "note": "Overlaps a Stayora booking on T05 → OPEN conflict."
     },
     {
-      "villaId": "minh-dam",
-      "checkIn": "2026-09-22",
-      "checkOut": "2026-09-26",
-      "guests": 8,
+      "villaId": "t07",
+      "checkInOffset": 5,
+      "nights": 2,
+      "guests": 3,
       "source": "Booking.com",
-      "guestName": "Ngô Hà"
+      "guestName": "Khách Booking Thử"
     },
     {
-      "villaId": "sao-bien",
-      "checkIn": "2026-09-18",
-      "checkOut": "2026-09-22",
-      "guests": 6,
-      "source": "Khách quen",
-      "guestName": "Mai Phương"
+      "villaId": "t08",
+      "checkInOffset": 8,
+      "nights": 3,
+      "guests": 2,
+      "source": "Agoda",
+      "guestName": "Khách Agoda Thử"
     },
     {
-      "villaId": "cat-vang",
-      "checkIn": "2026-10-16",
-      "checkOut": "2026-10-19",
-      "guests": 8,
+      "villaId": "t11",
+      "checkInOffset": 20,
+      "nights": 2,
+      "guests": 4,
       "source": "Zalo",
-      "guestName": "Phạm Gia"
+      "guestName": "Khách Zalo Thử"
+    },
+    {
+      "villaId": "t12",
+      "checkInOffset": 30,
+      "nights": 2,
+      "guests": 2,
+      "source": "Khác",
+      "guestName": "Khách nguồn Khác"
     }
   ],
   "blocks": [
-    { "villaId": "sao-bien", "start": "2026-10-23", "end": "2026-10-27", "kind": "OWNER" },
-    { "villaId": "huong-tram", "start": "2026-11-12", "end": "2026-11-16", "kind": "OWNER" },
-    { "villaId": "minh-dam", "start": "2026-10-15", "end": "2026-10-21", "kind": "OWNER" },
-    { "villaId": "sen-hong", "start": "2026-11-01", "end": "2026-11-05", "kind": "OWNER" },
-    { "villaId": "gio-bien", "start": "2026-10-30", "end": "2026-11-03", "kind": "OWNER" },
-    { "villaId": "cat-vang", "start": "2026-09-28", "end": "2026-10-03", "kind": "OWNER" }
+    {
+      "villaId": "t01",
+      "startOffset": 40,
+      "nights": 4,
+      "kind": "OWNER",
+      "note": "OWNER block."
+    },
+    {
+      "villaId": "t06",
+      "startOffset": 18,
+      "nights": 3,
+      "kind": "MAINTENANCE",
+      "note": "MAINTENANCE block."
+    }
   ]
 }

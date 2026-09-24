@@ -230,9 +230,9 @@ export function createEmptyWorld(now: string): World {
     conflicts: [],
     auditLog: [],
     externalAccommodations: [],
-    sales: [{ id: SALE_MAI, name: "Mai" }],
+    sales: [{ id: SALE_MAI, name: "Chủ nhà An" }],
     butlers: [
-      { id: BUTLER_LINH, name: "Linh", villaIds: ["sao-bien", "gio-bien", "cat-vang"] },
+      { id: BUTLER_LINH, name: "Quản gia Chi", villaIds: ["t01", "t02", "t03", "t04", "t05", "t06"] },
     ],
   };
 }

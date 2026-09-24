@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
 import { DESTINATION_COPY, LOCATION_LABEL } from "@/lib/destination";
 import { PILOT_SEED } from "@/lib/pilot-data";
+import { workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
 
 const PERSONAS: { id: Persona; label: string; to: string }[] = [
@@ -25,12 +26,84 @@ export function TrialBanner() {
   );
 }
 
+function grantLabel(role: string, scopeRef: string | null): string {
+  if (role === "HOST") return `Host · ${scopeRef ?? ""}`;
+  if (role === "SALE") return `Sale · ${scopeRef ?? ""}`;
+  if (role === "BUTLER") return `Butler · ${scopeRef ?? ""}`;
+  if (role === "BQL") return "BQL";
+  if (role === "ADMIN") return "Stayora vận hành";
+  return role;
+}
+
+export function ContextSwitch() {
+  const identity = useBookingStore((state) => state.identity);
+  const grants = useBookingStore((state) => state.grants);
+  const grantId = useBookingStore((state) => state.grantId);
+  const selectGrant = useBookingStore((state) => state.selectGrant);
+  const navigate = useNavigate();
+  const active = grants.filter((grant) => grant.status === "active");
+  if (!identity || active.length < 2) return null;
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted">
+      <span className="hidden sm:inline">Vai</span>
+      <select
+        value={grantId ?? ""}
+        onChange={(event) => {
+          const next = active.find((grant) => grant.id === event.target.value);
+          if (!next) return;
+          selectGrant(next.id);
+          void navigate({ to: workspaceFor(next.role) });
+        }}
+        className="h-9 max-w-44 rounded-full bg-paper px-3 text-sm font-medium text-ink shadow-[var(--shadow-border)]"
+      >
+        {active.map((grant) => (
+          <option key={grant.id} value={grant.id}>
+            {grantLabel(grant.role, grant.scopeRef)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function AccountChip() {
+  const identity = useBookingStore((state) => state.identity);
+  const grants = useBookingStore((state) => state.grants);
+  const signOutIdentity = useBookingStore((state) => state.signOutIdentity);
+  const active = grants.filter((grant) => grant.status === "active");
+  if (!identity) {
+    return (
+      <Link
+        to="/login"
+        className="inline-flex h-9 items-center rounded-full px-3 text-sm font-medium text-ink hover:bg-cream-deep"
+      >
+        Đăng nhập
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      {active.length === 0 ? (
+        <span className="hidden text-xs text-muted sm:inline">Đang chờ vai trò</span>
+      ) : null}
+      <span className="hidden max-w-28 truncate text-sm text-ink-soft sm:inline">{identity.name}</span>
+      <button
+        type="button"
+        onClick={() => void signOutIdentity()}
+        className="inline-flex h-9 items-center rounded-full px-3 text-sm font-medium text-ink hover:bg-cream-deep"
+      >
+        Thoát
+      </button>
+    </div>
+  );
+}
 export function PersonaSwitch() {
   const persona = useBookingStore((state) => state.persona);
   const demoMode = useBookingStore((state) => state.demoMode);
+  const identity = useBookingStore((state) => state.identity);
   const setRole = useBookingStore((state) => state.setRole);
   const navigate = useNavigate();
-  if (!demoMode) return null;
+  if (!demoMode || identity) return null;
 
   return (
     <label className="flex items-center gap-2 text-xs text-muted">
@@ -73,7 +146,10 @@ function DestinationChip() {
 
 export function SiteHeader() {
   const hydrated = useBookingStore((state) => state.hydrated);
+  const sessionReady = useBookingStore((state) => state.sessionReady);
   const persona = useBookingStore((state) => state.persona);
+  const identity = useBookingStore((state) => state.identity);
+  const grants = useBookingStore((state) => state.grants);
   const world = useBookingStore((state) => state.world);
   const fetchedAt = useBookingStore((state) => state.fetchedAt);
   const latest = world.requests.find((item) => item.source === "GUEST");
@@ -87,10 +163,17 @@ export function SiteHeader() {
     path.startsWith("/host") ||
     path.startsWith("/admin");
   const stamp = fetchedAt ? format(parseISO(fetchedAt), "HH:mm:ss") : null;
+  const waiting =
+    sessionReady && identity && !grants.some((grant) => grant.status === "active");
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-cream/90 backdrop-blur-md">
       <TrialBanner />
+      {waiting ? (
+        <p className="bg-cream-deep px-3 py-2 text-center text-sm text-ink">
+          Đang chờ Stayora cấp vai trò
+        </p>
+      ) : null}
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/" className="shrink-0" aria-label="Stayora home">
@@ -105,6 +188,9 @@ export function SiteHeader() {
         </div>
         <div className="flex items-center gap-2">
           <DestinationChip />
+          <ContextSwitch />
+          <PersonaSwitch />
+          <AccountChip />
           {hydrated && persona === "GUEST" && latest ? (
             latestBooking ? (
               <Link
@@ -127,7 +213,6 @@ export function SiteHeader() {
           {stamp ? (
             <p className="text-xs text-muted md:hidden">Cập nhật lúc {stamp}</p>
           ) : null}
-          <PersonaSwitch />
         </div>
       </div>
     </header>
@@ -259,12 +344,54 @@ export function DemoPanel() {
   );
 }
 
-export function RoleGate({ allow, children }: { allow: Persona[]; children: ReactNode }) {
-  const hydrated = useBookingStore((state) => state.hydrated);
-  const persona = useBookingStore((state) => state.persona);
-  if (!hydrated) {
+export function AdminAccess({
+  configured,
+  children,
+}: {
+  configured: boolean;
+  children: ReactNode;
+}) {
+  const sessionReady = useBookingStore((state) => state.sessionReady);
+  const identity = useBookingStore((state) => state.identity);
+  const grants = useBookingStore((state) => state.grants);
+  if (!sessionReady) {
     return (
       <main className="mx-auto max-w-lg px-4 py-24 text-center text-muted">Đang mở dữ liệu…</main>
+    );
+  }
+  const signedInAdmin = Boolean(
+    identity && grants.some((grant) => grant.status === "active" && grant.role === "ADMIN"),
+  );
+  if (!configured && !signedInAdmin) {
+    return (
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>
+      </main>
+    );
+  }
+  return children;
+}
+
+export function RoleGate({ allow, children }: { allow: Persona[]; children: ReactNode }) {
+  const hydrated = useBookingStore((state) => state.hydrated);
+  const sessionReady = useBookingStore((state) => state.sessionReady);
+  const persona = useBookingStore((state) => state.persona);
+  const identity = useBookingStore((state) => state.identity);
+  const grants = useBookingStore((state) => state.grants);
+  if (!hydrated || !sessionReady) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-24 text-center text-muted">Đang mở dữ liệu…</main>
+    );
+  }
+  const active = grants.filter((grant) => grant.status === "active");
+  if (identity && active.length === 0) {
+    return (
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Đang chờ Stayora cấp vai trò</h1>
+        <p className="mt-3 text-ink-soft">
+          Tài khoản đã được tạo. Stayora vận hành sẽ cấp vai trò — bạn không tự nhận vai.
+        </p>
+      </main>
     );
   }
   if (!allow.includes(persona)) {

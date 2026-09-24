@@ -3,8 +3,8 @@ import { getVilla, villas } from "../villas.ts";
 import { CHECK_IN_TIME, TIMEZONE } from "./config.ts";
 import type { PaymentObligation } from "./types.ts";
 
-export const SALE_MAI = "sale-mai";
-export const BUTLER_LINH = "butler-linh";
+export const SALE_MAI = "sale-an";
+export const BUTLER_LINH = "butler-chi";
 
 export type PaymentPlanLine = Pick<PaymentObligation, "kind" | "amount" | "dueAt">;
 
