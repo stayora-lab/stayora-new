@@ -6,6 +6,11 @@ export type DevSessionPayload = {
   grants: DevGrantRow[];
 };
 
+export const fetchDevSignInGate = createServerFn({ method: "GET" }).handler(async () => {
+  const { readDevSignInGate } = await import("./dev-identity.server.ts");
+  return readDevSignInGate();
+});
+
 export const fetchDevSession = createServerFn({ method: "GET" }).handler(
   async (): Promise<DevSessionPayload> => {
     const { currentDevUser, grantsForUser } = await import("./dev-identity.server.ts");

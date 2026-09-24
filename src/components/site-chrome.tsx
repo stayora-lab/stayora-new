@@ -351,18 +351,7 @@ export function AdminAccess({
   configured: boolean;
   children: ReactNode;
 }) {
-  const sessionReady = useBookingStore((state) => state.sessionReady);
-  const identity = useBookingStore((state) => state.identity);
-  const grants = useBookingStore((state) => state.grants);
-  if (!sessionReady) {
-    return (
-      <main className="mx-auto max-w-lg px-4 py-24 text-center text-muted">Đang mở dữ liệu…</main>
-    );
-  }
-  const signedInAdmin = Boolean(
-    identity && grants.some((grant) => grant.status === "active" && grant.role === "ADMIN"),
-  );
-  if (!configured && !signedInAdmin) {
+  if (!configured) {
     return (
       <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
         <h1 className="font-serif text-title">Chưa cấu hình ADMIN_KEY</h1>

@@ -12,9 +12,10 @@ export type AccessGrant = {
 export { roleFromGrant };
 
 /**
- * Signed-in callers are authorized only by active grants.
+ * Signed-in callers are authorized only by active grants, and never as ADMIN.
+ * Stayora vận hành is the ADMIN_KEY path only (unsigned + demo).
  * A client-sent vai/role is ignored whenever an identity is present.
- * Unsigned demo (?demo=1) may still use vai. Otherwise the caller is a guest.
+ * Otherwise the caller is a guest.
  */
 export function resolveWorkingRole(input: {
   signedIn: boolean;
@@ -25,7 +26,9 @@ export function resolveWorkingRole(input: {
   key?: string | null;
 }): RoleSession {
   if (input.signedIn) {
-    const active = input.grants.filter((grant) => grant.status === "active");
+    const active = input.grants.filter(
+      (grant) => grant.status === "active" && grant.role !== "ADMIN",
+    );
     const chosen = input.grantId
       ? active.find((grant) => grant.id === input.grantId)
       : active[0];

@@ -1,7 +1,8 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { getCookie, getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { getSql } from "@/lib/db";
-import { DEV_PASSWORD, PILOT_SEED } from "./pilot-data.ts";
+import { PILOT_SEED } from "./pilot-data.ts";
+import { assertDevSignInEnabled, devSignInEnabled } from "./dev-sign-in.ts";
 import type { Persona } from "./domain/types.ts";
 import type { DevGrantRow, DevUser } from "./dev-types.ts";
 
@@ -9,7 +10,17 @@ const COOKIE = "stayora_dev_session";
 const DEMO_COOKIE = "stayora_demo";
 const SESSION_DAYS = 14;
 
+/** Shared test password. Server-only — returned to the browser only when DEV_SIGN_IN is on. */
+const DEV_PASSWORD = "Stayora-thu-1";
+
 export type { DevGrantRow, DevUser };
+
+export function readDevSignInGate():
+  | { enabled: false }
+  | { enabled: true; password: string } {
+  if (!devSignInEnabled()) return { enabled: false };
+  return { enabled: true, password: DEV_PASSWORD };
+}
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -47,8 +58,16 @@ export function armDemoCookie() {
 }
 
 export async function ensureDevAccounts(): Promise<void> {
+  assertDevSignInEnabled();
   const people = PILOT_SEED.people ?? [];
   const sql = await getSql();
+  await sql`
+    update role_grants
+    set status = 'revoked', granted_by = 'seed', granted_at = now()
+    where role = 'ADMIN'
+      and status = 'active'
+      and user_id in (select id from dev_identity)
+  `;
   for (const person of people) {
     const existing = await sql<{ id: string }>`
       select id from dev_identity where email = ${person.email}
@@ -61,6 +80,7 @@ export async function ensureDevAccounts(): Promise<void> {
       `;
     }
     for (const grant of (PILOT_SEED.grants ?? []).filter((item) => item.personId === person.id)) {
+      if (grant.role === "ADMIN") continue;
       const found = await sql<{ id: string }>`
         select id from role_grants
         where user_id = ${userId}
@@ -110,6 +130,7 @@ export async function signUpDev(input: {
   email: string;
   password: string;
 }): Promise<DevUser> {
+  assertDevSignInEnabled();
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
   if (!name || !email.includes("@") || input.password.length < 8) {
@@ -129,6 +150,7 @@ export async function signUpDev(input: {
 }
 
 export async function signInDev(email: string, password: string): Promise<DevUser> {
+  assertDevSignInEnabled();
   await ensureDevAccounts();
   const user = await userByEmail(email);
   if (!user || !passwordMatches(password, user.passwordHash)) {
@@ -148,6 +170,7 @@ export async function signOutDev(): Promise<void> {
 }
 
 export async function currentDevUser(): Promise<DevUser | null> {
+  if (!devSignInEnabled()) return null;
   const token = getCookie(COOKIE);
   if (!token) return null;
   const sql = await getSql();
@@ -182,7 +205,7 @@ export async function grantsForUser(userId: string): Promise<DevGrantRow[]> {
     userId: row.user_id,
     role: row.role,
     scopeRef: row.scope_ref,
-    status: row.status,
+    status: row.role === "ADMIN" ? "revoked" : row.status,
     grantedBy: row.granted_by,
     grantedAt:
       typeof row.granted_at === "string" ? row.granted_at : new Date(row.granted_at).toISOString(),
@@ -192,6 +215,7 @@ export async function grantsForUser(userId: string): Promise<DevGrantRow[]> {
 export async function listDevDirectory(): Promise<
   { user: DevUser; grants: DevGrantRow[] }[]
 > {
+  assertDevSignInEnabled();
   await ensureDevAccounts();
   const sql = await getSql();
   const users = await sql<{ id: string; email: string; name: string }>`
@@ -214,13 +238,17 @@ async function requireAdmin(): Promise<DevUser> {
   return user;
 }
 
-const ROLES = new Set(["HOST", "SALE", "BUTLER", "BQL", "ADMIN", "GUEST"]);
+const ROLES = new Set(["HOST", "SALE", "BUTLER", "BQL"]);
 
 export async function grantRole(input: {
   email: string;
   role: string;
   scopeRef: string | null;
 }): Promise<void> {
+  assertDevSignInEnabled();
+  if (input.role === "ADMIN") {
+    throw new Error("Tài khoản thử không được giữ vai Stayora vận hành");
+  }
   const admin = await requireAdmin();
   if (!ROLES.has(input.role) || input.role === "GUEST") throw new Error("Vai trò không hợp lệ");
   const target = await userByEmail(input.email);

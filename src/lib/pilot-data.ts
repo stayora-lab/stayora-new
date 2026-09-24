@@ -4,8 +4,6 @@ import type { BlockKind, ExternalSource, Persona } from "./domain/types.ts";
 /** Destination name only — never a person, sale, butler or source. */
 export const DESTINATION_NAME = "Oceanami";
 
-export const DEV_PASSWORD = "Stayora-thu-1";
-
 export type PilotHost = { id: string; name: string };
 export type PilotSale = { id: string; name: string };
 export type PilotButler = { id: string; name: string; villaIds: string[] };

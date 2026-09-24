@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin_/roles")({
   component: RolesPage,
 });
 
-const ROLE_OPTIONS = ["HOST", "SALE", "BUTLER", "BQL", "ADMIN"] as const;
+const ROLE_OPTIONS = ["HOST", "SALE", "BUTLER", "BQL"] as const;
 
 function RolesPage() {
   const initial = Route.useLoaderData();
@@ -46,7 +46,7 @@ function RolesPage() {
             event.preventDefault();
             setError(null);
             void adminGrantRole({
-              data: { email, role, scopeRef: role === "ADMIN" || role === "BQL" ? null : scopeRef },
+              data: { email, role, scopeRef: role === "BQL" ? null : scopeRef },
             })
               .then(reload)
               .catch((err: unknown) =>

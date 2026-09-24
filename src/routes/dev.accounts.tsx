@@ -1,16 +1,31 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { signInDevAccount } from "@/lib/dev-identity-api";
-import { DEV_PASSWORD, PILOT_SEED } from "@/lib/pilot-data";
+import { fetchDevSignInGate, signInDevAccount } from "@/lib/dev-identity-api";
+import { PILOT_SEED } from "@/lib/pilot-data";
 import { workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
 
 export const Route = createFileRoute("/dev/accounts")({
+  loader: async () => {
+    const gate = await fetchDevSignInGate();
+    if (!gate.enabled) throw notFound();
+    return gate;
+  },
+  notFoundComponent: DevAccountsMissing,
   component: DevAccountsPage,
 });
 
+function DevAccountsMissing() {
+  return (
+    <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+      <h1 className="font-serif text-title">Không có trang này</h1>
+    </main>
+  );
+}
+
 function DevAccountsPage() {
+  const { password } = Route.useLoaderData();
   const navigate = useNavigate();
   const refreshIdentity = useBookingStore((state) => state.refreshIdentity);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +35,7 @@ function DevAccountsPage() {
     setPending(email);
     setError(null);
     try {
-      const session = await signInDevAccount({ data: { email, password: DEV_PASSWORD } });
+      const session = await signInDevAccount({ data: { email, password } });
       await refreshIdentity();
       const grant = session.grants.find((item) => item.status === "active");
       void navigate({ to: grant ? workspaceFor(grant.role) : "/" });
@@ -37,7 +52,7 @@ function DevAccountsPage() {
       <h1 className="mt-2 font-serif text-title">Tài khoản thử</h1>
       <p className="mt-3 text-sm text-ink-soft">
         Toàn bộ tên và villa là giả. Mật khẩu chung:{" "}
-        <span className="font-medium text-ink">{DEV_PASSWORD}</span>
+        <span className="font-medium text-ink">{password}</span>
       </p>
       <p className="mt-2 text-sm text-muted">Không có xác minh email. Không dùng tài khoản thật.</p>
       {error ? <p className="mt-4 text-sm text-lotus-deep">{error}</p> : null}

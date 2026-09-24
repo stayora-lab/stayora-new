@@ -78,7 +78,7 @@
       "id": "van",
       "name": "Stayora Vân",
       "email": "van@test.stayora.vn",
-      "note": "Stayora vận hành — grants roles."
+      "note": "No role. Dev accounts never hold Stayora vận hành."
     }
   ],
   "hosts": [
@@ -118,8 +118,7 @@
     { "personId": "sale-binh", "role": "SALE", "scopeRef": "sale-binh" },
     { "personId": "chi", "role": "BUTLER", "scopeRef": "butler-chi" },
     { "personId": "dung", "role": "BUTLER", "scopeRef": "butler-dung" },
-    { "personId": "em", "role": "BQL", "scopeRef": "bql-em" },
-    { "personId": "van", "role": "ADMIN", "scopeRef": null }
+    { "personId": "em", "role": "BQL", "scopeRef": "bql-em" }
   ],
   "villas": [
     {

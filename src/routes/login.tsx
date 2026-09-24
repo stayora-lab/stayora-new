@@ -1,16 +1,18 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { signInDevAccount, signUpDevAccount } from "@/lib/dev-identity-api";
-import { DEV_PASSWORD, PILOT_SEED } from "@/lib/pilot-data";
+import { fetchDevSignInGate, signInDevAccount, signUpDevAccount } from "@/lib/dev-identity-api";
+import { PILOT_SEED } from "@/lib/pilot-data";
 import { workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
 
 export const Route = createFileRoute("/login")({
+  loader: () => fetchDevSignInGate(),
   component: LoginPage,
 });
 
 function LoginPage() {
+  const gate = Route.useLoaderData();
   const navigate = useNavigate();
   const refreshIdentity = useBookingStore((state) => state.refreshIdentity);
   const [mode, setMode] = useState<"in" | "up">("in");
@@ -94,34 +96,30 @@ function LoginPage() {
       >
         {mode === "up" ? "Đã có tài khoản thử" : "Chưa có tài khoản — đăng ký"}
       </button>
-      <section className="mt-10">
-        <h2 className="font-medium">Đăng nhập tài khoản thử</h2>
-        <ul className="mt-3 space-y-2">
-          {(PILOT_SEED.people ?? []).map((person) => (
-            <li key={person.id}>
-              <button
-                type="button"
-                className="w-full rounded-xl bg-paper px-3 py-2 text-left text-sm shadow-[var(--shadow-border)]"
-                onClick={() => {
-                  setMode("in");
-                  setEmail(person.email);
-                  setPassword(DEV_PASSWORD);
-                }}
-              >
-                {person.name}
-                <span className="mt-0.5 block text-xs text-muted">{person.email}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-muted">
-          Mật khẩu chung hiện trên{" "}
-          <Link to="/dev/accounts" className="font-medium text-lotus">
-            trang tài khoản thử
-          </Link>
-          .
-        </p>
-      </section>
+      {gate.enabled ? (
+        <section className="mt-10">
+          <h2 className="font-medium">Đăng nhập tài khoản thử</h2>
+          <p className="mt-2 text-xs text-muted">Mật khẩu chung: {gate.password}</p>
+          <ul className="mt-3 space-y-2">
+            {(PILOT_SEED.people ?? []).map((person) => (
+              <li key={person.id}>
+                <button
+                  type="button"
+                  className="w-full rounded-xl bg-paper px-3 py-2 text-left text-sm shadow-[var(--shadow-border)]"
+                  onClick={() => {
+                    setMode("in");
+                    setEmail(person.email);
+                    setPassword(gate.password);
+                  }}
+                >
+                  {person.name}
+                  <span className="mt-0.5 block text-xs text-muted">{person.email}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </main>
   );
 }
