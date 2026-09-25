@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { useState, type ReactNode } from "react";
 import { RoleGate } from "@/components/site-chrome";
+import { OtherRoleHint } from "@/components/role-hint";
 import { HostCalendar } from "@/components/host-calendar";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,6 +118,7 @@ function HostPage() {
           <p className="mt-2 text-sm text-muted">
             Chỉ Host chấp nhận. Thanh toán do Stayora vận hành ghi nhận.
           </p>
+          <OtherRoleHint current="HOST" />
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
         </div>
         <div className="sticky top-16 z-20 border-t border-border bg-cream/95 backdrop-blur-md">

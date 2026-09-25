@@ -174,6 +174,20 @@ describe("searchable picker", () => {
     assert.equal(afterChip.includes("Bỏ Nhà 001"), false);
   });
 
+  it("does not show a selected villa as both a chip and a checked row", async () => {
+    const html = await renderPicker({
+      label: "Villa",
+      items: catalogue.slice(0, 5),
+      selectedIds: ["v001"],
+      onChange: () => undefined,
+      multiple: true,
+      selectedAsChipsOnly: true,
+    });
+    assert.match(html, /Bỏ Nhà 001/);
+    assert.equal(checkboxCount(html), 4);
+    assert.equal(html.includes("· v001"), false);
+  });
+
   it("says Không tìm thấy for a typed villa miss, not for an account suggestion", async () => {
     assert.equal(isExplicitMiss("", 0), false);
     assert.equal(isExplicitMiss("   ", 0), false);

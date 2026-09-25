@@ -19,6 +19,12 @@ import {
 } from "@/lib/dev-identity-api";
 import type { DevGrantRow, DevUser } from "@/lib/dev-types";
 import { DESTINATION_NAME, PILOT_SEED } from "@/lib/pilot-data";
+import {
+  GRANT_ROLES,
+  grantReview,
+  grantRoleNeedsVillas,
+  type GrantRoleId,
+} from "@/lib/grant-form";
 import { accountPickerItems, villaPickerItems } from "@/lib/search-select";
 import { fetchAdminStatus } from "@/lib/world-api";
 import { useBookingStore } from "@/lib/store";
@@ -32,8 +38,6 @@ export const Route = createFileRoute("/admin_/roles")({
   component: RolesPage,
 });
 
-const ROLE_OPTIONS = ["HOST", "SALE", "BUTLER", "BQL"] as const;
-
 type DirectoryRow = { user: DevUser; grants: DevGrantRow[] };
 
 function RolesPage() {
@@ -46,8 +50,9 @@ function RolesPage() {
     initial.devDirectory ? (PILOT_SEED.people?.[0]?.email ?? "") : "",
   );
   const [accountQuery, setAccountQuery] = useState("");
-  const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]>("HOST");
+  const [role, setRole] = useState<GrantRoleId | null>(null);
   const [villaIds, setVillaIds] = useState<string[]>([]);
+  const [reviewing, setReviewing] = useState(false);
   const [found, setFound] = useState<DirectoryRow | null>(null);
   const [lookupMiss, setLookupMiss] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,14 @@ function RolesPage() {
   const foundInRoster = Boolean(found && rows.some((row) => row.user.id === found.user.id));
   const lookedUpAccount = found && !foundInRoster ? found : null;
   const lookedUp = lookedUpAccount ? presentAccountLookup(lookedUpAccount) : null;
+  const accountLabel =
+    accountItems.find((item) => item.id === email)?.name ??
+    (found?.user.email === email ? found.user.name : email);
+  const villaLabels = villaIds.map((id) => {
+    const villa = villas.find((item) => item.id === id);
+    return villa ? `${villa.name} (${villa.id})` : id;
+  });
+  const summary = grantReview({ role, accountLabel, villaLabels });
 
   useEffect(() => {
     if (!highlightedId) return;
@@ -96,6 +109,34 @@ function RolesPage() {
     }
   }
 
+  async function confirmGrant() {
+    if (!role || !summary.ready) {
+      setReviewing(false);
+      setError(summary.ready ? "Chọn một vai trò" : summary.reason);
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      await adminGrantRole({
+        data: {
+          email,
+          role,
+          villaIds: grantRoleNeedsVillas(role) ? villaIds : undefined,
+          key: adminKey,
+        },
+      });
+      setNotice(`Đã cấp. ${summary.title}.`);
+      setReviewing(false);
+      setVillaIds([]);
+      const account = await showAccount(email);
+      setHighlightedId(account?.user.id ?? null);
+      await reloadDirectory();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Không cấp được");
+    }
+  }
+
   return (
     <AdminAccess configured={initial.configured}>
       <RoleGate allow={["ADMIN"]}>
@@ -111,31 +152,12 @@ function RolesPage() {
               event.preventDefault();
               setError(null);
               setNotice(null);
-              if (!email) {
-                setError("Chọn một tài khoản");
+              if (!summary.ready) {
+                setReviewing(false);
+                setError(summary.reason);
                 return;
               }
-              const label = accountItems.find((item) => item.id === email)?.name ?? email;
-              const count = villaIds.length;
-              void adminGrantRole({
-                data: {
-                  email,
-                  role,
-                  villaIds: role === "HOST" || role === "BUTLER" ? villaIds : undefined,
-                  key: adminKey,
-                },
-              })
-                .then(async () => {
-                  const villaBit =
-                    role === "HOST" || role === "BUTLER" ? ` · ${count} villa` : "";
-                  setNotice(`Đã cấp vai trò ${role}${villaBit} cho ${label}.`);
-                  const account = await showAccount(email);
-                  setHighlightedId(account?.user.id ?? null);
-                  await reloadDirectory();
-                })
-                .catch((err: unknown) =>
-                  setError(err instanceof Error ? err.message : "Không cấp được"),
-                );
+              setReviewing(true);
             }}
           >
             <SearchSelect
@@ -152,28 +174,46 @@ function RolesPage() {
               onChange={(ids) => {
                 const next = ids[0] ?? "";
                 setEmail(next);
+                setReviewing(false);
                 const row = rows.find((item) => item.user.email === next);
                 if (row) setFound(row);
                 else if (!next) setFound(null);
               }}
+              selectedAsChipsOnly
             />
-            <label className="block text-sm">
-              Vai trò
-              <select
-                value={role}
-                onChange={(event) => {
-                  setRole(event.target.value as (typeof ROLE_OPTIONS)[number]);
-                  setVillaIds([]);
-                  setNotice(null);
-                }}
-                className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
-              >
-                {ROLE_OPTIONS.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-            {role === "HOST" || role === "BUTLER" ? (
+            <fieldset>
+              <legend className="text-sm">Vai trò</legend>
+              <div role="radiogroup" aria-label="Vai trò" className="mt-2 grid grid-cols-2 gap-2">
+                {GRANT_ROLES.map((item) => {
+                  const chosen = role === item.id;
+                  return (
+                    <label
+                      key={item.id}
+                      className={`flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-medium ${
+                        chosen ? "bg-ink text-cream" : "bg-cream text-ink"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="grant-role"
+                        value={item.id}
+                        checked={chosen}
+                        onChange={() => {
+                          setRole(item.id);
+                          setVillaIds([]);
+                          setReviewing(false);
+                          setNotice(null);
+                          setError(null);
+                        }}
+                        className="size-4 accent-ink"
+                      />
+                      {item.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+            {grantRoleNeedsVillas(role) ? (
               <div>
                 <SearchSelect
                   key={role}
@@ -181,7 +221,11 @@ function RolesPage() {
                   items={villaItems}
                   selectedIds={villaIds}
                   multiple
-                  onChange={setVillaIds}
+                  onChange={(ids) => {
+                    setVillaIds(ids);
+                    setReviewing(false);
+                  }}
+                  selectedAsChipsOnly
                 />
                 <p className="mt-2 text-xs text-muted">
                   Mỗi villa là một vai riêng. Chọn nhiều villa thì cấp nhiều vai, không gộp thành một mã.
@@ -198,12 +242,27 @@ function RolesPage() {
                 {notice}
               </p>
             ) : null}
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => void showAccount(email || accountQuery)}>
-                Xem vai trò
-              </Button>
-              <Button type="submit">Cấp vai trò</Button>
-            </div>
+            {reviewing && summary.ready ? (
+              <div data-grant-review className="rounded-xl bg-cream p-3 text-sm">
+                <p className="font-medium">{summary.title}</p>
+                <p className="mt-1 text-ink-soft">{summary.detail}</p>
+                <div className="mt-3 flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setReviewing(false)}>
+                    Sửa lại
+                  </Button>
+                  <Button type="button" onClick={() => void confirmGrant()}>
+                    Xác nhận cấp
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => void showAccount(email || accountQuery)}>
+                  Xem vai trò
+                </Button>
+                <Button type="submit">Xem lại</Button>
+              </div>
+            )}
             {lookupMiss ? <AccountLookupResult status="missing" email={lookupMiss} /> : null}
           </form>
           {lookedUpAccount && lookedUp?.status === "found" ? (

@@ -5,6 +5,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useState } from "react";
 import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
+import { OtherRoleHint } from "@/components/role-hint";
 import { ButlerStayCard } from "@/components/butler-stay-card";
 import { HostCalendar } from "@/components/host-calendar";
 import { DateField } from "@/components/dates-guests";
@@ -141,6 +142,7 @@ function OpsPage() {
           ) : (
             <p className="mt-3 text-sm text-muted">Chỉ villa được giao cho bạn.</p>
           )}
+          {persona === "BUTLER" || persona === "BQL" ? <OtherRoleHint current={persona} /> : null}
         </div>
 
         <Attention

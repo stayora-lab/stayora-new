@@ -7,6 +7,7 @@ import {
   removePickerSelection,
   togglePickerSelection,
   type PickerItem,
+  type PickerRow,
 } from "../lib/search-select.ts";
 
 export function SearchSelect({
@@ -21,6 +22,7 @@ export function SearchSelect({
   listLabel,
   missMessage = "Không tìm thấy",
   hideListUntilQuery = false,
+  selectedAsChipsOnly = false,
 }: {
   label: string;
   items: readonly PickerItem[];
@@ -35,6 +37,8 @@ export function SearchSelect({
   missMessage?: string;
   /** Hide the list until someone types. Used when the roster is empty. */
   hideListUntilQuery?: boolean;
+  /** A selected item is a chip, not also a checked row. */
+  selectedAsChipsOnly?: boolean;
 }) {
   const [innerQuery, setInnerQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(PICKER_PAGE_SIZE);
@@ -42,6 +46,7 @@ export function SearchSelect({
   const setText = onQueryChange ?? setInnerQuery;
   const matches = filterPickerItems(items, text);
   const { rows, hidden } = pickerWindow(matches, visibleCount);
+  const visibleRows = selectedAsChipsOnly ? rowsWithoutSelected(rows, selectedIds) : rows;
   const selected = selectedIds
     .map((id) => items.find((item) => item.id === id))
     .filter((item): item is PickerItem => Boolean(item));
@@ -98,7 +103,7 @@ export function SearchSelect({
             </p>
           ) : (
             <ul>
-              {rows.map((row) =>
+              {visibleRows.map((row) =>
                 row.kind === "heading" ? (
                   <li
                     key={row.key}
@@ -140,4 +145,17 @@ export function SearchSelect({
       ) : null}
     </fieldset>
   );
+}
+
+/** Selected ids stay as chips. They are not also checked rows, and an empty heading goes too. */
+function rowsWithoutSelected(rows: readonly PickerRow[], selectedIds: readonly string[]): PickerRow[] {
+  const selected = new Set(selectedIds);
+  const kept = rows.filter((row) => row.kind === "heading" || !selected.has(row.item.id));
+  return kept.filter((row, index) => {
+    if (row.kind !== "heading") return true;
+    const rest = kept.slice(index + 1);
+    const nextHeading = rest.findIndex((item) => item.kind === "heading");
+    const block = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+    return block.some((item) => item.kind === "item");
+  });
 }

@@ -4,6 +4,7 @@ import { vi } from "date-fns/locale";
 import { useMemo, useState, type ReactNode } from "react";
 import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
+import { OtherRoleHint } from "@/components/role-hint";
 import { DateRangeField, FieldSplit, GuestField } from "@/components/dates-guests";
 import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
@@ -151,6 +152,7 @@ function SalePage() {
         <div className="mx-auto max-w-lg px-4 pt-6 pb-4 sm:px-6">
           <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Sale · Oceanami</p>
           <h1 className="mt-1 font-serif text-title">Tìm chỗ trống, gửi khách, theo hoa hồng.</h1>
+          <OtherRoleHint current="SALE" />
         </div>
         <div className="sticky top-16 z-20 border-t border-border bg-cream/95 backdrop-blur-md">
           <div className="mx-auto grid max-w-lg grid-cols-3 px-2">
