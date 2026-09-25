@@ -343,10 +343,12 @@ function SalePage() {
                     )}
                     <span className="text-muted"> · {formatVnd(request.total)}</span>
                   </p>
-                  {request.status === "ACCEPTED" && !booking && request.holdExpiresAt ? (
+                  {request.status === "ACCEPTED" && !booking ? (
                     <div className="mt-4 rounded-xl bg-lotus-soft p-3">
                       <p className="text-sm font-medium text-lotus-deep">
-                        Giữ chỗ còn {holdCountdown(request.holdExpiresAt, clock)}
+                        {request.handling === "COMPETITIVE"
+                          ? `Hạn phản hồi còn ${request.confirmDueAt ? holdCountdown(request.confirmDueAt, clock) : ""}. Hạn này không giữ villa.`
+                          : `Giữ chỗ còn ${request.holdExpiresAt ? holdCountdown(request.holdExpiresAt, clock) : ""}`}
                       </p>
                       <Button
                         size="sm"

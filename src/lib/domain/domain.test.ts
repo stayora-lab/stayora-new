@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { BUTLER_LINH, paymentPlan, SALE_MAI } from "./catalog.ts";
-import { HOLD_MS } from "./config.ts";
+import { ACCEPTANCE_RESPONSE_MS, HOLD_MS, HOST_RESPONSE_MS, NEAR_CHECK_IN_RESPONSE_MS } from "./config.ts";
 import { overlappingActive } from "./availability.ts";
 import {
   acceptRequest,
@@ -16,10 +16,13 @@ import {
   recordMaintenanceFromHold,
   releaseProtectiveHold,
   reportPrepared,
+  competingAccepted,
   createBlock,
   createEmptyWorld,
   createRequest,
   DomainError,
+  extendAcceptanceDeadline,
+  hostResponseDueAt,
   isAvailable,
   markDidNotOccur,
   markRefundDone,
@@ -137,7 +140,7 @@ function bookedStay(actor: Actor = GUEST) {
     guestName: "Mai",
     actor,
   });
-  world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+  world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
   const paid = pay(world, created.request.id);
   world = paid.world;
   assertNoOverlap(world);
@@ -160,7 +163,7 @@ describe("Sale request converges with a direct Guest request", () => {
       guestName: "An",
       actor: GUEST,
     });
-    guestWorld = acceptRequest(guestCreated.world, {
+    guestWorld = acceptRequest(guestCreated.world, { handling: "EXCLUSIVE",
       requestId: guestCreated.request.id,
       actor: HOST,
     }).world;
@@ -175,7 +178,7 @@ describe("Sale request converges with a direct Guest request", () => {
       guestName: "An",
       actor: SALE,
     });
-    saleWorld = acceptRequest(saleCreated.world, {
+    saleWorld = acceptRequest(saleCreated.world, { handling: "EXCLUSIVE",
       requestId: saleCreated.request.id,
       actor: HOST,
     }).world;
@@ -217,9 +220,9 @@ describe("Sale commission", () => {
     });
     world = guestStay.world;
 
-    world = acceptRequest(world, { requestId: saleStay.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: saleStay.request.id, actor: HOST }).world;
     world = pay(world, saleStay.request.id).world;
-    world = acceptRequest(world, { requestId: guestStay.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: guestStay.request.id, actor: HOST }).world;
     world = pay(world, guestStay.request.id).world;
 
     const saleCommission = world.commissions.filter((item) => item.saleId === SALE_MAI);
@@ -526,7 +529,7 @@ describe("assignment is not authority", () => {
       guestName: "An",
       actor: GUEST,
     });
-    second = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    second = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const paid = pay(second, created.request.id);
     const onSecond = reportPrepared(paid.world, { stayId: paid.stay!.id, actor });
     assert.ok(onSecond.world.stays.find((item) => item.id === paid.stay!.id)?.preparedAt);
@@ -540,7 +543,7 @@ describe("assignment is not authority", () => {
       guestName: "An",
       actor: GUEST,
     });
-    other = acceptRequest(otherRequest.world, { requestId: otherRequest.request.id, actor: HOST }).world;
+    other = acceptRequest(otherRequest.world, { handling: "EXCLUSIVE", requestId: otherRequest.request.id, actor: HOST }).world;
     const otherPaid = pay(other, otherRequest.request.id);
     assert.throws(
       () => reportPrepared(otherPaid.world, { stayId: otherPaid.stay!.id, actor }),
@@ -560,7 +563,7 @@ describe("Stay transitions", () => {
       actor: SALE,
     });
     assert.throws(
-      () => acceptRequest(created.world, { requestId: created.request.id, actor: SALE }),
+      () => acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: SALE }),
       (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
     );
     assertNoOverlap(created.world);
@@ -613,7 +616,7 @@ describe("Availability and overlapping requests", () => {
     assertNoOverlap(world);
   });
 
-  it("accept first → accept second → second is CONFLICTED, exactly 1 ACTIVE HOLD", () => {
+  it("competitive accept of two overlapping requests → both ACCEPTED, no hold", () => {
     let world = createEmptyWorld(NOW);
     const first = createRequest(world, {
       villaId: "t04",
@@ -633,10 +636,44 @@ describe("Availability and overlapping requests", () => {
       actor: GUEST,
     });
     world = second.world;
-    world = acceptRequest(world, { requestId: first.request.id, actor: HOST }).world;
-    world = acceptRequest(world, { requestId: second.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "COMPETITIVE", requestId: first.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "COMPETITIVE", requestId: second.request.id, actor: HOST }).world;
+    assert.equal(world.requests.find((item) => item.id === first.request.id)?.status, "ACCEPTED");
+    assert.equal(world.requests.find((item) => item.id === second.request.id)?.status, "ACCEPTED");
+    assert.equal(
+      world.commitments.filter((item) => item.kind === "HOLD" && item.status === "ACTIVE").length,
+      0,
+    );
+    assert.equal(isAvailable(world, "t04", "2026-12-01", "2026-12-04"), true);
+    assert.equal(world.bookings.length, 0);
+    assertNoOverlap(world);
+  });
+
+  it("exclusive handling still reserves the dates and blocks a second exclusive accept", () => {
+    let world = createEmptyWorld(NOW);
+    const first = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    world = first.world;
+    const second = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "Bình",
+      actor: GUEST,
+    });
+    world = second.world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: first.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: second.request.id, actor: HOST }).world;
     assert.equal(world.requests.find((item) => item.id === first.request.id)?.status, "ACCEPTED");
     assert.equal(world.requests.find((item) => item.id === second.request.id)?.status, "CONFLICTED");
+    assert.notEqual(world.requests.find((item) => item.id === second.request.id)?.status, "DECLINED");
     const activeHolds = world.commitments.filter(
       (item) => item.kind === "HOLD" && item.status === "ACTIVE",
     );
@@ -655,7 +692,7 @@ describe("Availability and overlapping requests", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     assert.throws(
       () => rejectRequest(world, { requestId: created.request.id, actor: HOST }),
       (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
@@ -665,7 +702,7 @@ describe("Availability and overlapping requests", () => {
 });
 
 describe("Payment confirmation", () => {
-  it("INITIAL SUCCEEDED → 1 Booking, HOLD ENDED/SUPERSEDED (still in the list), 1 CONFIRMED_ACCOMMODATION, 1 Stay; ids all different", () => {
+  it("exclusive handling: INITIAL SUCCEEDED → 1 Booking, HOLD ENDED/SUPERSEDED, ids all different", () => {
     let world = createEmptyWorld(NOW);
     const created = createRequest(world, {
       villaId: "t04",
@@ -675,7 +712,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const paid = pay(world, created.request.id);
     world = paid.world;
     assert.equal(world.bookings.length, 1);
@@ -705,7 +742,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const unknown = pay(world, created.request.id, "UNKNOWN");
     world = unknown.world;
     assert.equal(world.bookings.length, 0);
@@ -734,7 +771,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = advanceTime(world, 31 * 60 * 1000);
     assert.equal(world.requests.find((item) => item.id === created.request.id)?.status, "EXPIRED");
     assert.equal(isAvailable(world, "t04", "2026-12-01", "2026-12-04"), true);
@@ -762,7 +799,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(first.world, { requestId: first.request.id, actor: HOST }).world;
+    world = acceptRequest(first.world, { handling: "EXCLUSIVE", requestId: first.request.id, actor: HOST }).world;
     const unknown = pay(world, first.request.id, "UNKNOWN");
     world = unknown.world;
     world = advanceTime(world, 31 * 60 * 1000);
@@ -776,7 +813,7 @@ describe("Payment confirmation", () => {
       guestName: "Bình",
       actor: GUEST,
     });
-    world = acceptRequest(second.world, { requestId: second.request.id, actor: HOST }).world;
+    world = acceptRequest(second.world, { handling: "EXCLUSIVE", requestId: second.request.id, actor: HOST }).world;
     world = pay(world, second.request.id, "SUCCEEDED").world;
     assert.equal(world.bookings.length, 1);
     assert.equal(world.bookings[0]?.requestId, second.request.id);
@@ -808,7 +845,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const balance = balanceOf(world, created.request.id);
     assert.throws(
       () =>
@@ -898,7 +935,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
     const external = recordExternalBooking(world, {
       villaId: "t04",
@@ -960,7 +997,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(farReq.world, { requestId: farReq.request.id, actor: HOST }).world;
+    world = acceptRequest(farReq.world, { handling: "EXCLUSIVE", requestId: farReq.request.id, actor: HOST }).world;
     assert.equal(
       world.obligations.filter((item) => item.requestId === farReq.request.id).length,
       2,
@@ -975,7 +1012,7 @@ describe("Payment confirmation", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(nearReq.world, { requestId: nearReq.request.id, actor: HOST }).world;
+    world = acceptRequest(nearReq.world, { handling: "EXCLUSIVE", requestId: nearReq.request.id, actor: HOST }).world;
     const nearObligations = world.obligations.filter(
       (item) => item.requestId === nearReq.request.id,
     );
@@ -1039,7 +1076,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     assert.throws(
       () =>
         recordPayment(world, {
@@ -1114,7 +1151,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE");
     assert.ok(hold);
     const external = recordExternalBooking(world, {
@@ -1317,7 +1354,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       guestName: "An",
       actor: GUEST,
     });
-    world = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
     const external = recordExternalBooking(world, {
       villaId: "t04",
@@ -1477,7 +1514,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     world = other.world;
     assert.equal(world.auditLog.length, 2);
 
-    world = acceptRequest(world, { requestId: created.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     assert.equal(world.auditLog.length, 3);
     world = rejectRequest(world, { requestId: other.request.id, actor: HOST }).world;
     assert.equal(world.auditLog.length, 4);
@@ -1515,7 +1552,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     });
     world = unknownReq.world;
     assert.equal(world.auditLog.length, 11);
-    world = acceptRequest(world, { requestId: unknownReq.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: unknownReq.request.id, actor: HOST }).world;
     assert.equal(world.auditLog.length, 12);
     const unknown = pay(world, unknownReq.request.id, "UNKNOWN");
     world = unknown.world;
@@ -1536,7 +1573,7 @@ describe("Phase 2 host calendar, external, admin", () => {
       actor: GUEST,
     });
     world = noShow.world;
-    world = acceptRequest(world, { requestId: noShow.request.id, actor: HOST }).world;
+    world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: noShow.request.id, actor: HOST }).world;
     world = pay(world, noShow.request.id).world;
     const beforeNoShow = world.auditLog.length;
     world = markDidNotOccur(world, {
@@ -1772,7 +1809,7 @@ describe("emergency protective hold is not an inventory commitment", () => {
       guestName: "An",
       actor: GUEST,
     });
-    const accepted = acceptRequest(created.world, { requestId: created.request.id, actor: HOST });
+    const accepted = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST });
     assert.equal(accepted.request.status, "CONFLICTED");
     assert.equal(
       accepted.world.commitments.some((item) => item.requestId === created.request.id),
@@ -1958,5 +1995,259 @@ describe("External report, fact, and commitment", () => {
     });
     assert.equal(marked.stay.status, "DID_NOT_OCCUR");
     assertNoOverlap(marked.world);
+  });
+});
+
+describe("Parallel acceptance and the two request clocks", () => {
+  function pair() {
+    let world = createEmptyWorld(NOW);
+    const first = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    const second = createRequest(first.world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "Bình",
+      actor: GUEST,
+    });
+    return { first, second };
+  }
+
+  it("the first verified payment confirms; the other accepted request is CONFLICTED, not DECLINED", () => {
+    const { first, second } = pair();
+    let world = acceptRequest(second.world, {
+      handling: "COMPETITIVE",
+      requestId: first.request.id,
+      actor: HOST,
+    }).world;
+    world = acceptRequest(world, {
+      handling: "COMPETITIVE",
+      requestId: second.request.id,
+      actor: HOST,
+    }).world;
+    const pending = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "Cường",
+      actor: GUEST,
+    });
+    world = pending.world;
+    const paid = pay(world, first.request.id);
+    world = paid.world;
+    assert.equal(world.bookings.length, 1);
+    assert.equal(world.commitments.filter((item) => item.kind === "HOLD").length, 0);
+    assert.equal(world.requests.find((item) => item.id === second.request.id)?.status, "CONFLICTED");
+    assert.notEqual(world.requests.find((item) => item.id === second.request.id)?.status, "DECLINED");
+    assert.equal(world.requests.find((item) => item.id === pending.request.id)?.status, "PENDING");
+    const late = pay(world, second.request.id);
+    assert.equal(late.world.bookings.length, 1);
+    assert.equal(late.refund?.reason, "INVENTORY_CONFLICT");
+    assert.equal(late.refund?.status, "OPEN");
+    assertNoOverlap(late.world);
+  });
+
+  it("UNKNOWN does not win, does not block the other request, and reconciles into a refund only if money arrived", () => {
+    const { first, second } = pair();
+    let world = acceptRequest(second.world, {
+      handling: "COMPETITIVE",
+      requestId: first.request.id,
+      actor: HOST,
+    }).world;
+    world = acceptRequest(world, {
+      handling: "COMPETITIVE",
+      requestId: second.request.id,
+      actor: HOST,
+    }).world;
+    const unknown = pay(world, first.request.id, "UNKNOWN");
+    world = unknown.world;
+    assert.equal(world.bookings.length, 0);
+    assert.equal(world.requests.find((item) => item.id === second.request.id)?.status, "ACCEPTED");
+    const winner = pay(world, second.request.id, "SUCCEEDED");
+    world = winner.world;
+    assert.equal(world.bookings.length, 1);
+    assert.equal(world.requests.find((item) => item.id === first.request.id)?.status, "CONFLICTED");
+    assert.equal(world.attempts.find((item) => item.id === unknown.attempt.id)?.status, "UNKNOWN");
+    const resolved = resolveUnknown(world, {
+      attemptId: unknown.attempt.id,
+      outcome: "SUCCEEDED",
+      actor: ADMIN,
+    });
+    assert.equal(resolved.world.bookings.length, 1);
+    assert.equal(resolved.refund?.reason, "INVENTORY_CONFLICT");
+    const failedCase = pair();
+    let failedWorld = acceptRequest(failedCase.second.world, {
+      handling: "COMPETITIVE",
+      requestId: failedCase.first.request.id,
+      actor: HOST,
+    }).world;
+    const unresolved = pay(failedWorld, failedCase.first.request.id, "UNKNOWN");
+    const cleared = resolveUnknown(unresolved.world, {
+      attemptId: unresolved.attempt.id,
+      outcome: "FAILED",
+      actor: ADMIN,
+    });
+    assert.equal(cleared.refund, undefined);
+    assert.equal(cleared.world.bookings.length, 0);
+    assert.equal(cleared.world.refundCases.length, 0);
+    assertNoOverlap(resolved.world);
+    assertNoOverlap(cleared.world);
+  });
+
+  it("competition is disclosed only from real overlapping acceptances, and the count is the same for both", () => {
+    const { first, second } = pair();
+    let world = acceptRequest(second.world, {
+      handling: "COMPETITIVE",
+      requestId: first.request.id,
+      actor: HOST,
+    }).world;
+    assert.equal(competingAccepted(world, first.request.id).length, 0);
+    world = acceptRequest(world, {
+      handling: "COMPETITIVE",
+      requestId: second.request.id,
+      actor: HOST,
+    }).world;
+    assert.equal(competingAccepted(world, first.request.id).length, 1);
+    assert.equal(competingAccepted(world, second.request.id).length, 1);
+    assert.equal(competingAccepted(world, first.request.id)[0]?.id, second.request.id);
+    assertNoOverlap(world);
+  });
+
+  it("a PENDING request expires on its own clock; an accepted request expires on a new clock", () => {
+    let world = createEmptyWorld(NOW);
+    const created = createRequest(world, {
+      villaId: "t05",
+      checkIn: "2026-12-20",
+      checkOut: "2026-12-23",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    world = created.world;
+    const due = world.requests[0]?.responseDueAt;
+    assert.equal(due, new Date(Date.parse(NOW) + HOST_RESPONSE_MS).toISOString());
+    world = advanceTime(world, HOST_RESPONSE_MS);
+    assert.equal(world.requests[0]?.status, "EXPIRED");
+    assert.throws(
+      () => acceptRequest(world, { handling: "COMPETITIVE", requestId: created.request.id, actor: HOST }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
+    );
+
+    world = createEmptyWorld(NOW);
+    const accepted = createRequest(world, {
+      villaId: "t05",
+      checkIn: "2026-12-20",
+      checkOut: "2026-12-23",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    world = acceptRequest(accepted.world, {
+      handling: "COMPETITIVE",
+      requestId: accepted.request.id,
+      actor: HOST,
+    }).world;
+    world = advanceTime(world, ACCEPTANCE_RESPONSE_MS);
+    assert.equal(world.requests.find((item) => item.id === accepted.request.id)?.status, "EXPIRED");
+    const late = pay(world, accepted.request.id);
+    assert.equal(late.world.bookings.length, 0);
+    assert.equal(late.refund?.reason, "HOLD_EXPIRED");
+    assertNoOverlap(late.world);
+  });
+
+  it("a Request left PENDING survives the accepted request's own expiry", () => {
+    const { first, second } = pair();
+    let world = acceptRequest(second.world, {
+      handling: "COMPETITIVE",
+      requestId: first.request.id,
+      actor: HOST,
+    }).world;
+    world = advanceTime(world, ACCEPTANCE_RESPONSE_MS);
+    assert.equal(world.requests.find((item) => item.id === first.request.id)?.status, "EXPIRED");
+    assert.equal(world.requests.find((item) => item.id === second.request.id)?.status, "PENDING");
+    world = acceptRequest(world, {
+      handling: "EXCLUSIVE",
+      requestId: second.request.id,
+      actor: HOST,
+    }).world;
+    assert.equal(world.requests.find((item) => item.id === second.request.id)?.status, "ACCEPTED");
+    assert.equal(
+      world.commitments.filter((item) => item.kind === "HOLD" && item.status === "ACTIVE").length,
+      1,
+    );
+    assertNoOverlap(world);
+  });
+
+  it("the Host-response deadline shortens near Check-in and never passes Check-in", () => {
+    const far = hostResponseDueAt(NOW, "2026-12-20");
+    assert.equal(far, new Date(Date.parse(NOW) + HOST_RESPONSE_MS).toISOString());
+    const near = hostResponseDueAt("2026-12-01T03:00:00.000Z", "2026-12-01");
+    const checkIn = Date.parse("2026-12-01T07:00:00.000Z");
+    assert.ok(near);
+    assert.ok(Date.parse(near) <= checkIn);
+    assert.equal(near, new Date(Date.parse("2026-12-01T03:00:00.000Z") + NEAR_CHECK_IN_RESPONSE_MS).toISOString());
+    const tight = hostResponseDueAt("2026-12-01T06:30:00.000Z", "2026-12-01");
+    assert.ok(tight);
+    assert.equal(tight, new Date(checkIn).toISOString());
+    assert.ok(Date.parse(tight) <= checkIn);
+  });
+
+  it("the Host may extend an acceptance deadline and may not shorten it", () => {
+    let world = createEmptyWorld(NOW);
+    const created = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    const accepted = acceptRequest(created.world, {
+      handling: "COMPETITIVE",
+      requestId: created.request.id,
+      actor: HOST,
+    });
+    world = accepted.world;
+    const current = accepted.request.confirmDueAt!;
+    assert.throws(
+      () =>
+        extendAcceptanceDeadline(world, {
+          requestId: created.request.id,
+          actor: HOST,
+          until: new Date(Date.parse(current) - 60_000).toISOString(),
+        }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID",
+    );
+    const extended = extendAcceptanceDeadline(world, { requestId: created.request.id, actor: HOST });
+    assert.ok(Date.parse(extended.request.confirmDueAt!) > Date.parse(current));
+    assertNoOverlap(extended.world);
+  });
+
+  it("competitive handling cannot override someone else's exclusive hold", () => {
+    const { first, second } = pair();
+    let world = acceptRequest(second.world, {
+      handling: "EXCLUSIVE",
+      requestId: first.request.id,
+      actor: HOST,
+    }).world;
+    const competed = acceptRequest(world, {
+      handling: "COMPETITIVE",
+      requestId: second.request.id,
+      actor: HOST,
+    });
+    assert.equal(competed.request.status, "CONFLICTED");
+    assert.equal(
+      competed.world.commitments.filter((item) => item.kind === "HOLD" && item.status === "ACTIVE").length,
+      1,
+    );
+    assertNoOverlap(competed.world);
   });
 });

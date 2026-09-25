@@ -14,8 +14,18 @@ import {
   requireVilla,
   SALE_MAI,
 } from "./catalog.ts";
-import { COMMISSION_RATE, HOLD_MS, NON_OCCURRENCE_REASONS, PROTECTIVE_HOLD_REVIEW_MS } from "./config.ts";
+import {
+  ACCEPTANCE_RESPONSE_MS,
+  CHECK_IN_TIME,
+  COMMISSION_RATE,
+  HOST_RESPONSE_MS,
+  NEAR_CHECK_IN_MS,
+  NEAR_CHECK_IN_RESPONSE_MS,
+  NON_OCCURRENCE_REASONS,
+  PROTECTIVE_HOLD_REVIEW_MS,
+} from "./config.ts";
 import type {
+  AcceptanceHandling,
   Actor,
   AuditEntry,
   Booking,
@@ -131,6 +141,42 @@ function withAudit(
   return { ...world, auditLog: [entry, ...(world.auditLog ?? [])] };
 }
 
+function checkInInstant(checkIn: string): number {
+  const [hour, minute] = CHECK_IN_TIME.split(":").map((part) => Number(part));
+  const local = Date.parse(
+    `${checkIn}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00.000Z`,
+  );
+  // PROTOTYPE: Asia/Ho_Chi_Minh is UTC+7 and has no daylight saving.
+  return local - 7 * 60 * 60 * 1000;
+}
+
+/** Host-response deadline. Never later than Check-in. Near Check-in uses the shorter window.
+ * A request recorded after Check-in already passed has no clock — the seed
+ * reconstructs stays already underway. Not a way to extend a live deadline.
+ */
+export function hostResponseDueAt(nowIso: string, checkIn: string): string | undefined {
+  const now = Date.parse(nowIso);
+  const boundary = checkInInstant(checkIn);
+  if (boundary <= now) return undefined;
+  const remaining = boundary - now;
+  const window = remaining <= NEAR_CHECK_IN_MS ? NEAR_CHECK_IN_RESPONSE_MS : HOST_RESPONSE_MS;
+  const due = Math.min(now + window, boundary);
+  return new Date(due).toISOString();
+}
+
+export function competingAccepted(world: World, requestId: string): StayRequest[] {
+  const request = world.requests.find((item) => item.id === requestId);
+  if (!request || request.status !== "ACCEPTED" || request.handling !== "COMPETITIVE") return [];
+  return world.requests.filter(
+    (other) =>
+      other.id !== request.id &&
+      other.status === "ACCEPTED" &&
+      other.handling === "COMPETITIVE" &&
+      other.villaId === request.villaId &&
+      rangesOverlap(other.checkIn, other.checkOut, request.checkIn, request.checkOut),
+  );
+}
+
 function hasUnresolvedUnknown(world: World, obligationId: string): boolean {
   return world.attempts.some(
     (attempt) => attempt.obligationId === obligationId && attempt.status === "UNKNOWN",
@@ -201,10 +247,20 @@ export function expireHolds(world: World): World {
       .map((booking) => booking.requestId),
   );
   const requests = world.requests.map((request) => {
+    const booked = bookedRequestIds.has(request.id);
     if (
       request.status === "ACCEPTED" &&
-      expiredHoldRequestIds.has(request.id) &&
-      !bookedRequestIds.has(request.id)
+      !booked &&
+      (expiredHoldRequestIds.has(request.id) ||
+        (request.confirmDueAt !== undefined && request.confirmDueAt <= world.now))
+    ) {
+      changed = true;
+      return { ...request, status: "EXPIRED" as const, expiredAt: world.now };
+    }
+    if (
+      request.status === "PENDING" &&
+      request.responseDueAt !== undefined &&
+      request.responseDueAt <= world.now
     ) {
       changed = true;
       return { ...request, status: "EXPIRED" as const, expiredAt: world.now };
@@ -285,6 +341,7 @@ export function createRequest(
     saleId,
     status: "PENDING",
     createdAt: world.now,
+    responseDueAt: hostResponseDueAt(world.now, input.checkIn),
   };
   return {
     world: withAudit(
@@ -299,7 +356,7 @@ export function createRequest(
 
 export function acceptRequest(
   world: World,
-  input: { requestId: string; actor: Actor },
+  input: { requestId: string; actor: Actor; handling: AcceptanceHandling },
 ): { world: World; request: StayRequest } {
   world = expireHolds(world);
   assertHost(input.actor);
@@ -312,32 +369,38 @@ export function acceptRequest(
       ...current,
       status: "CONFLICTED",
       conflictedAt: world.now,
+      handling: input.handling,
     };
     return {
       world: withAudit(replaceRequest(world, request), input.actor, "ACCEPT_REQUEST", request.id),
       request,
     };
   }
-  const holdExpiresAt = new Date(parseISO(world.now).getTime() + HOLD_MS).toISOString();
+  const confirmDueAt = new Date(parseISO(world.now).getTime() + ACCEPTANCE_RESPONSE_MS).toISOString();
+  const exclusive = input.handling === "EXCLUSIVE";
   const request: StayRequest = {
     ...current,
     status: "ACCEPTED",
     acceptedAt: world.now,
-    holdExpiresAt,
+    handling: input.handling,
+    confirmDueAt,
+    holdExpiresAt: exclusive ? confirmDueAt : undefined,
   };
-  const hold: Commitment = {
-    id: nid("hold"),
-    villaId: request.villaId,
-    start: request.checkIn,
-    end: request.checkOut,
-    kind: "HOLD",
-    status: "ACTIVE",
-    expiresAt: holdExpiresAt,
-    basis: "STAYORA_BOOKING",
-    requestId: request.id,
-    createdBy: "HOST",
-    createdAt: world.now,
-  };
+  const hold: Commitment | undefined = exclusive
+    ? {
+        id: nid("hold"),
+        villaId: request.villaId,
+        start: request.checkIn,
+        end: request.checkOut,
+        kind: "HOLD",
+        status: "ACTIVE",
+        expiresAt: confirmDueAt,
+        basis: "STAYORA_BOOKING",
+        requestId: request.id,
+        createdBy: "HOST",
+        createdAt: world.now,
+      }
+    : undefined;
   const obligations: PaymentObligation[] = [
     ...world.obligations,
     ...paymentPlan(request.total, request.checkIn, request.createdAt).map((line) => ({
@@ -352,11 +415,49 @@ export function acceptRequest(
     world: withAudit(
       {
         ...replaceRequest(world, request),
-        commitments: [...world.commitments, hold],
+        commitments: hold ? [...world.commitments, hold] : world.commitments,
         obligations,
       },
       input.actor,
       "ACCEPT_REQUEST",
+      request.id,
+    ),
+    request,
+  };
+}
+
+/** Lengthens the acceptance deadline. Refuses a shorter instant. Extends an exclusive hold with it. */
+export function extendAcceptanceDeadline(
+  world: World,
+  input: { requestId: string; actor: Actor; until?: string },
+): { world: World; request: StayRequest } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  const current = requireRequest(world, input.requestId);
+  if (current.status !== "ACCEPTED" || !current.confirmDueAt) {
+    throw new DomainError("INVALID_TRANSITION", "Only an accepted request has a deadline to extend");
+  }
+  const until =
+    input.until ??
+    new Date(parseISO(current.confirmDueAt).getTime() + ACCEPTANCE_RESPONSE_MS).toISOString();
+  if (Date.parse(until) <= Date.parse(current.confirmDueAt)) {
+    throw new DomainError("INVALID", "The Host cannot shorten an acceptance deadline");
+  }
+  const request: StayRequest = {
+    ...current,
+    confirmDueAt: until,
+    holdExpiresAt: current.handling === "EXCLUSIVE" ? until : current.holdExpiresAt,
+  };
+  const commitments = world.commitments.map((item) =>
+    item.kind === "HOLD" && item.requestId === request.id && item.status === "ACTIVE"
+      ? { ...item, expiresAt: until }
+      : item,
+  );
+  return {
+    world: withAudit(
+      { ...replaceRequest(world, request), commitments },
+      input.actor,
+      "EXTEND_ACCEPTANCE",
       request.id,
     ),
     request,
@@ -390,7 +491,7 @@ export function rejectRequest(
 function fulfillInitialSuccess(
   world: World,
   obligation: PaymentObligation,
-  hold: Commitment,
+  hold: Commitment | undefined,
   actor: Actor,
 ): { world: World; booking: Booking; stay: Stay } {
   const request = requireRequest(world, obligation.requestId);
@@ -462,7 +563,7 @@ function fulfillInitialSuccess(
       stays: [stay, ...world.stays],
       commitments: [
         ...world.commitments.map((item) =>
-          item.id === hold.id
+          hold && item.id === hold.id
             ? { ...item, status: "ENDED" as const, endedReason: "SUPERSEDED" as const }
             : item,
         ),
@@ -472,6 +573,27 @@ function fulfillInitialSuccess(
     },
     booking,
     stay,
+  };
+}
+
+function datesHeldBySomeoneElse(world: World, request: StayRequest): boolean {
+  return activeCommitments(world).some(
+    (commitment) =>
+      commitment.villaId === request.villaId &&
+      commitment.requestId !== request.id &&
+      rangesOverlap(request.checkIn, request.checkOut, commitment.start, commitment.end),
+  );
+}
+
+function conflictOverlappingAccepted(world: World, winner: StayRequest): World {
+  return {
+    ...world,
+    requests: world.requests.map((item) => {
+      if (item.id === winner.id || item.status !== "ACCEPTED") return item;
+      if (item.villaId !== winner.villaId) return item;
+      if (!rangesOverlap(item.checkIn, item.checkOut, winner.checkIn, winner.checkOut)) return item;
+      return { ...item, status: "CONFLICTED" as const, conflictedAt: world.now };
+    }),
   };
 }
 
@@ -495,7 +617,23 @@ function applyInitialSuccess(
     });
   }
   const hold = activeHoldFor(world, obligation.requestId);
+  if (datesHeldBySomeoneElse(world, request)) {
+    const blocked =
+      request.status === "ACCEPTED"
+        ? { ...world, requests: world.requests.map((item) => item.id === request.id ? { ...item, status: "CONFLICTED" as const, conflictedAt: world.now } : item) }
+        : world;
+    return makeRefund(blocked, {
+      requestId: request.id,
+      attemptId: attempt.id,
+      amount: obligation.amount,
+      reason: "INVENTORY_CONFLICT",
+    });
+  }
   if (!hold) {
+    if (request.status === "ACCEPTED" && request.handling === "COMPETITIVE") {
+      const fulfilled = fulfillInitialSuccess(world, obligation, undefined, actor);
+      return { ...fulfilled, world: conflictOverlappingAccepted(fulfilled.world, request) };
+    }
     const endedHold = world.commitments.find(
       (item) => item.kind === "HOLD" && item.requestId === request.id,
     );
@@ -508,7 +646,8 @@ function applyInitialSuccess(
       reason: byConflict ? "INVENTORY_CONFLICT" : "HOLD_EXPIRED",
     });
   }
-  return fulfillInitialSuccess(world, obligation, hold, actor);
+  const fulfilled = fulfillInitialSuccess(world, obligation, hold, actor);
+  return { ...fulfilled, world: conflictOverlappingAccepted(fulfilled.world, request) };
 }
 
 type PaymentResult = {

@@ -21,6 +21,9 @@ export type RequestStatus =
   | "EXPIRED"
   | "CONFLICTED";
 
+/** Host choice at Commercial Acceptance. Not a kind of Request or Booking. */
+export type AcceptanceHandling = "EXCLUSIVE" | "COMPETITIVE";
+
 export type StayStatus =
   | "SCHEDULED"
   | "CHECKED_IN"
@@ -68,6 +71,12 @@ export type StayRequest = {
   saleId?: string;
   status: RequestStatus;
   createdAt: string;
+  /** How the Host handled Commercial Acceptance. Absent while PENDING. */
+  handling?: AcceptanceHandling;
+  /** Host-response deadline. Runs only while PENDING. Snapshot at creation. */
+  responseDueAt?: string;
+  /** Acceptance deadline. Starts at acceptedAt. Host may extend, never shorten. */
+  confirmDueAt?: string;
   acceptedAt?: string;
   holdExpiresAt?: string;
   declinedAt?: string;

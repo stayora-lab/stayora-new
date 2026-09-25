@@ -14,6 +14,7 @@ import {
   requestStatusVi,
   stayGuestLabel,
   viDateRange,
+  competingAccepted,
 } from "@/lib/domain";
 import type { StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
@@ -39,6 +40,7 @@ function HostPage() {
   const grants = useBookingStore((state) => state.grants);
   const world = useBookingStore((state) => state.world);
   const hostAccept = useBookingStore((state) => state.hostAccept);
+  const hostExtendAcceptance = useBookingStore((state) => state.hostExtendAcceptance);
   const hostExternal = useBookingStore((state) => state.hostExternal);
   const hostRecordFact = useBookingStore((state) => state.hostRecordFact);
   const hostEstablishExternal = useBookingStore((state) => state.hostEstablishExternal);
@@ -302,22 +304,48 @@ function HostPage() {
                 clock={clock}
                 worldLines={[]}
                 action={
-                  <Button className="w-full" onClick={() => run(() => hostAccept(request.id))}>
-                    Chấp nhận · giữ 30 phút
-                  </Button>
+                  <div className="grid gap-2">
+                    <Button className="w-full" onClick={() => run(() => hostAccept(request.id, "EXCLUSIVE"))}>
+                      Chấp nhận và giữ chỗ
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => run(() => hostAccept(request.id, "COMPETITIVE"))}
+                    >
+                      Chấp nhận, chưa giữ chỗ
+                    </Button>
+                    <p className="text-xs text-muted">
+                      Chưa giữ chỗ: ngày vẫn mở. Khách được báo hạn không giữ villa. Ai thanh toán trước thì giữ.
+                    </p>
+                  </div>
                 }
               />
             ))}
           </Section>
-          <Section title="Đang giữ chỗ" count={holding.length} empty="Không có chỗ đang giữ.">
-            {holding.map((request) => (
-              <RequestCard
-                key={request.id}
-                request={request}
-                clock={clock}
-                worldLines={hostPaymentStatus(world, request.id)}
-              />
-            ))}
+          <Section title="Đã chấp nhận" count={holding.length} empty="Chưa chấp nhận yêu cầu nào.">
+            {holding.map((request) => {
+              const rivals = competingAccepted(world, request.id);
+              return (
+                <RequestCard
+                  key={request.id}
+                  request={request}
+                  clock={clock}
+                  worldLines={[
+                    request.handling === "EXCLUSIVE" ? "Đang giữ chỗ cho yêu cầu này." : "Chưa giữ chỗ. Ngày vẫn mở.",
+                    ...(rivals.length > 0
+                      ? [`Có ${rivals.length} yêu cầu khác cũng được chấp nhận cho những ngày này.`]
+                      : []),
+                    ...hostPaymentStatus(world, request.id),
+                  ]}
+                  action={
+                    <Button variant="outline" className="w-full" onClick={() => run(() => hostExtendAcceptance(request.id))}>
+                      Gia hạn
+                    </Button>
+                  }
+                />
+              );
+            })}
           </Section>
           <Section title="Đã xác nhận" count={bookedRequests.length} empty="Chưa có booking.">
             {bookedRequests.map((request) => (
@@ -506,9 +534,14 @@ function RequestCard({
         <span className="text-muted"> · {plan}</span>
       </p>
       <p className="mt-2 text-xs font-medium tracking-wide text-ink-soft uppercase">{source}</p>
-      {!booked && request.status === "ACCEPTED" && request.holdExpiresAt ? (
+      {!booked && request.status === "ACCEPTED" && request.handling === "EXCLUSIVE" && request.holdExpiresAt ? (
         <p className="mt-3 text-sm text-lotus-deep">
           Giữ còn {holdCountdown(request.holdExpiresAt, clock)}
+        </p>
+      ) : null}
+      {!booked && request.status === "ACCEPTED" && request.handling === "COMPETITIVE" && request.confirmDueAt ? (
+        <p className="mt-3 text-sm text-ink-soft">
+          Hạn phản hồi còn {holdCountdown(request.confirmDueAt, clock)}. Hạn này không giữ villa.
         </p>
       ) : null}
       {worldLines.map((line) => (

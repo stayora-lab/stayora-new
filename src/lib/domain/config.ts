@@ -1,7 +1,36 @@
 /**
  * DEMO ASSUMPTION pending Founder decision: the hold keeps running during UNKNOWN.
+ * Also the placeholder duration for a Temporary Exclusive Commitment. The
+ * duration itself is TBD (open policy item 13). Not policy.
  */
 export const HOLD_MS = 30 * 60 * 1000;
+
+/**
+ * Oceanami pilot Host-response window while a Request is PENDING.
+ * ADR-P071. The number is destination configuration
+ * (13-destination-operations/oceanami/configuration.md), not a global constant.
+ */
+export const HOST_RESPONSE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * PROTOTYPE ASSUMPTION (G-v2.4, ADR-P071):
+ * The near-Check-in threshold and the shortened Host-response window are TBD
+ * in oceanami/configuration.md. This prototype treats Check-in within 48 hours
+ * as near, and shortens the Host-response window to 2 hours. The deadline
+ * still never passes Check-in. A request recorded after Check-in has already
+ * passed gets no clock — that is how the seed shows a stay already underway,
+ * not a way to extend a live deadline. Not policy.
+ */
+export const NEAR_CHECK_IN_MS = 48 * 60 * 60 * 1000;
+export const NEAR_CHECK_IN_RESPONSE_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * PROTOTYPE ASSUMPTION (G-v2.4, ADR-P071):
+ * The acceptance / confirmation-response window is TBD. This prototype uses
+ * 30 minutes, the same placeholder as HOLD_MS. It is a separate clock from
+ * the PENDING Host-response window. Not policy.
+ */
+export const ACCEPTANCE_RESPONSE_MS = HOLD_MS;
 
 export const COMMISSION_RATE = 0.1;
 export const PILOT_NOW = "2026-09-22T03:00:00.000Z";

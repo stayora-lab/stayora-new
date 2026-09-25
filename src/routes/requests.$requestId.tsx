@@ -5,7 +5,7 @@ import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
 import { GUEST_ARRIVAL } from "@/lib/destination";
 import { StaySummary } from "@/components/stay-summary";
 import { Button } from "@/components/ui/button";
-import { balanceLine, holdCountdown, obligationSucceeded, paymentPlanLabel } from "@/lib/domain";
+import { balanceLine, competingAccepted, holdCountdown, obligationSucceeded, paymentPlanLabel } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
@@ -119,16 +119,19 @@ function RequestPage() {
 
   const clock = parseISO(world.now);
   const plan = paymentPlanLabel(request.total, request.checkIn, request.createdAt);
+  const rivals = request.handling === "COMPETITIVE" ? competingAccepted(world, request.id) : [];
   const waitingCopy =
     request.status === "EXPIRED"
-      ? "Hết thời gian giữ phòng."
+      ? "Hết hạn phản hồi."
       : request.status === "CONFLICTED"
-        ? "Villa không còn trống cho ngày này."
+        ? "Villa không còn trống cho ngày này. Yêu cầu không bị từ chối — chỗ đã về người khác."
         : request.status === "DECLINED"
           ? "Chủ nhà đã từ chối yêu cầu này."
-          : request.status === "ACCEPTED"
-            ? "Chủ nhà đã giữ chỗ. Đây chưa phải kỳ nghỉ đã xác nhận."
-            : "Chủ nhà sẽ xem và phản hồi. Đây chưa phải kỳ nghỉ đã xác nhận.";
+          : request.status === "ACCEPTED" && request.handling === "COMPETITIVE"
+            ? "Chủ nhà đồng ý để bạn thanh toán. Hạn này không giữ villa. Ai được Stayora ghi nhận thanh toán trước thì giữ chỗ."
+            : request.status === "ACCEPTED"
+              ? "Chủ nhà đã giữ chỗ. Đây chưa phải kỳ nghỉ đã xác nhận."
+              : "Chủ nhà sẽ xem và phản hồi. Đây chưa phải kỳ nghỉ đã xác nhận.";
 
   return (
     <main lang="vi" className="mx-auto max-w-lg px-4 py-12 sm:py-16">
@@ -140,6 +143,11 @@ function RequestPage() {
       </p>
       <h1 className="mt-2 font-serif text-title">Đã gửi yêu cầu của bạn</h1>
       <p className="mt-3 text-ink-soft">{waitingCopy}</p>
+      {rivals.length > 0 ? (
+        <p className="mt-3 text-sm text-ink-soft">
+          Có {rivals.length} yêu cầu khác cũng được chấp nhận cho những ngày này.
+        </p>
+      ) : null}
 
       {unknown ? (
         <div className="mt-6 rounded-2xl bg-lotus-soft p-4">
@@ -157,9 +165,11 @@ function RequestPage() {
           <p className="mt-2 font-serif text-3xl tabular-nums">{formatVnd(initial.amount)}</p>
           <p className="mt-1 text-sm text-muted">
             {plan}
-            {request.holdExpiresAt
+            {request.handling === "EXCLUSIVE" && request.holdExpiresAt
               ? ` · giữ còn ${holdCountdown(request.holdExpiresAt, clock)}`
-              : ""}
+              : request.handling === "COMPETITIVE" && request.confirmDueAt
+                ? ` · hạn còn ${holdCountdown(request.confirmDueAt, clock)} · hạn không giữ villa`
+                : ""}
           </p>
           {balance ? (
             <p className="mt-3 text-sm text-lotus-deep">{balanceLine(balance, false)}</p>

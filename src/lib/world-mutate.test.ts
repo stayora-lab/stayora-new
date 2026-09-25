@@ -44,7 +44,7 @@ function memoryIo(initial: World) {
 }
 
 describe("shared world optimistic concurrency", () => {
-  it("two concurrent acceptRequest calls on overlapping requests → exactly one ACTIVE hold, the other CONFLICTED", async () => {
+  it("two concurrent competitive accepts on overlapping requests → both ACCEPTED, no hold", async () => {
     let world = createEmptyWorld(NOW);
     const first = createRequest(world, {
       villaId: "t04",
@@ -68,7 +68,11 @@ describe("shared world optimistic concurrency", () => {
     const snapB = await store.io.load();
     assert.equal(snapA.version, snapB.version);
 
-    const appliedA = acceptRequest(snapA.world, { requestId: first.request.id, actor: HOST });
+    const appliedA = acceptRequest(snapA.world, {
+      requestId: first.request.id,
+      actor: HOST,
+      handling: "COMPETITIVE",
+    });
     assert.equal(await store.io.save(appliedA.world, snapA.version), true);
 
     let loadCount = 0;
@@ -82,19 +86,19 @@ describe("shared world optimistic concurrency", () => {
         save: store.io.save,
       },
       (current) =>
-        applyWorldAction(current, { type: "ACCEPT_REQUEST", requestId: second.request.id }, HOST_ROLE),
+        applyWorldAction(
+          current,
+          { type: "ACCEPT_REQUEST", requestId: second.request.id, handling: "COMPETITIVE" },
+          HOST_ROLE,
+        ),
     );
 
     const holds = result.world.commitments.filter(
       (item) => item.kind === "HOLD" && item.status === "ACTIVE",
     );
-    assert.equal(holds.length, 1);
-    assert.equal(holds[0]?.requestId, first.request.id);
+    assert.equal(holds.length, 0);
     assert.equal(result.world.requests.find((item) => item.id === first.request.id)?.status, "ACCEPTED");
-    assert.equal(
-      result.world.requests.find((item) => item.id === second.request.id)?.status,
-      "CONFLICTED",
-    );
+    assert.equal(result.world.requests.find((item) => item.id === second.request.id)?.status, "ACCEPTED");
     assert.equal(store.version, 3);
     assertNoOverlap(result.world);
   });

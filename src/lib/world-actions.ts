@@ -4,6 +4,7 @@ import {
   checkInStay,
   checkOutStay,
   evaluateStayCompletion,
+  extendAcceptanceDeadline,
   observeArrival,
   observeDeparture,
   reportPrepared,
@@ -26,6 +27,7 @@ import {
   reportIncident,
   resolveConflict,
   resolveUnknown,
+  type AcceptanceHandling,
   type Actor,
   type BlockKind,
   type ExternalSource,
@@ -45,7 +47,8 @@ export type WorldAction =
       guests: number;
       guestName?: string;
     }
-  | { type: "ACCEPT_REQUEST"; requestId: string }
+  | { type: "ACCEPT_REQUEST"; requestId: string; handling: AcceptanceHandling }
+  | { type: "EXTEND_ACCEPTANCE"; requestId: string }
   | { type: "REJECT_REQUEST"; requestId: string }
   | {
       type: "RECORD_EXTERNAL";
@@ -186,7 +189,15 @@ export function applyWorldAction(
       return { world: result.world, requestId: result.request.id };
     }
     case "ACCEPT_REQUEST": {
-      const result = acceptRequest(world, { requestId: action.requestId, actor });
+      const result = acceptRequest(world, {
+        requestId: action.requestId,
+        actor,
+        handling: action.handling,
+      });
+      return { world: result.world, requestId: result.request.id };
+    }
+    case "EXTEND_ACCEPTANCE": {
+      const result = extendAcceptanceDeadline(world, { requestId: action.requestId, actor });
       return { world: result.world, requestId: result.request.id };
     }
     case "REJECT_REQUEST": {

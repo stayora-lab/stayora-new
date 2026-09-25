@@ -78,7 +78,8 @@ type BookingState = {
     guests: number;
     guestName: string;
   }) => Promise<{ requestId: string }>;
-  hostAccept: (requestId: string) => Promise<void>;
+  hostAccept: (requestId: string, handling: "EXCLUSIVE" | "COMPETITIVE") => Promise<void>;
+  hostExtendAcceptance: (requestId: string) => Promise<void>;
   hostExternal: (input: {
     villaId: string;
     checkIn: string;
@@ -358,8 +359,11 @@ export const useBookingStore = create<BookingState>()(
         if (!result.requestId) throw new DomainError("INVALID", "Không tạo được yêu cầu");
         return { requestId: result.requestId };
       },
-      hostAccept: async (requestId) => {
-        await get().runAction({ type: "ACCEPT_REQUEST", requestId });
+      hostAccept: async (requestId, handling) => {
+        await get().runAction({ type: "ACCEPT_REQUEST", requestId, handling });
+      },
+      hostExtendAcceptance: async (requestId) => {
+        await get().runAction({ type: "EXTEND_ACCEPTANCE", requestId });
       },
       hostExternal: async (input) => {
         await get().runAction({ type: "RECORD_EXTERNAL", ...input });
