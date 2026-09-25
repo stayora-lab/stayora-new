@@ -1,8 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { AccountLookupResult } from "@/components/account-lookup";
 import { SearchSelect } from "@/components/search-select";
 import { AdminAccess, RoleGate } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
+import {
+  ACCOUNT_PENDING_ROLE,
+  ACCOUNT_SUGGESTION_LABEL,
+  ACCOUNT_SUGGESTION_MISS,
+  isServerAccountMissing,
+  presentAccountLookup,
+} from "@/lib/account-lookup";
 import {
   adminGrantRole,
   adminRevokeRole,
@@ -41,19 +49,18 @@ function RolesPage() {
   const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]>("HOST");
   const [villaIds, setVillaIds] = useState<string[]>([]);
   const [found, setFound] = useState<DirectoryRow | null>(null);
+  const [lookupMiss, setLookupMiss] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const villaItems = villaPickerItems(villas, DESTINATION_NAME);
-  const rosterAccounts = accountPickerItems(rows.map((row) => row.user));
-  const accountItems =
-    found && !rosterAccounts.some((item) => item.id === found.user.email)
-      ? [accountPickerItems([found.user])[0]!, ...rosterAccounts]
-      : rosterAccounts;
+  const accountItems = accountPickerItems(rows.map((row) => row.user));
   const waiting = rows.filter((row) => !row.grants.some((grant) => grant.status === "active"));
   const holding = rows.filter((row) => row.grants.some((grant) => grant.status === "active"));
   const foundInRoster = Boolean(found && rows.some((row) => row.user.id === found.user.id));
+  const lookedUpAccount = found && !foundInRoster ? found : null;
+  const lookedUp = lookedUpAccount ? presentAccountLookup(lookedUpAccount) : null;
 
   useEffect(() => {
     if (!highlightedId) return;
@@ -69,6 +76,7 @@ function RolesPage() {
 
   async function showAccount(target = email) {
     setError(null);
+    setLookupMiss(null);
     const lookup = target.trim();
     if (!lookup) {
       setError("Chọn một tài khoản");
@@ -81,7 +89,9 @@ function RolesPage() {
       return account;
     } catch (err) {
       setFound(null);
-      setError(err instanceof Error ? err.message : "Không thấy tài khoản");
+      const message = err instanceof Error ? err.message : "Không thấy tài khoản";
+      if (isServerAccountMissing(message)) setLookupMiss(lookup);
+      else setError(message);
       return null;
     }
   }
@@ -136,6 +146,9 @@ function RolesPage() {
               placeholder="Tìm theo tên hoặc email"
               query={accountQuery}
               onQueryChange={setAccountQuery}
+              listLabel={ACCOUNT_SUGGESTION_LABEL}
+              missMessage={ACCOUNT_SUGGESTION_MISS}
+              hideListUntilQuery={!devDirectory}
               onChange={(ids) => {
                 const next = ids[0] ?? "";
                 setEmail(next);
@@ -191,24 +204,27 @@ function RolesPage() {
               </Button>
               <Button type="submit">Cấp vai trò</Button>
             </div>
+            {lookupMiss ? <AccountLookupResult status="missing" email={lookupMiss} /> : null}
           </form>
-          {found && !foundInRoster ? (
-            <AccountGrants
-              user={found.user}
-              grants={found.grants}
-              tone="lookup"
-              highlighted={found.user.id === highlightedId}
-              onRevoke={(grantId) => {
-                void adminRevokeRole({ data: { grantId, key: adminKey } })
-                  .then(async () => {
-                    await reloadDirectory();
-                    await showAccount(found.user.email);
-                  })
-                  .catch((err: unknown) =>
-                    setError(err instanceof Error ? err.message : "Không thu hồi được"),
-                  );
-              }}
-            />
+          {lookedUpAccount && lookedUp?.status === "found" ? (
+            <AccountLookupResult status="found" pending={lookedUp.pending}>
+              <AccountGrants
+                user={lookedUpAccount.user}
+                grants={lookedUpAccount.grants}
+                tone="lookup"
+                highlighted={lookedUpAccount.user.id === highlightedId}
+                onRevoke={(grantId) => {
+                  void adminRevokeRole({ data: { grantId, key: adminKey } })
+                    .then(async () => {
+                      await reloadDirectory();
+                      await showAccount(lookedUpAccount.user.email);
+                    })
+                    .catch((err: unknown) =>
+                      setError(err instanceof Error ? err.message : "Không thu hồi được"),
+                    );
+                }}
+              />
+            </AccountLookupResult>
           ) : null}
           {devDirectory ? (
             <>
@@ -323,8 +339,8 @@ function AccountGrants({
       <p className="font-medium">{user.name}</p>
       <p className="text-sm text-muted">{user.email}</p>
       <ul className="mt-3 space-y-2">
-        {active.length === 0 ? (
-          <li className="text-sm text-ink-soft">Chưa có vai trò đang mở.</li>
+        {active.length === 0 && tone !== "lookup" ? (
+          <li className="text-sm text-ink-soft">{ACCOUNT_PENDING_ROLE}</li>
         ) : null}
         {grants.map((grant) => (
           <li key={grant.id} className="flex items-center justify-between gap-3 text-sm">

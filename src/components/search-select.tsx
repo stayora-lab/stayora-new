@@ -18,6 +18,9 @@ export function SearchSelect({
   placeholder = "Tìm theo tên hoặc mã",
   query,
   onQueryChange,
+  listLabel,
+  missMessage = "Không tìm thấy",
+  hideListUntilQuery = false,
 }: {
   label: string;
   items: readonly PickerItem[];
@@ -27,6 +30,11 @@ export function SearchSelect({
   placeholder?: string;
   query?: string;
   onQueryChange?: (query: string) => void;
+  /** Names the list as suggestions, not a lookup. */
+  listLabel?: string;
+  missMessage?: string;
+  /** Hide the list until someone types. Used when the roster is empty. */
+  hideListUntilQuery?: boolean;
 }) {
   const [innerQuery, setInnerQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(PICKER_PAGE_SIZE);
@@ -38,6 +46,7 @@ export function SearchSelect({
     .map((id) => items.find((item) => item.id === id))
     .filter((item): item is PickerItem => Boolean(item));
   const missed = isExplicitMiss(text, matches.length);
+  const showList = !(hideListUntilQuery && text.trim().length === 0);
 
   return (
     <fieldset className="block text-sm">
@@ -72,52 +81,63 @@ export function SearchSelect({
         className="mt-2 h-11 w-full rounded-xl bg-cream px-3"
         autoComplete="off"
       />
-      <div data-picker-list className="mt-2 max-h-64 overflow-y-auto rounded-xl bg-cream p-2">
-        {missed ? (
-          <p className="px-1 py-2 text-sm text-muted" role="status">
-            Không tìm thấy
-          </p>
-        ) : (
-          <ul>
-            {rows.map((row) =>
-              row.kind === "heading" ? (
-                <li
-                  key={row.key}
-                  className="px-1 pt-2 pb-1 text-xs font-semibold tracking-wider text-muted uppercase"
-                >
-                  {row.label}
-                </li>
-              ) : (
-                <li key={row.item.id}>
-                  <label className="flex items-center gap-2 px-1 py-1.5">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-lotus"
-                      checked={selectedIds.includes(row.item.id)}
-                      onChange={() =>
-                        onChange(togglePickerSelection(selectedIds, row.item.id, multiple))
-                      }
-                    />
-                    <span>
-                      {row.item.name}
-                      <span className="text-muted"> · {row.item.detail ?? row.item.id}</span>
-                    </span>
-                  </label>
-                </li>
-              ),
-            )}
-          </ul>
-        )}
-        {hidden > 0 ? (
-          <button
-            type="button"
-            className="mt-1 px-1 py-1.5 text-sm font-medium text-lotus"
-            onClick={() => setVisibleCount((count) => count + PICKER_PAGE_SIZE)}
-          >
-            Xem thêm
-          </button>
-        ) : null}
-      </div>
+      {showList ? (
+        <div data-picker-list className="mt-2 max-h-64 overflow-y-auto rounded-xl bg-cream p-2">
+          {listLabel ? (
+            <p data-suggestion-label className="px-1 pt-1 pb-1 text-xs font-semibold tracking-wider text-muted uppercase">
+              {listLabel}
+            </p>
+          ) : null}
+          {missed ? (
+            <p
+              className="px-1 py-2 text-sm text-ink-soft"
+              role="status"
+              data-suggestion-empty={listLabel ? "true" : undefined}
+            >
+              {missMessage}
+            </p>
+          ) : (
+            <ul>
+              {rows.map((row) =>
+                row.kind === "heading" ? (
+                  <li
+                    key={row.key}
+                    className="px-1 pt-2 pb-1 text-xs font-semibold tracking-wider text-muted uppercase"
+                  >
+                    {row.label}
+                  </li>
+                ) : (
+                  <li key={row.item.id}>
+                    <label className="flex items-center gap-2 px-1 py-1.5">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-lotus"
+                        checked={selectedIds.includes(row.item.id)}
+                        onChange={() =>
+                          onChange(togglePickerSelection(selectedIds, row.item.id, multiple))
+                        }
+                      />
+                      <span>
+                        {row.item.name}
+                        <span className="text-muted"> · {row.item.detail ?? row.item.id}</span>
+                      </span>
+                    </label>
+                  </li>
+                ),
+              )}
+            </ul>
+          )}
+          {hidden > 0 ? (
+            <button
+              type="button"
+              className="mt-1 px-1 py-1.5 text-sm font-medium text-lotus"
+              onClick={() => setVisibleCount((count) => count + PICKER_PAGE_SIZE)}
+            >
+              Xem thêm
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </fieldset>
   );
 }

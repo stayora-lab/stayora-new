@@ -8,6 +8,15 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DESTINATION_NAME } from "./pilot-data.ts";
 import {
+  ACCOUNT_LOOKUP_FOUND_NOTE,
+  ACCOUNT_LOOKUP_MISS,
+  ACCOUNT_LOOKUP_TITLE,
+  ACCOUNT_PENDING_ROLE,
+  ACCOUNT_SUGGESTION_LABEL,
+  ACCOUNT_SUGGESTION_MISS,
+  presentAccountLookup,
+} from "./account-lookup.ts";
+import {
   PICKER_PAGE_SIZE,
   accountPickerItems,
   distinctDestinationNames,
@@ -165,7 +174,7 @@ describe("searchable picker", () => {
     assert.equal(afterChip.includes("Bỏ Nhà 001"), false);
   });
 
-  it("says Không tìm thấy for a typed miss on villas and on accounts", async () => {
+  it("says Không tìm thấy for a typed villa miss, not for an account suggestion", async () => {
     assert.equal(isExplicitMiss("", 0), false);
     assert.equal(isExplicitMiss("   ", 0), false);
     assert.equal(isExplicitMiss("zzz", 0), true);
@@ -178,19 +187,56 @@ describe("searchable picker", () => {
     });
     assert.match(villasHtml, /Không tìm thấy/);
     assert.equal(checkboxCount(villasHtml), 0);
-    const accounts = accountPickerItems([
-      { name: "Lan Kiểm", email: "lan@example.com" },
-    ]);
+    const email = "lan.that@example.com";
+    const accounts = accountPickerItems([{ name: "Lan Kiểm", email: "lan@example.com" }]);
+    assert.equal(filterPickerItems(accounts, email).length, 0);
     const accountsHtml = await renderPicker({
       label: "Tài khoản",
       items: accounts,
       selectedIds: [],
       onChange: () => undefined,
       multiple: false,
-      query: "không-co@example.com",
+      query: email,
+      listLabel: ACCOUNT_SUGGESTION_LABEL,
+      missMessage: ACCOUNT_SUGGESTION_MISS,
     });
-    assert.match(accountsHtml, /Không tìm thấy/);
+    assert.match(accountsHtml, /Gợi ý từ danh sách thử/);
+    assert.match(accountsHtml, /Không có gợi ý từ danh sách thử/);
+    assert.match(accountsHtml, /data-suggestion-empty/);
+    assert.equal(accountsHtml.includes("Không tìm thấy"), false);
     assert.equal(checkboxCount(accountsHtml), 0);
+  });
+
+  it("hides an empty test roster until someone types, then it is still only a suggestion", async () => {
+    const email = "lan.that@example.com";
+    const idle = await renderPicker({
+      label: "Tài khoản",
+      items: [],
+      selectedIds: [],
+      onChange: () => undefined,
+      multiple: false,
+      query: "",
+      hideListUntilQuery: true,
+      listLabel: ACCOUNT_SUGGESTION_LABEL,
+      missMessage: ACCOUNT_SUGGESTION_MISS,
+    });
+    assert.equal(idle.includes("data-picker-list"), false);
+    assert.equal(idle.includes("Không tìm thấy"), false);
+    const typed = await renderPicker({
+      label: "Tài khoản",
+      items: [],
+      selectedIds: [],
+      onChange: () => undefined,
+      multiple: false,
+      query: email,
+      hideListUntilQuery: true,
+      listLabel: ACCOUNT_SUGGESTION_LABEL,
+      missMessage: ACCOUNT_SUGGESTION_MISS,
+    });
+    assert.match(typed, /data-suggestion-empty/);
+    assert.match(typed, new RegExp(ACCOUNT_SUGGESTION_MISS));
+    assert.equal(typed.includes("Không tìm thấy"), false);
+    assert.equal(typed.includes(ACCOUNT_LOOKUP_MISS), false);
   });
 
   it("omits a destination heading when the seed has only Oceanami", () => {
@@ -207,5 +253,82 @@ describe("searchable picker", () => {
       false,
     );
     assert.equal(windowed.hidden, 0);
+  });
+});
+
+async function renderLookup(props: Record<string, unknown>): Promise<string> {
+  const outDir = mkdtempSync(join(filePath(new URL(".", import.meta.url)), ".lookup-render-"));
+  try {
+    const logic = readFileSync(new URL("./account-lookup.ts", import.meta.url), "utf8");
+    const view = readFileSync(new URL("../components/account-lookup.tsx", import.meta.url), "utf8").replace(
+      "../lib/account-lookup.ts",
+      "./account-lookup.js",
+    );
+    writeFileSync(join(outDir, "account-lookup.js"), transpile(logic, false));
+    writeFileSync(join(outDir, "view.js"), transpile(view, true));
+    const mod = await import(pathToFileURL(join(outDir, "view.js")).href);
+    return renderToStaticMarkup(createElement(mod.AccountLookupResult, props));
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+}
+
+describe("account lookup is not a suggestion", () => {
+  const email = "lan.that@example.com";
+
+  it("a real email absent from the test roster is a suggestion miss, and Xem vai trò returns that account waiting for a role", async () => {
+    const roster = accountPickerItems([{ name: "An", email: "an@example.test" }]);
+    assert.equal(filterPickerItems(roster, email).length, 0);
+    const suggestion = await renderPicker({
+      label: "Tài khoản",
+      items: roster,
+      selectedIds: [],
+      onChange: () => undefined,
+      multiple: false,
+      query: email,
+      listLabel: ACCOUNT_SUGGESTION_LABEL,
+      missMessage: ACCOUNT_SUGGESTION_MISS,
+    });
+    const lookedUp = presentAccountLookup({
+      user: { name: "Lan Kiểm", email },
+      grants: [],
+    });
+    assert.deepEqual(lookedUp, {
+      status: "found",
+      name: "Lan Kiểm",
+      email,
+      pending: true,
+    });
+    const result = await renderLookup({
+      status: "found",
+      name: lookedUp.status === "found" ? lookedUp.name : "",
+      email: lookedUp.status === "found" ? lookedUp.email : "",
+      pending: lookedUp.status === "found" ? lookedUp.pending : false,
+    });
+    const missing = await renderLookup({ status: "missing", email });
+    assert.match(suggestion, /data-suggestion-empty/);
+    assert.match(suggestion, new RegExp(ACCOUNT_SUGGESTION_MISS));
+    assert.match(result, /data-lookup-result="found"/);
+    assert.match(result, new RegExp(ACCOUNT_LOOKUP_TITLE));
+    assert.match(result, new RegExp(ACCOUNT_LOOKUP_FOUND_NOTE));
+    assert.match(result, new RegExp(ACCOUNT_PENDING_ROLE));
+    assert.match(result, /Lan Kiểm/);
+    assert.match(missing, /data-lookup-result="missing"/);
+    assert.match(missing, new RegExp(ACCOUNT_LOOKUP_MISS));
+    assert.equal(suggestion.includes(ACCOUNT_LOOKUP_MISS), false);
+    assert.equal(result.includes(ACCOUNT_SUGGESTION_MISS), false);
+    assert.equal(missing.includes(ACCOUNT_SUGGESTION_MISS), false);
+    assert.equal(suggestion.includes("Không tìm thấy"), false);
+    assert.notEqual(ACCOUNT_SUGGESTION_MISS, ACCOUNT_LOOKUP_MISS);
+    const page = readFileSync(new URL("../routes/admin_.roles.tsx", import.meta.url), "utf8");
+    assert.match(page, /missMessage=\{ACCOUNT_SUGGESTION_MISS\}/);
+    assert.match(page, /hideListUntilQuery=\{!devDirectory\}/);
+    assert.match(page, /lookupAccountGrants/);
+    assert.match(page, /isServerAccountMissing/);
+    assert.match(page, /presentAccountLookup/);
+    assert.match(page, /AccountLookupResult/);
+    assert.match(page, /status="missing"/);
+    assert.match(page, /status="found"/);
+    assert.equal(page.includes("Không tìm thấy"), false);
   });
 });
