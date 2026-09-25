@@ -6,19 +6,13 @@ import { useState } from "react";
 import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
 import { OtherRoleHint } from "@/components/role-hint";
-import { ButlerStayCard } from "@/components/butler-stay-card";
-import {
-  ButlerDayStrip,
-  EmptyDayNote,
-  RollingDays,
-  ViewedDayLabel,
-} from "@/components/butler-day-strip";
+import { ButlerDayList, WeekStrip } from "@/components/butler-villa-card";
+import { EmptyDayNote, ViewedDayLabel } from "@/components/butler-day-strip";
 import { HostCalendar } from "@/components/host-calendar";
 import { DateField } from "@/components/dates-guests";
 import { Button } from "@/components/ui/button";
 import {
   BUTLER_LINH,
-  butlerFieldBoard,
   domainMessageVi,
   formatIctTime,
   viDateRange,
@@ -28,12 +22,11 @@ import { useBookingStore } from "@/lib/store";
 import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import type { NextCardAction } from "@/lib/butler-card";
+import { cardOrder, dayLayout, weekDays, type CardAction } from "@/lib/butler-board-view";
 import {
-  boardIsEmpty,
   emptyDayMessage,
   nextUpcoming,
   relativeDayPhrase,
-  upcomingMoves,
   viewedDate,
 } from "@/lib/butler-timeline";
 import type { RoleSession } from "@/lib/role";
@@ -90,9 +83,10 @@ function OpsPage() {
   const scope = isBql
     ? [...new Set(world.stays.map((stay) => stay.villaId))]
     : [...new Set([...(butler?.villaIds ?? []), ...grantedVillas])];
-  const board = butlerFieldBoard(world, viewed, scope);
-  const empty = boardIsEmpty(board);
-  const ahead = viewed === today ? upcomingMoves(world, scope, today) : [];
+  const flags = { canAct: !isBql, canHold: isBql };
+  const layout = dayLayout(world, viewed, scope, today, flags);
+  const strip = weekDays(world, today, scope, flags);
+  const empty = cardOrder(layout).length === 0;
   const next = empty ? nextUpcoming(world, scope, viewed) : null;
   const nextVilla = next ? (getVilla(next.stay.villaId)?.name ?? next.stay.villaId) : "";
   const emptyMessage = empty
@@ -139,7 +133,12 @@ function OpsPage() {
     setHasPhoto(false);
   }
 
-  function runCard(stayId: string, actionId: NextCardAction["id"]) {
+  function runCard(action: CardAction) {
+    if (action.kind === "release-hold") return run(() => releaseProtectiveHold(action.holdId));
+    return runStay(action.stayId, action.id);
+  }
+
+  function runStay(stayId: string, actionId: NextCardAction["id"]) {
     if (actionId === "prepare") return run(() => butlerPrepare(stayId));
     if (actionId === "observe-arrival") return run(() => butlerObserveArrival(stayId));
     if (actionId === "check-in") return run(() => butlerCheckIn(stayId));
@@ -155,12 +154,15 @@ function OpsPage() {
             {isBql ? "BQL Oceanami" : (butler?.name ?? "Quản gia")}
           </p>
           <h1 className="mt-1 font-serif text-title">Việc hôm nay</h1>
-          <ButlerDayStrip
-            today={today}
+          <WeekStrip
+            days={strip}
             viewed={viewed}
             onView={(date) => setPickedDate(date === today ? null : date)}
           />
           <ViewedDayLabel today={today} viewed={viewed} />
+          <p className="mt-2 text-xs text-muted">
+            Giờ đến và giờ đi chưa được ghi. Sáng, Chiều, Tối là thứ tự villa được giao, không phải giờ khách hẹn.
+          </p>
           <div className="mt-2">
             <DateField
               date={viewed}
@@ -183,68 +185,29 @@ function OpsPage() {
           {persona === "BUTLER" || persona === "BQL" ? <OtherRoleHint current={persona} /> : null}
         </div>
 
-        <Attention
-          world={world}
-          villaIds={isBql ? villas.map((villa) => villa.id) : scope}
-          canHold={isBql}
-          onRelease={(id) => run(() => releaseProtectiveHold(id))}
-        />
-
-        <BoardSection
-          title="Cần chuẩn bị"
-          empty="Không còn villa cần chuẩn bị."
-          stays={empty ? [] : board.prepare}
-          hideWhenEmpty
-          role={role}
-          lane="prepare"
-          canAct={!isBql}
-          onOpen={setOpenId}
-          onAction={runCard}
-        />
-        <BoardSection
-          title="Khách đến"
-          empty="Không có khách đến."
-          stays={empty ? [] : board.arriving}
-          hideWhenEmpty
-          role={role}
-          lane="arriving"
-          canAct={!isBql}
-          onOpen={setOpenId}
-          onAction={runCard}
-        />
-        <BoardSection
-          title="Khách đi"
-          empty="Không có khách đi."
-          stays={empty ? [] : board.departing}
-          hideWhenEmpty
-          role={role}
-          lane="departing"
-          canAct={!isBql}
-          onOpen={setOpenId}
-          onAction={runCard}
-        />
-        <BoardSection
-          title="Đang ở"
-          empty="Không có khách đang ở."
-          stays={empty ? [] : board.inHouse}
-          hideWhenEmpty
-          role={role}
-          lane="inHouse"
-          canAct={!isBql}
-          onOpen={setOpenId}
-          onAction={runCard}
-        />
-        {empty ? (
+        {!empty ? (
+          <ButlerDayList
+            pinned={layout.pinned}
+            late={layout.late}
+            windows={layout.windows}
+            stays={world.stays}
+            role={role}
+            onOpen={setOpenId}
+            onAction={runCard}
+            onReport={(stayId) => {
+              setNote("");
+              setHasPhoto(false);
+              setSheet({ kind: "incident", stayId });
+            }}
+          />
+        ) : (
           <div className="mx-auto max-w-lg px-4 sm:px-6">
             <EmptyDayNote
               message={emptyMessage}
               onOpen={next ? () => setPickedDate(next.date === today ? null : next.date) : undefined}
             />
           </div>
-        ) : null}
-        {viewed === today ? (
-          <RollingDays today={today} hits={ahead} role={role} onView={(date) => setPickedDate(date === today ? null : date)} />
-        ) : null}
+        )}
 
         {isBql ? (
           <section className="pt-8">
@@ -390,105 +353,6 @@ function OpsPage() {
         </Drawer.Root>
       </main>
     </RoleGate>
-  );
-}
-
-function BoardSection({
-  title,
-  empty,
-  stays,
-  hideWhenEmpty = false,
-  role,
-  lane,
-  canAct,
-  onOpen,
-  onAction,
-}: {
-  title: string;
-  empty: string;
-  stays: Stay[];
-  hideWhenEmpty?: boolean;
-  role: RoleSession;
-  lane: "prepare" | "arriving" | "departing" | "inHouse";
-  canAct: boolean;
-  onOpen: (stayId: string) => void;
-  onAction: (stayId: string, actionId: NextCardAction["id"]) => void;
-}) {
-  if (hideWhenEmpty && stays.length === 0) return null;
-  return (
-    <section className="mx-auto max-w-lg px-4 pt-8 sm:px-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-serif text-2xl">{title}</h2>
-        <p className="text-sm text-muted">{stays.length}</p>
-      </div>
-      <div className="mt-3 space-y-3">
-        {stays.length === 0 ? (
-          <p className="rounded-2xl bg-paper px-4 py-8 text-center text-sm text-muted shadow-[var(--shadow-border)]">
-            {empty}
-          </p>
-        ) : (
-          stays.map((stay) => (
-            <ButlerStayCard
-              key={`${title}-${stay.id}`}
-              stay={stay}
-              role={role}
-              lane={lane}
-              canAct={canAct}
-              onOpen={() => onOpen(stay.id)}
-              onAction={(actionId) => onAction(stay.id, actionId)}
-            />
-          ))
-        )}
-      </div>
-    </section>
-  );
-}
-
-function Attention({
-  world,
-  villaIds,
-  canHold,
-  onRelease,
-}: {
-  world: { incidents: { id: string; villaId: string; note: string }[]; protectiveHolds?: { id: string; villaId: string; note: string; status: string; reviewDueAt: string }[]; now: string };
-  villaIds: string[];
-  canHold: boolean;
-  onRelease: (id: string) => void;
-}) {
-  const allowed = new Set(villaIds);
-  const incidents = world.incidents.filter((item) => allowed.has(item.villaId));
-  const holds = (world.protectiveHolds ?? []).filter(
-    (item) => item.status === "ACTIVE" && allowed.has(item.villaId),
-  );
-  if (incidents.length === 0 && holds.length === 0) return null;
-  return (
-    <section className="mx-auto max-w-lg px-4 pt-8 sm:px-6">
-      <h2 className="font-serif text-2xl">Cần chú ý</h2>
-      <div className="mt-3 space-y-3">
-        {incidents.map((incident) => (
-          <article key={incident.id} className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]">
-            <p className="font-medium">{getVilla(incident.villaId)?.name ?? incident.villaId}</p>
-            <p className="mt-1 text-sm text-ink-soft">{incident.note}</p>
-          </article>
-        ))}
-        {holds.map((hold) => (
-          <article key={hold.id} className="rounded-2xl border-2 border-[#8a5a12] bg-[#f8edd6] p-4">
-            <p className="font-medium text-[#6a4310]">
-              {getVilla(hold.villaId)?.name ?? hold.villaId} · Giữ bảo vệ
-            </p>
-            <p className="mt-1 text-sm text-[#6a4310]">{hold.note}</p>
-            {hold.reviewDueAt <= world.now ? (
-              <p className="mt-2 text-sm font-medium">Đã quá hạn xem lại. Vẫn đang giữ.</p>
-            ) : null}
-            {canHold ? (
-              <Button variant="outline" className="mt-3 w-full" onClick={() => onRelease(hold.id)}>
-                Gỡ giữ bảo vệ
-              </Button>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 

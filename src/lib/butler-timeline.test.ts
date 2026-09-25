@@ -67,7 +67,7 @@ describe("butler day strip", () => {
     const page = readFileSync(new URL("../routes/ops.tsx", import.meta.url), "utf8");
     assert.match(page, /viewedDate\(today, pickedDate\)/);
     assert.match(page, /useState<string \| null>\(null\)/);
-    assert.match(page, /ButlerDayStrip/);
+    assert.match(page, /WeekStrip/);
     assert.match(page, /Nhảy tới ngày/);
     assert.equal(page.includes('label="Ngày"'), false);
 
