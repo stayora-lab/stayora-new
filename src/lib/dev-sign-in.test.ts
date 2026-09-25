@@ -424,7 +424,9 @@ describe("roles page does not require DEV_SIGN_IN", () => {
     );
     assert.deepEqual(role.villaIds, ["t06", "t01"]);
     const page = source("../routes/admin_.roles.tsx");
-    assert.match(page, /type="checkbox"/);
+    assert.match(page, /SearchSelect/);
+    assert.match(source("../components/search-select.tsx"), /type="checkbox"/);
+    assert.match(page, /setVillaIds\(\[\]\)/);
     assert.equal(page.includes("value={scopeRef}"), false);
     assert.equal(page.includes("Phạm vi"), false);
     const grant = functionBody("./dev-identity.server.ts", "grantRole");
