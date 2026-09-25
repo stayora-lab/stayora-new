@@ -93,3 +93,72 @@ export function visibleSessionUser<T extends { email: string }>(
   if (!devSignInOn && isFictionalPilotEmail(user.email, pilotEmails)) return null;
   return user;
 }
+
+const GRANTABLE_ROLES = new Set(["HOST", "SALE", "BUTLER", "BQL"]);
+
+/**
+ * The fictional-account list is optional. When test sign-in is off, the roles
+ * page still opens and this list is empty — it is not an error.
+ */
+export function rolesDirectoryPayload<T>(
+  devSignInOn: boolean,
+  directory: T[],
+): { directory: T[]; devDirectory: boolean } {
+  if (!devSignInOn) return { directory: [], devDirectory: false };
+  return { directory, devDirectory: true };
+}
+
+export function assertGrantableRole(role: string): void {
+  if (role === "ADMIN") {
+    throw new Error("Tài khoản thử không được giữ vai Stayora vận hành");
+  }
+  if (!GRANTABLE_ROLES.has(role)) throw new Error("Vai trò không hợp lệ");
+}
+
+export async function applyRoleGrant(
+  deps: {
+    findByEmail: (email: string) => Promise<{ id: string } | null>;
+    findGrant: (
+      userId: string,
+      role: string,
+      scopeRef: string | null,
+    ) => Promise<{ id: string } | null>;
+    activateGrant: (id: string, grantedBy: string) => Promise<void>;
+    insertGrant: (row: {
+      id: string;
+      userId: string;
+      role: string;
+      scopeRef: string | null;
+      grantedBy: string;
+    }) => Promise<void>;
+    newId: () => string;
+  },
+  input: {
+    email: string;
+    role: string;
+    scopeRef: string | null;
+    operatorIsAdmin: boolean;
+    grantedBy: string;
+  },
+): Promise<void> {
+  if (!input.operatorIsAdmin) {
+    throw new Error("Chỉ Stayora vận hành được cấp vai trò");
+  }
+  assertGrantableRole(input.role);
+  const email = normalizeAccountEmail(input.email);
+  const target = await deps.findByEmail(email);
+  if (!target) throw new Error("Không thấy tài khoản này");
+  const scope = input.scopeRef?.trim() || null;
+  const existing = await deps.findGrant(target.id, input.role, scope);
+  if (existing) {
+    await deps.activateGrant(existing.id, input.grantedBy);
+    return;
+  }
+  await deps.insertGrant({
+    id: deps.newId(),
+    userId: target.id,
+    role: input.role,
+    scopeRef: scope,
+    grantedBy: input.grantedBy,
+  });
+}

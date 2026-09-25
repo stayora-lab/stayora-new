@@ -65,12 +65,22 @@ export const armDemoSession = createServerFn({ method: "POST" }).handler(async (
 });
 
 export const fetchDevDirectory = createServerFn({ method: "GET" }).handler(async () => {
-  const { listDevDirectory } = await import("./dev-identity.server.ts");
-  return listDevDirectory();
+  const { rolesPageDirectory } = await import("./dev-identity.server.ts");
+  return rolesPageDirectory();
 });
 
+export const lookupAccountGrants = createServerFn({ method: "POST" })
+  .validator((input: { email: string; key?: string | null }) => input)
+  .handler(async ({ data }) => {
+    const { accountGrantsForOperator } = await import("./dev-identity.server.ts");
+    return accountGrantsForOperator(data.email, data.key);
+  });
+
 export const adminGrantRole = createServerFn({ method: "POST" })
-  .validator((input: { email: string; role: string; scopeRef: string | null }) => input)
+  .validator(
+    (input: { email: string; role: string; scopeRef: string | null; key?: string | null }) =>
+      input,
+  )
   .handler(async ({ data }) => {
     const { grantRole } = await import("./dev-identity.server.ts");
     await grantRole(data);
@@ -78,9 +88,9 @@ export const adminGrantRole = createServerFn({ method: "POST" })
   });
 
 export const adminRevokeRole = createServerFn({ method: "POST" })
-  .validator((input: { grantId: string }) => input)
+  .validator((input: { grantId: string; key?: string | null }) => input)
   .handler(async ({ data }) => {
     const { revokeRole } = await import("./dev-identity.server.ts");
-    await revokeRole(data.grantId);
+    await revokeRole(data.grantId, data.key);
     return { ok: true as const };
   });

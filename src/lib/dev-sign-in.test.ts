@@ -6,10 +6,13 @@ import { PILOT_SEED } from "./pilot-data.ts";
 import { resolveWorkingRole, type AccessGrant } from "./access.ts";
 import { applyWorldAction, type WorldAction } from "./world-actions.ts";
 import { assertDevSignInEnabled, devSignInEnabled } from "./dev-sign-in.ts";
+import { authorizeRole } from "./authorize.ts";
 import {
+  applyRoleGrant,
   authenticateRealIdentity,
   createRealIdentity,
   isFictionalPilotEmail,
+  rolesDirectoryPayload,
   visibleSessionUser,
 } from "./identity-path.ts";
 
@@ -260,5 +263,127 @@ describe("real sign-up is not the dev sign-in gate", () => {
     assert.equal(path.includes("role_grants"), false);
     const grants = source("./dev-identity.server.ts");
     assert.match(grants, /status: row\.role === "ADMIN" \? "revoked" : row\.status/);
+  });
+});
+
+describe("roles page does not require DEV_SIGN_IN", () => {
+  const previousFlag = process.env.DEV_SIGN_IN;
+  const previousKey = process.env.ADMIN_KEY;
+
+  afterEach(() => {
+    if (previousFlag === undefined) delete process.env.DEV_SIGN_IN;
+    else process.env.DEV_SIGN_IN = previousFlag;
+    if (previousKey === undefined) delete process.env.ADMIN_KEY;
+    else process.env.ADMIN_KEY = previousKey;
+  });
+
+  it("with DEV_SIGN_IN off, an admin can grant a real account and the fictional list is empty", async () => {
+    delete process.env.DEV_SIGN_IN;
+    process.env.ADMIN_KEY = "roles-page-key";
+    assert.equal(devSignInEnabled(), false);
+    const operator = authorizeRole("admin", "roles-page-key");
+    assert.equal(operator.persona, "ADMIN");
+    assert.equal(authorizeRole("admin", "wrong").persona, "GUEST");
+    assert.deepEqual(rolesDirectoryPayload(false, [{ email: "chi@stayora.test" }]), {
+      directory: [],
+      devDirectory: false,
+    });
+    assert.equal(rolesDirectoryPayload(true, [{ email: "chi@stayora.test" }]).devDirectory, true);
+
+    const grants: { id: string; userId: string; role: string; scopeRef: string | null; grantedBy: string }[] = [];
+    let lookups = 0;
+    await applyRoleGrant(
+      {
+        findByEmail: async (email) => {
+          lookups += 1;
+          return email === "lan@example.com" ? { id: "usr_lan" } : null;
+        },
+        findGrant: async () => null,
+        activateGrant: async () => {
+          throw new Error("no existing grant");
+        },
+        insertGrant: async (row) => {
+          grants.push(row);
+        },
+        newId: () => "grant_1",
+      },
+      {
+        email: "Lan@Example.com",
+        role: "HOST",
+        scopeRef: " host-an ",
+        operatorIsAdmin: operator.persona === "ADMIN",
+        grantedBy: "ADMIN_KEY",
+      },
+    );
+    assert.equal(lookups, 1);
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0]?.userId, "usr_lan");
+    assert.equal(grants[0]?.role, "HOST");
+    assert.equal(grants[0]?.scopeRef, "host-an");
+    assert.equal(grants[0]?.grantedBy, "ADMIN_KEY");
+    assert.equal(grants.some((grant) => grant.role === "ADMIN"), false);
+
+    await assert.rejects(
+      () =>
+        applyRoleGrant(
+          {
+            findByEmail: async () => {
+              throw new Error("must not look up");
+            },
+            findGrant: async () => null,
+            activateGrant: async () => undefined,
+            insertGrant: async () => undefined,
+            newId: () => "grant_no",
+          },
+          {
+            email: "lan@example.com",
+            role: "HOST",
+            scopeRef: null,
+            operatorIsAdmin: false,
+            grantedBy: "no",
+          },
+        ),
+      /Stayora vận hành/,
+    );
+    await assert.rejects(
+      () =>
+        applyRoleGrant(
+          {
+            findByEmail: async () => ({ id: "usr_lan" }),
+            findGrant: async () => null,
+            activateGrant: async () => undefined,
+            insertGrant: async () => {
+              throw new Error("must not grant ADMIN");
+            },
+            newId: () => "grant_admin",
+          },
+          {
+            email: "lan@example.com",
+            role: "ADMIN",
+            scopeRef: null,
+            operatorIsAdmin: true,
+            grantedBy: "ADMIN_KEY",
+          },
+        ),
+      /Stayora vận hành/,
+    );
+  });
+
+  it("skips the fictional directory when the flag is off and still grants by admin key", () => {
+    const page = functionBody("./dev-identity.server.ts", "rolesPageDirectory");
+    assert.match(page, /if \(!devSignInEnabled\(\)\) return rolesDirectoryPayload\(false/);
+    const directory = functionBody("./dev-identity.server.ts", "listDevDirectory");
+    assert.match(directory, /assertDevSignInEnabled\(\)/);
+    const grant = functionBody("./dev-identity.server.ts", "grantRole");
+    assert.equal(grant.includes("assertDevSignInEnabled"), false);
+    assert.match(grant, /authorizeRole\("admin"/);
+    assert.match(grant, /applyRoleGrant/);
+    const revoke = functionBody("./dev-identity.server.ts", "revokeRole");
+    assert.equal(revoke.includes("assertDevSignInEnabled"), false);
+    assert.match(revoke, /assertOperator/);
+    const roles = source("../routes/admin_.roles.tsx");
+    assert.match(roles, /Danh sách tài khoản thử không mở/);
+    assert.match(roles, /lookupAccountGrants/);
+    assert.equal(roles.includes("Đăng nhập thử đang tắt"), false);
   });
 });

@@ -3,10 +3,13 @@ import { getCookie, getRequest, setResponseHeader } from "@tanstack/react-start/
 import { getSql } from "@/lib/db";
 import { PILOT_SEED } from "./pilot-data.ts";
 import { assertDevSignInEnabled, devSignInEnabled } from "./dev-sign-in.ts";
+import { authorizeRole } from "./authorize.ts";
 import {
+  applyRoleGrant,
   authenticateRealIdentity,
   createRealIdentity,
   isFictionalPilotEmail,
+  rolesDirectoryPayload,
   visibleSessionUser,
 } from "./identity-path.ts";
 import type { Persona } from "./domain/types.ts";
@@ -274,67 +277,96 @@ export async function listDevDirectory(): Promise<
   return result;
 }
 
-async function requireAdmin(): Promise<DevUser> {
-  const user = await currentDevUser();
-  if (!user) throw new Error("Cần đăng nhập");
-  const grants = await grantsForUser(user.id);
-  if (!grants.some((grant) => grant.status === "active" && grant.role === "ADMIN")) {
-    throw new Error("Chỉ Stayora vận hành được cấp vai trò");
-  }
-  return user;
+/** Roles page data. The fictional directory is skipped when test sign-in is off. */
+export async function rolesPageDirectory(): Promise<{
+  directory: { user: DevUser; grants: DevGrantRow[] }[];
+  devDirectory: boolean;
+}> {
+  if (!devSignInEnabled()) return rolesDirectoryPayload(false, []);
+  return rolesDirectoryPayload(true, await listDevDirectory());
 }
 
-const ROLES = new Set(["HOST", "SALE", "BUTLER", "BQL"]);
+function assertOperator(key: string | null | undefined): void {
+  if (authorizeRole("admin", key).persona !== "ADMIN") {
+    throw new Error("Chỉ Stayora vận hành được cấp vai trò");
+  }
+}
+
+export async function accountGrantsForOperator(
+  email: string,
+  key?: string | null,
+): Promise<{ user: DevUser; grants: DevGrantRow[] }> {
+  assertOperator(key);
+  const user = await userByEmail(email);
+  if (!user) throw new Error("Không thấy tài khoản này");
+  return {
+    user: { id: user.id, email: user.email, name: user.name },
+    grants: await grantsForUser(user.id),
+  };
+}
 
 export async function grantRole(input: {
   email: string;
   role: string;
   scopeRef: string | null;
+  key?: string | null;
 }): Promise<void> {
-  assertDevSignInEnabled();
-  if (input.role === "ADMIN") {
-    throw new Error("Tài khoản thử không được giữ vai Stayora vận hành");
-  }
-  const admin = await requireAdmin();
-  if (!ROLES.has(input.role) || input.role === "GUEST") throw new Error("Vai trò không hợp lệ");
-  const target = await userByEmail(input.email);
-  if (!target) throw new Error("Không thấy tài khoản này");
-  const scope = input.scopeRef?.trim() || null;
+  const operatorIsAdmin = authorizeRole("admin", input.key).persona === "ADMIN";
   const sql = await getSql();
-  const existing = await sql<{ id: string }>`
-    select id from role_grants
-    where user_id = ${target.id}
-      and role = ${input.role}
-      and scope_ref is not distinct from ${scope}
-  `;
-  if (existing[0]) {
-    await sql`
-      update role_grants
-      set status = 'active', granted_by = ${admin.id}, granted_at = now()
-      where id = ${existing[0].id}
-    `;
-    return;
-  }
-  await sql`
-    insert into role_grants (id, user_id, role, scope_ref, status, granted_by, granted_at)
-    values (
-      ${`grant_${randomBytes(6).toString("hex")}`},
-      ${target.id},
-      ${input.role},
-      ${scope},
-      'active',
-      ${admin.id},
-      now()
-    )
-  `;
+  await applyRoleGrant(
+    {
+      findByEmail: async (email) => {
+        const user = await userByEmail(email);
+        return user ? { id: user.id } : null;
+      },
+      findGrant: async (userId, role, scopeRef) => {
+        const existing = await sql<{ id: string }>`
+          select id from role_grants
+          where user_id = ${userId}
+            and role = ${role}
+            and scope_ref is not distinct from ${scopeRef}
+        `;
+        return existing[0] ?? null;
+      },
+      activateGrant: async (id, grantedBy) => {
+        await sql`
+          update role_grants
+          set status = 'active', granted_by = ${grantedBy}, granted_at = now()
+          where id = ${id}
+        `;
+      },
+      insertGrant: async (row) => {
+        await sql`
+          insert into role_grants (id, user_id, role, scope_ref, status, granted_by, granted_at)
+          values (
+            ${row.id},
+            ${row.userId},
+            ${row.role},
+            ${row.scopeRef},
+            'active',
+            ${row.grantedBy},
+            now()
+          )
+        `;
+      },
+      newId: () => `grant_${randomBytes(6).toString("hex")}`,
+    },
+    {
+      email: input.email,
+      role: input.role,
+      scopeRef: input.scopeRef,
+      operatorIsAdmin,
+      grantedBy: "ADMIN_KEY",
+    },
+  );
 }
 
-export async function revokeRole(grantId: string): Promise<void> {
-  const admin = await requireAdmin();
+export async function revokeRole(grantId: string, key?: string | null): Promise<void> {
+  assertOperator(key);
   const sql = await getSql();
   await sql`
     update role_grants
-    set status = 'revoked', granted_by = ${admin.id}, granted_at = now()
+    set status = 'revoked', granted_by = 'ADMIN_KEY', granted_at = now()
     where id = ${grantId}
   `;
 }
