@@ -9,6 +9,10 @@ import {
   advanceTime,
   checkInStay,
   checkOutStay,
+  evaluateStayCompletion,
+  observeArrival,
+  observeDeparture,
+  reportPrepared,
   createBlock,
   createEmptyWorld,
   createRequest,
@@ -228,6 +232,9 @@ describe("Sale commission", () => {
     assert.ok(stayId);
     world = checkInStay(world, { stayId, actor: BUTLER }).world;
     world = checkOutStay(world, { stayId, actor: BUTLER }).world;
+    assert.equal(world.stays.find((item) => item.id === stayId)?.status, "CHECKED_OUT");
+    assert.equal(world.commissions.find((item) => item.stayId === stayId)?.status, "PENDING");
+    world = evaluateStayCompletion(world, { stayId, actor: BUTLER }).world;
     assert.equal(world.commissions.find((item) => item.stayId === stayId)?.status, "EARNED");
     assert.equal(world.stays.find((item) => item.id === stayId)?.status, "COMPLETED");
     assertNoOverlap(world);
@@ -275,6 +282,8 @@ describe("Stay transitions", () => {
     const booked = bookedStay();
     let world = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
     world = checkOutStay(world, { stayId: booked.stayId, actor: BUTLER }).world;
+    assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_OUT");
+    world = evaluateStayCompletion(world, { stayId: booked.stayId, actor: BUTLER }).world;
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "COMPLETED");
     const commitment = world.commitments.find(
       (item) => item.bookingId === booked.bookingId && item.kind === "CONFIRMED_ACCOMMODATION",
@@ -323,7 +332,151 @@ describe("Stay transitions", () => {
     assert.equal(world.incidents[0]?.hasPhoto, true);
     assertNoOverlap(world);
   });
+});
 
+describe("arrival observation is not check-in", () => {
+  it("observing arrival leaves the stay scheduled and does not check in", () => {
+    const booked = bookedStay();
+    const noted = observeArrival(booked.world, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(noted.stay.status, "SCHEDULED");
+    assert.ok(noted.stay.arrivalObservedAt);
+    assert.equal(noted.stay.checkedInAt, undefined);
+    assert.equal(noted.world.auditLog[0]?.action, "OBSERVE_ARRIVAL");
+    const commitment = noted.world.commitments.find((item) => item.bookingId === booked.bookingId);
+    assert.equal(commitment?.status, "ACTIVE");
+    assert.equal(isAvailable(noted.world, "t01", "2026-12-01", "2026-12-04"), false);
+    assertNoOverlap(noted.world);
+  });
+
+  it("check-in does not record an arrival observation", () => {
+    const booked = bookedStay();
+    const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(checked.stay.status, "CHECKED_IN");
+    assert.equal(checked.stay.arrivalObservedAt, undefined);
+    assert.ok(checked.stay.checkedInAt);
+    assertNoOverlap(checked.world);
+  });
+
+  it("arrival can be noted after check-in without changing the stay", () => {
+    const booked = bookedStay();
+    const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    const noted = observeArrival(checked, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(noted.stay.status, "CHECKED_IN");
+    assert.ok(noted.stay.arrivalObservedAt);
+    assert.equal(noted.stay.checkedInAt, checked.stays.find((item) => item.id === booked.stayId)?.checkedInAt);
+    assertNoOverlap(noted.world);
+  });
+});
+
+describe("departure observation is not checkout", () => {
+  it("observing departure leaves the guest checked in and does not check out", () => {
+    const booked = bookedStay();
+    const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    const noted = observeDeparture(checked, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(noted.stay.status, "CHECKED_IN");
+    assert.ok(noted.stay.departureObservedAt);
+    assert.equal(noted.stay.checkedOutAt, undefined);
+    assert.equal(noted.stay.completedAt, undefined);
+    assert.equal(noted.world.auditLog[0]?.action, "OBSERVE_DEPARTURE");
+    const commitment = noted.world.commitments.find((item) => item.bookingId === booked.bookingId);
+    assert.equal(commitment?.status, "ACTIVE");
+    assertNoOverlap(noted.world);
+  });
+
+  it("checkout does not record a departure observation", () => {
+    const booked = bookedStay();
+    const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    const left = checkOutStay(checked, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(left.stay.status, "CHECKED_OUT");
+    assert.equal(left.stay.departureObservedAt, undefined);
+    assert.ok(left.stay.checkedOutAt);
+    assert.equal(left.stay.completedAt, undefined);
+    assertNoOverlap(left.world);
+  });
+
+  it("departure can be noted without ever checking in", () => {
+    const booked = bookedStay();
+    const noted = observeDeparture(booked.world, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(noted.stay.status, "SCHEDULED");
+    assert.ok(noted.stay.departureObservedAt);
+    assert.equal(noted.stay.checkedOutAt, undefined);
+    assertNoOverlap(noted.world);
+  });
+});
+
+describe("checkout is not completion", () => {
+  it("checkout records CHECKED_OUT and leaves completion for a later evaluation", () => {
+    const booked = bookedStay();
+    const checked = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    const left = checkOutStay(checked, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(left.stay.status, "CHECKED_OUT");
+    assert.ok(left.stay.checkedOutAt);
+    assert.equal(left.stay.completedAt, undefined);
+    assert.equal(left.world.commissions.find((item) => item.stayId === booked.stayId)?.status, undefined);
+    assert.equal(left.world.auditLog[0]?.action, "CHECK_OUT");
+    const commitment = left.world.commitments.find((item) => item.bookingId === booked.bookingId);
+    assert.equal(commitment?.status, "ACTIVE");
+    const done = evaluateStayCompletion(left.world, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(done.stay.status, "COMPLETED");
+    assert.equal(done.stay.checkedOutAt, left.stay.checkedOutAt);
+    assert.ok(done.stay.completedAt);
+    assert.equal(done.world.auditLog[0]?.action, "COMPLETE");
+    assert.equal(
+      done.world.commitments.find((item) => item.bookingId === booked.bookingId)?.status,
+      "ACTIVE",
+    );
+    assert.equal(isAvailable(done.world, "t01", "2026-12-01", "2026-12-04"), false);
+    assertNoOverlap(done.world);
+  });
+
+  it("an open incident does not block completion and does not change checkout", () => {
+    const booked = bookedStay();
+    let world = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    world = reportIncident(world, {
+      stayId: booked.stayId,
+      actor: BUTLER,
+      note: "Vòi nước rỉ",
+      hasPhoto: false,
+    }).world;
+    world = checkOutStay(world, { stayId: booked.stayId, actor: BUTLER }).world;
+    assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_OUT");
+    world = evaluateStayCompletion(world, { stayId: booked.stayId, actor: BUTLER }).world;
+    assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "COMPLETED");
+    assert.equal(world.incidents.length, 1);
+    assertNoOverlap(world);
+  });
+});
+
+describe("assignment is not authority", () => {
+  it("a Butler cannot prepare, observe, check in, or check out a villa they are not assigned to", () => {
+    const booked = bookedStay();
+    const world: World = {
+      ...booked.world,
+      butlers: [
+        ...booked.world.butlers,
+        { id: "butler-dung", name: "Quản gia Dung", villaIds: ["t12"] },
+      ],
+    };
+    const dung: Actor = { persona: "BUTLER", butlerId: "butler-dung" };
+    const refused = (run: () => unknown) =>
+      assert.throws(
+        run,
+        (error: unknown) => error instanceof DomainError && error.code === "NOT_ASSIGNED",
+      );
+    refused(() => reportPrepared(world, { stayId: booked.stayId, actor: dung }));
+    refused(() => observeArrival(world, { stayId: booked.stayId, actor: dung }));
+    refused(() => observeDeparture(world, { stayId: booked.stayId, actor: dung }));
+    refused(() => checkInStay(world, { stayId: booked.stayId, actor: dung }));
+    const checked = checkInStay(world, { stayId: booked.stayId, actor: BUTLER }).world;
+    refused(() => checkOutStay(checked, { stayId: booked.stayId, actor: dung }));
+    const left = checkOutStay(checked, { stayId: booked.stayId, actor: BUTLER }).world;
+    refused(() => evaluateStayCompletion(left, { stayId: booked.stayId, actor: dung }));
+    assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "SCHEDULED");
+    assertNoOverlap(world);
+  });
+});
+
+describe("Stay transitions", () => {
   it("Sale cannot accept a request", () => {
     const created = createRequest(createEmptyWorld(NOW), {
       villaId: "t04",

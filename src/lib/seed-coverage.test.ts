@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromPilot } from "./seed-pilot.ts";
+import { butlerFieldBoard } from "./domain/engine.ts";
 import { PILOT_SEED } from "./pilot-data.ts";
 
 const NOW = "2026-09-24T02:00:00.000Z";
@@ -78,5 +79,19 @@ describe("fictional test dataset", () => {
     assert.ok(world.stays.some((item) => item.villaId === "t06" && item.status === "CHECKED_IN"));
     assert.ok(world.stays.some((item) => item.villaId === "t04" && item.status === "COMPLETED"));
     assert.ok(world.stays.some((item) => item.villaId === "t03" && item.status === "DID_NOT_OCCUR"));
+  });
+
+  it("butler morning board names the villa to prepare, who arrives, and who leaves", () => {
+    const world = seedFromPilot(NOW);
+    const today = todayIct(NOW);
+    const chi = PILOT_SEED.butlers.find((person) => person.id === "butler-chi");
+    const board = butlerFieldBoard(world, today, chi?.villaIds ?? []);
+    assert.deepEqual(
+      board.prepare.map((stay) => stay.villaId),
+      ["t01"],
+    );
+    assert.equal(board.arriving.find((stay) => stay.villaId === "t01")?.guestName, "Khách lịch hôm nay");
+    assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.guestName, "Khách đang ở");
+    assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.status, "CHECKED_IN");
   });
 });

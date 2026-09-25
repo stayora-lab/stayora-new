@@ -104,6 +104,9 @@ export type Stay = {
   status: StayStatus;
   assignedButlerId?: string;
   didNotOccurReason?: string;
+  preparedAt?: string;
+  arrivalObservedAt?: string;
+  departureObservedAt?: string;
   checkedInAt?: string;
   checkedOutAt?: string;
   completedAt?: string;

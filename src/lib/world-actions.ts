@@ -3,6 +3,10 @@ import {
   advanceTime,
   checkInStay,
   checkOutStay,
+  evaluateStayCompletion,
+  observeArrival,
+  observeDeparture,
+  reportPrepared,
   createBlock,
   createRequest,
   DomainError,
@@ -67,6 +71,9 @@ export type WorldAction =
     }
   | { type: "CHECK_IN"; stayId: string }
   | { type: "CHECK_OUT"; stayId: string }
+  | { type: "PREPARE"; stayId: string }
+  | { type: "OBSERVE_ARRIVAL"; stayId: string }
+  | { type: "OBSERVE_DEPARTURE"; stayId: string }
   | { type: "DID_NOT_OCCUR"; stayId: string; reason: string }
   | { type: "REPORT_INCIDENT"; stayId: string; note: string; hasPhoto: boolean }
   | { type: "ADVANCE_TIME" }
@@ -197,7 +204,23 @@ export function applyWorldAction(
       return { world: result.world };
     }
     case "CHECK_OUT": {
-      const result = checkOutStay(world, { stayId: action.stayId, actor });
+      const checked = checkOutStay(world, { stayId: action.stayId, actor });
+      const completed = evaluateStayCompletion(checked.world, {
+        stayId: action.stayId,
+        actor,
+      });
+      return { world: completed.world };
+    }
+    case "PREPARE": {
+      const result = reportPrepared(world, { stayId: action.stayId, actor });
+      return { world: result.world };
+    }
+    case "OBSERVE_ARRIVAL": {
+      const result = observeArrival(world, { stayId: action.stayId, actor });
+      return { world: result.world };
+    }
+    case "OBSERVE_DEPARTURE": {
+      const result = observeDeparture(world, { stayId: action.stayId, actor });
       return { world: result.world };
     }
     case "DID_NOT_OCCUR": {

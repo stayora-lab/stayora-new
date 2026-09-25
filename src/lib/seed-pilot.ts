@@ -5,6 +5,7 @@ import {
   advanceTime,
   checkInStay,
   checkOutStay,
+  evaluateStayCompletion,
   createBlock,
   createEmptyWorld,
   createRequest,
@@ -144,12 +145,12 @@ function seedStayoraScenarios(world: World, today: string): World {
     world = payInitial(world, created.request.id);
   }
 
-  // CHECKED_IN (arrived yesterday, still in house).
+  // CHECKED_IN, leaving today — so the morning board has someone to see off.
   {
     const created = createRequest(world, {
       villaId: "t06",
       checkIn: shift(today, -1),
-      checkOut: shift(today, 3),
+      checkOut: today,
       guests: 4,
       guestName: "Khách đang ở",
       actor: GUEST,
@@ -178,6 +179,7 @@ function seedStayoraScenarios(world: World, today: string): World {
     if (stay) {
       world = checkInStay(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
       world = checkOutStay(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
+      world = evaluateStayCompletion(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
     }
   }
 

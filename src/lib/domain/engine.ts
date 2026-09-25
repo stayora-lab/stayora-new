@@ -641,6 +641,65 @@ export function checkInStay(
   };
 }
 
+export function reportPrepared(
+  world: World,
+  input: { stayId: string; actor: Actor },
+): { world: World; stay: Stay } {
+  world = expireHolds(world);
+  const stay = requireStay(world, input.stayId);
+  assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.preparedAt) return { world, stay };
+  if (stay.status !== "SCHEDULED") {
+    throw new DomainError("INVALID_TRANSITION", "Preparation is only recorded before check-in");
+  }
+  const updated: Stay = { ...stay, preparedAt: world.now };
+  return {
+    world: withAudit(replaceStay(world, updated), input.actor, "PREPARE", updated.id),
+    stay: updated,
+  };
+}
+
+export function observeArrival(
+  world: World,
+  input: { stayId: string; actor: Actor },
+): { world: World; stay: Stay } {
+  world = expireHolds(world);
+  const stay = requireStay(world, input.stayId);
+  assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.arrivalObservedAt) return { world, stay };
+  if (stay.status !== "SCHEDULED" && stay.status !== "CHECKED_IN") {
+    throw new DomainError("INVALID_TRANSITION", "Arrival can only be noted on a live stay");
+  }
+  const updated: Stay = { ...stay, arrivalObservedAt: world.now, status: stay.status };
+  return {
+    world: withAudit(replaceStay(world, updated), input.actor, "OBSERVE_ARRIVAL", updated.id),
+    stay: updated,
+  };
+}
+
+export function observeDeparture(
+  world: World,
+  input: { stayId: string; actor: Actor },
+): { world: World; stay: Stay } {
+  world = expireHolds(world);
+  const stay = requireStay(world, input.stayId);
+  assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.departureObservedAt) return { world, stay };
+  if (
+    stay.status !== "SCHEDULED" &&
+    stay.status !== "CHECKED_IN" &&
+    stay.status !== "CHECKED_OUT" &&
+    stay.status !== "COMPLETED"
+  ) {
+    throw new DomainError("INVALID_TRANSITION", "Departure can only be noted on a live stay");
+  }
+  const updated: Stay = { ...stay, departureObservedAt: world.now, status: stay.status };
+  return {
+    world: withAudit(replaceStay(world, updated), input.actor, "OBSERVE_DEPARTURE", updated.id),
+    stay: updated,
+  };
+}
+
 export function checkOutStay(
   world: World,
   input: { stayId: string; actor: Actor },
@@ -654,10 +713,31 @@ export function checkOutStay(
   if (stay.status !== "CHECKED_IN") {
     throw new DomainError("INVALID_TRANSITION", "Check-out is only possible after check-in");
   }
+  const updated: Stay = {
+    ...stay,
+    status: "CHECKED_OUT",
+    checkedOutAt: world.now,
+  };
+  return {
+    world: withAudit(replaceStay(world, updated), input.actor, "CHECK_OUT", updated.id),
+    stay: updated,
+  };
+}
+
+/** Separate from checkout. Completes only when no Stay-lifecycle blocker is recorded. */
+export function evaluateStayCompletion(
+  world: World,
+  input: { stayId: string; actor: Actor },
+): { world: World; stay: Stay } {
+  world = expireHolds(world);
+  const stay = requireStay(world, input.stayId);
+  assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.status !== "CHECKED_OUT") {
+    throw new DomainError("INVALID_TRANSITION", "Completion is only evaluated after checkout");
+  }
   const completed: Stay = {
     ...stay,
     status: "COMPLETED",
-    checkedOutAt: world.now,
     completedAt: world.now,
   };
   const commissions = world.commissions.map((item) =>
@@ -669,7 +749,7 @@ export function checkOutStay(
     world: withAudit(
       { ...replaceStay(world, completed), commissions },
       input.actor,
-      "CHECK_OUT",
+      "COMPLETE",
       completed.id,
     ),
     stay: completed,
@@ -1146,6 +1226,19 @@ export function opsLists(world: World, date: string) {
     (stay) => stay.status === "CHECKED_IN" && stay.checkIn < date && date < stay.checkOut,
   );
   return { arriving, inHouse, departing };
+}
+
+export function butlerFieldBoard(world: World, date: string, villaIds: readonly string[]) {
+  const mine = (stay: Stay) => villaIds.includes(stay.villaId);
+  const lists = opsLists(world, date);
+  return {
+    prepare: lists.arriving.filter(
+      (stay) => mine(stay) && stay.status === "SCHEDULED" && !stay.preparedAt,
+    ),
+    arriving: lists.arriving.filter(mine),
+    departing: lists.departing.filter(mine),
+    inHouse: lists.inHouse.filter(mine),
+  };
 }
 
 export function publicStayTotal(villaId: string, checkIn: string, checkOut: string): number {

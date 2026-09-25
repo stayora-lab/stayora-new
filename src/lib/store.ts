@@ -106,6 +106,9 @@ type BookingState = {
   }) => Promise<void>;
   butlerCheckIn: (stayId: string) => Promise<void>;
   butlerCheckOut: (stayId: string) => Promise<void>;
+  butlerPrepare: (stayId: string) => Promise<void>;
+  butlerObserveArrival: (stayId: string) => Promise<void>;
+  butlerObserveDeparture: (stayId: string) => Promise<void>;
   butlerNoShow: (stayId: string, reason: string) => Promise<void>;
   butlerIncident: (stayId: string, note: string, hasPhoto: boolean) => Promise<void>;
 };
@@ -352,6 +355,15 @@ export const useBookingStore = create<BookingState>()(
       },
       butlerCheckOut: async (stayId) => {
         await get().runAction({ type: "CHECK_OUT", stayId });
+      },
+      butlerPrepare: async (stayId) => {
+        await get().runAction({ type: "PREPARE", stayId });
+      },
+      butlerObserveArrival: async (stayId) => {
+        await get().runAction({ type: "OBSERVE_ARRIVAL", stayId });
+      },
+      butlerObserveDeparture: async (stayId) => {
+        await get().runAction({ type: "OBSERVE_DEPARTURE", stayId });
       },
       butlerNoShow: async (stayId, reason) => {
         await get().runAction({ type: "DID_NOT_OCCUR", stayId, reason });
