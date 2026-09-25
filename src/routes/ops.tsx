@@ -7,6 +7,12 @@ import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
 import { OtherRoleHint } from "@/components/role-hint";
 import { ButlerStayCard } from "@/components/butler-stay-card";
+import {
+  ButlerDayStrip,
+  EmptyDayNote,
+  RollingDays,
+  ViewedDayLabel,
+} from "@/components/butler-day-strip";
 import { HostCalendar } from "@/components/host-calendar";
 import { DateField } from "@/components/dates-guests";
 import { Button } from "@/components/ui/button";
@@ -22,6 +28,14 @@ import { useBookingStore } from "@/lib/store";
 import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import type { NextCardAction } from "@/lib/butler-card";
+import {
+  boardIsEmpty,
+  emptyDayMessage,
+  nextUpcoming,
+  relativeDayPhrase,
+  upcomingMoves,
+  viewedDate,
+} from "@/lib/butler-timeline";
 import type { RoleSession } from "@/lib/role";
 
 export const Route = createFileRoute("/ops")({
@@ -71,11 +85,28 @@ function OpsPage() {
     ? { persona: "BQL" }
     : { persona: "BUTLER", butlerId: activeButlerId, villaIds: grantedVillas };
   const butler = world.butlers.find((person) => person.id === activeButlerId);
-  const opsDate = pickedDate ?? ictDay(world.now);
+  const today = ictDay(world.now);
+  const viewed = viewedDate(today, pickedDate);
   const scope = isBql
     ? [...new Set(world.stays.map((stay) => stay.villaId))]
     : [...new Set([...(butler?.villaIds ?? []), ...grantedVillas])];
-  const board = butlerFieldBoard(world, opsDate, scope);
+  const board = butlerFieldBoard(world, viewed, scope);
+  const empty = boardIsEmpty(board);
+  const ahead = viewed === today ? upcomingMoves(world, scope, today) : [];
+  const next = empty ? nextUpcoming(world, scope, viewed) : null;
+  const nextVilla = next ? (getVilla(next.stay.villaId)?.name ?? next.stay.villaId) : "";
+  const emptyMessage = empty
+    ? emptyDayMessage(
+        viewed === today,
+        next
+          ? {
+              villaName: nextVilla,
+              arriving: next.lane !== "departing",
+              when: relativeDayPhrase(today, next.date),
+            }
+          : null,
+      )
+    : "";
   const openStay = world.stays.find((stay) => stay.id === openId) ?? null;
   const sheetStay = sheet ? world.stays.find((stay) => stay.id === sheet.stayId) : undefined;
 
@@ -124,14 +155,21 @@ function OpsPage() {
             {isBql ? "BQL Oceanami" : (butler?.name ?? "Quản gia")}
           </p>
           <h1 className="mt-1 font-serif text-title">Việc hôm nay</h1>
-          <div className="mt-4">
+          <ButlerDayStrip
+            today={today}
+            viewed={viewed}
+            onView={(date) => setPickedDate(date === today ? null : date)}
+          />
+          <ViewedDayLabel today={today} viewed={viewed} />
+          <div className="mt-2">
             <DateField
-              date={opsDate}
-              onChange={setPickedDate}
-              label="Ngày"
+              date={viewed}
+              onChange={(date) => setPickedDate(date === today ? null : date)}
+              label="Nhảy tới ngày"
               calendarTitle="Chọn ngày"
               locale={vi}
-              formatLabel={(value) => format(parseISO(value), "EEEE d/M/yyyy", { locale: vi })}
+              formatLabel={(value) => format(parseISO(value), "d/M/yyyy", { locale: vi })}
+              className="h-10 bg-transparent px-1 shadow-none"
             />
           </div>
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
@@ -155,7 +193,8 @@ function OpsPage() {
         <BoardSection
           title="Cần chuẩn bị"
           empty="Không còn villa cần chuẩn bị."
-          stays={board.prepare}
+          stays={empty ? [] : board.prepare}
+          hideWhenEmpty
           role={role}
           lane="prepare"
           canAct={!isBql}
@@ -165,7 +204,8 @@ function OpsPage() {
         <BoardSection
           title="Khách đến"
           empty="Không có khách đến."
-          stays={board.arriving}
+          stays={empty ? [] : board.arriving}
+          hideWhenEmpty
           role={role}
           lane="arriving"
           canAct={!isBql}
@@ -175,7 +215,8 @@ function OpsPage() {
         <BoardSection
           title="Khách đi"
           empty="Không có khách đi."
-          stays={board.departing}
+          stays={empty ? [] : board.departing}
+          hideWhenEmpty
           role={role}
           lane="departing"
           canAct={!isBql}
@@ -185,13 +226,25 @@ function OpsPage() {
         <BoardSection
           title="Đang ở"
           empty="Không có khách đang ở."
-          stays={board.inHouse}
+          stays={empty ? [] : board.inHouse}
+          hideWhenEmpty
           role={role}
           lane="inHouse"
           canAct={!isBql}
           onOpen={setOpenId}
           onAction={runCard}
         />
+        {empty ? (
+          <div className="mx-auto max-w-lg px-4 sm:px-6">
+            <EmptyDayNote
+              message={emptyMessage}
+              onOpen={next ? () => setPickedDate(next.date === today ? null : next.date) : undefined}
+            />
+          </div>
+        ) : null}
+        {viewed === today ? (
+          <RollingDays today={today} hits={ahead} role={role} onView={(date) => setPickedDate(date === today ? null : date)} />
+        ) : null}
 
         {isBql ? (
           <section className="pt-8">
@@ -344,6 +397,7 @@ function BoardSection({
   title,
   empty,
   stays,
+  hideWhenEmpty = false,
   role,
   lane,
   canAct,
@@ -353,12 +407,14 @@ function BoardSection({
   title: string;
   empty: string;
   stays: Stay[];
+  hideWhenEmpty?: boolean;
   role: RoleSession;
   lane: "prepare" | "arriving" | "departing" | "inHouse";
   canAct: boolean;
   onOpen: (stayId: string) => void;
   onAction: (stayId: string, actionId: NextCardAction["id"]) => void;
 }) {
+  if (hideWhenEmpty && stays.length === 0) return null;
   return (
     <section className="mx-auto max-w-lg px-4 pt-8 sm:px-6">
       <div className="flex items-baseline justify-between">
