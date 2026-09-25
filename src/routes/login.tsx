@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { fetchDevSignInGate, signInDevAccount, signUpDevAccount } from "@/lib/dev-identity-api";
+import { fetchDevSignInGate, signInAccount, signInDevAccount, signUpAccount } from "@/lib/dev-identity-api";
+import { isFictionalPilotEmail } from "@/lib/identity-path";
 import { PILOT_SEED } from "@/lib/pilot-data";
 import { workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
@@ -27,10 +28,16 @@ function LoginPage() {
     setPending(true);
     setError(null);
     try {
+      const pilot = isFictionalPilotEmail(
+        email,
+        (PILOT_SEED.people ?? []).map((person) => person.email),
+      );
       const session =
         mode === "up"
-          ? await signUpDevAccount({ data: { name, email, password } })
-          : await signInDevAccount({ data: { email, password } });
+          ? await signUpAccount({ data: { name, email, password } })
+          : gate.enabled && pilot
+            ? await signInDevAccount({ data: { email, password } })
+            : await signInAccount({ data: { email, password } });
       await refreshIdentity();
       const grant = session.grants.find((item) => item.status === "active");
       if (!grant) {
@@ -47,8 +54,7 @@ function LoginPage() {
 
   return (
     <main lang="vi" className="mx-auto max-w-md px-4 py-16">
-      <p className="text-xs font-semibold tracking-wider text-lotus uppercase">Chỉ dùng cho bản thử</p>
-      <h1 className="mt-2 font-serif text-title">{mode === "up" ? "Tạo tài khoản thử" : "Đăng nhập"}</h1>
+      <h1 className="mt-2 font-serif text-title">{mode === "up" ? "Tạo tài khoản" : "Đăng nhập"}</h1>
       <p className="mt-3 text-sm text-ink-soft">
         Đăng ký chỉ tạo danh tính. Không tự có vai trò. Khách đặt villa không cần tài khoản.
       </p>
@@ -94,7 +100,7 @@ function LoginPage() {
         className="mt-4 text-sm font-medium text-lotus"
         onClick={() => setMode(mode === "up" ? "in" : "up")}
       >
-        {mode === "up" ? "Đã có tài khoản thử" : "Chưa có tài khoản — đăng ký"}
+        {mode === "up" ? "Đã có tài khoản" : "Chưa có tài khoản — đăng ký"}
       </button>
       {gate.enabled ? (
         <section className="mt-10">

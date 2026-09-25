@@ -20,6 +20,22 @@ export const fetchDevSession = createServerFn({ method: "GET" }).handler(
   },
 );
 
+export const signInAccount = createServerFn({ method: "POST" })
+  .validator((input: { email: string; password: string }) => input)
+  .handler(async ({ data }): Promise<DevSessionPayload> => {
+    const { signInIdentity, grantsForUser } = await import("./dev-identity.server.ts");
+    const user = await signInIdentity(data.email, data.password);
+    return { user, grants: await grantsForUser(user.id) };
+  });
+
+export const signUpAccount = createServerFn({ method: "POST" })
+  .validator((input: { name: string; email: string; password: string }) => input)
+  .handler(async ({ data }): Promise<DevSessionPayload> => {
+    const { signUpIdentity, grantsForUser } = await import("./dev-identity.server.ts");
+    const user = await signUpIdentity(data);
+    return { user, grants: await grantsForUser(user.id) };
+  });
+
 export const signInDevAccount = createServerFn({ method: "POST" })
   .validator((input: { email: string; password: string }) => input)
   .handler(async ({ data }): Promise<DevSessionPayload> => {

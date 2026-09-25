@@ -3,6 +3,12 @@ import { getCookie, getRequest, setResponseHeader } from "@tanstack/react-start/
 import { getSql } from "@/lib/db";
 import { PILOT_SEED } from "./pilot-data.ts";
 import { assertDevSignInEnabled, devSignInEnabled } from "./dev-sign-in.ts";
+import {
+  authenticateRealIdentity,
+  createRealIdentity,
+  isFictionalPilotEmail,
+  visibleSessionUser,
+} from "./identity-path.ts";
 import type { Persona } from "./domain/types.ts";
 import type { DevGrantRow, DevUser } from "./dev-types.ts";
 
@@ -125,6 +131,46 @@ async function startSession(userId: string): Promise<void> {
   writeCookie(COOKIE, token, SESSION_DAYS * 24 * 60 * 60);
 }
 
+function pilotEmails(): string[] {
+  return (PILOT_SEED.people ?? []).map((person) => person.email);
+}
+
+export async function signUpIdentity(input: {
+  name: string;
+  email: string;
+  password: string;
+}): Promise<DevUser> {
+  const user = await createRealIdentity(
+    {
+      findByEmail: async (email) => userByEmail(email),
+      insertIdentity: async (row) => {
+        const sql = await getSql();
+        await sql`
+          insert into dev_identity (id, email, name, password_hash)
+          values (${row.id}, ${row.email}, ${row.name}, ${row.passwordHash})
+        `;
+      },
+      hashPassword,
+      newId: () => `usr_${randomBytes(8).toString("hex")}`,
+    },
+    { ...input, pilotEmails: pilotEmails() },
+  );
+  await startSession(user.id);
+  return user;
+}
+
+export async function signInIdentity(email: string, password: string): Promise<DevUser> {
+  const user = await authenticateRealIdentity(
+    {
+      findByEmail: userByEmail,
+      passwordMatches,
+    },
+    { email, password, pilotEmails: pilotEmails() },
+  );
+  await startSession(user.id);
+  return user;
+}
+
 export async function signUpDev(input: {
   name: string;
   email: string;
@@ -170,7 +216,6 @@ export async function signOutDev(): Promise<void> {
 }
 
 export async function currentDevUser(): Promise<DevUser | null> {
-  if (!devSignInEnabled()) return null;
   const token = getCookie(COOKIE);
   if (!token) return null;
   const sql = await getSql();
@@ -181,7 +226,7 @@ export async function currentDevUser(): Promise<DevUser | null> {
     where s.token_hash = ${tokenHash(token)}
       and s.expires_at > now()
   `;
-  return rows[0] ?? null;
+  return visibleSessionUser(rows[0] ?? null, devSignInEnabled(), pilotEmails());
 }
 
 export async function grantsForUser(userId: string): Promise<DevGrantRow[]> {
@@ -223,6 +268,7 @@ export async function listDevDirectory(): Promise<
   `;
   const result = [];
   for (const user of users) {
+    if (!isFictionalPilotEmail(user.email, pilotEmails())) continue;
     result.push({ user, grants: await grantsForUser(user.id) });
   }
   return result;

@@ -6,6 +6,12 @@ import { PILOT_SEED } from "./pilot-data.ts";
 import { resolveWorkingRole, type AccessGrant } from "./access.ts";
 import { applyWorldAction, type WorldAction } from "./world-actions.ts";
 import { assertDevSignInEnabled, devSignInEnabled } from "./dev-sign-in.ts";
+import {
+  authenticateRealIdentity,
+  createRealIdentity,
+  isFictionalPilotEmail,
+  visibleSessionUser,
+} from "./identity-path.ts";
 
 const NOW = "2026-09-24T02:00:00.000Z";
 const SHARED_PASSWORD = "Stayora-thu-1";
@@ -125,5 +131,134 @@ describe("dev accounts cannot run Stayora vận hành", () => {
         );
       }
     }
+  });
+});
+
+function functionBody(file: string, name: string): string {
+  const text = source(file);
+  const start = text.indexOf(`export async function ${name}`);
+  assert.ok(start >= 0, name);
+  const next = text.indexOf("\nexport async function ", start + 1);
+  return text.slice(start, next === -1 ? undefined : next);
+}
+
+describe("real sign-up is not the dev sign-in gate", () => {
+  const previous = process.env.DEV_SIGN_IN;
+  const pilotEmails = (PILOT_SEED.people ?? []).map((person) => person.email);
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env.DEV_SIGN_IN;
+    else process.env.DEV_SIGN_IN = previous;
+  });
+
+  it("creates an identity with DEV_SIGN_IN unset and grants no role", async () => {
+    delete process.env.DEV_SIGN_IN;
+    const identities: { id: string; email: string; name: string; passwordHash: string }[] = [];
+    const grants: { role: string; status: string }[] = [];
+    const user = await createRealIdentity(
+      {
+        findByEmail: async (email) => identities.find((item) => item.email === email) ?? null,
+        insertIdentity: async (row) => {
+          identities.push(row);
+        },
+        hashPassword: (password) => `hash:${password}`,
+        newId: () => "usr_real",
+      },
+      {
+        name: " Lan ",
+        email: "Lan@Example.com",
+        password: "mat-khau-1",
+        pilotEmails,
+      },
+    );
+    assert.equal(user.id, "usr_real");
+    assert.equal(user.email, "lan@example.com");
+    assert.equal(user.name, "Lan");
+    assert.equal(identities.length, 1);
+    assert.equal(grants.length, 0);
+    assert.equal(
+      grants.some((grant) => grant.role === "ADMIN" && grant.status === "active"),
+      false,
+    );
+    assert.equal("role" in user, false);
+  });
+
+  it("refuses a fictional pilot email on the real path even when that account exists", async () => {
+    delete process.env.DEV_SIGN_IN;
+    const chi = pilotEmails[0];
+    assert.ok(chi);
+    let lookups = 0;
+    await assert.rejects(
+      () =>
+        createRealIdentity(
+          {
+            findByEmail: async () => {
+              lookups += 1;
+              return { id: "dev_chi" };
+            },
+            insertIdentity: async () => {
+              throw new Error("must not insert");
+            },
+            hashPassword: () => "no",
+            newId: () => "usr_no",
+          },
+          { name: "Chi", email: ` ${chi.toUpperCase()} `, password: SHARED_PASSWORD, pilotEmails },
+        ),
+      /tài khoản thử/i,
+    );
+    await assert.rejects(
+      () =>
+        authenticateRealIdentity(
+          {
+            findByEmail: async () => {
+              lookups += 1;
+              return { id: "dev_chi", email: chi, name: "Chi", passwordHash: "hash" };
+            },
+            passwordMatches: () => true,
+          },
+          { email: chi, password: SHARED_PASSWORD, pilotEmails },
+        ),
+      /Đăng nhập thử đang tắt/,
+    );
+    assert.equal(lookups, 0);
+    assert.equal(isFictionalPilotEmail(chi, pilotEmails), true);
+    assert.equal(isFictionalPilotEmail("lan@example.com", pilotEmails), false);
+  });
+
+  it("keeps a real session when the flag is off and drops a fictional one", () => {
+    delete process.env.DEV_SIGN_IN;
+    const real = { id: "usr_real", email: "lan@example.com", name: "Lan" };
+    const fictional = { id: "dev_chi", email: pilotEmails[0]!, name: "Chi" };
+    assert.deepEqual(visibleSessionUser(real, false, pilotEmails), real);
+    assert.equal(visibleSessionUser(fictional, false, pilotEmails), null);
+    assert.deepEqual(visibleSessionUser(fictional, true, pilotEmails), fictional);
+    assert.equal(visibleSessionUser(null, false, pilotEmails), null);
+  });
+
+  it("wires real sign-up outside the dev gate and never writes a role", () => {
+    const signUp = functionBody("./dev-identity.server.ts", "signUpIdentity");
+    const signIn = functionBody("./dev-identity.server.ts", "signInIdentity");
+    const current = functionBody("./dev-identity.server.ts", "currentDevUser");
+    const devSignIn = functionBody("./dev-identity.server.ts", "signInDev");
+    assert.equal(signUp.includes("assertDevSignInEnabled"), false);
+    assert.equal(signUp.includes("role_grants"), false);
+    assert.equal(signUp.includes("ensureDevAccounts"), false);
+    assert.match(signUp, /createRealIdentity/);
+    assert.equal(signIn.includes("assertDevSignInEnabled"), false);
+    assert.match(signIn, /authenticateRealIdentity/);
+    assert.equal(current.includes("if (!devSignInEnabled()) return null"), false);
+    assert.match(current, /visibleSessionUser/);
+    assert.match(devSignIn.slice(0, devSignIn.indexOf("ensureDevAccounts")), /assertDevSignInEnabled\(\)/);
+    const login = source("../routes/login.tsx");
+    assert.match(login, /signUpAccount/);
+    assert.equal(login.includes("signUpDevAccount"), false);
+    assert.equal(login.includes("Tạo tài khoản thử"), false);
+    assert.match(login, /gate\.enabled && pilot/);
+    const path = source("./identity-path.ts");
+    assert.equal(path.includes("devSignInEnabled"), false);
+    assert.equal(path.includes("process.env"), false);
+    assert.equal(path.includes("role_grants"), false);
+    const grants = source("./dev-identity.server.ts");
+    assert.match(grants, /status: row\.role === "ADMIN" \? "revoked" : row\.status/);
   });
 });
