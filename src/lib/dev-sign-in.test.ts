@@ -7,6 +7,8 @@ import { resolveWorkingRole, type AccessGrant } from "./access.ts";
 import { applyWorldAction, type WorldAction } from "./world-actions.ts";
 import { assertDevSignInEnabled, devSignInEnabled } from "./dev-sign-in.ts";
 import { authorizeRole } from "./authorize.ts";
+import { planRoleGrants } from "./grant-scope.ts";
+import { workingRoleFromGrants } from "./role.ts";
 import {
   applyRoleGrant,
   authenticateRealIdentity,
@@ -385,5 +387,48 @@ describe("roles page does not require DEV_SIGN_IN", () => {
     assert.match(roles, /Danh sách tài khoản thử không mở/);
     assert.match(roles, /lookupAccountGrants/);
     assert.equal(roles.includes("Đăng nhập thử đang tắt"), false);
+  });
+
+  it("refuses a typed scope and writes one grant per real villa", () => {
+    const known = ["t01", "t06", "t12"];
+    assert.throws(
+      () => planRoleGrants({ role: "BUTLER", villaIds: undefined, knownVillaIds: known, accountId: "usr_lan" }),
+      /ít nhất một villa/,
+    );
+    assert.throws(
+      () => planRoleGrants({ role: "HOST", villaIds: ["T01-T06"], knownVillaIds: known, accountId: "usr_lan" }),
+      /không có trong danh sách/,
+    );
+    const planned = planRoleGrants({
+      role: "BUTLER",
+      villaIds: ["t06", "t01", "t01"],
+      knownVillaIds: known,
+      accountId: "usr_lan",
+    });
+    assert.deepEqual(planned, [{ scopeRef: "t06" }, { scopeRef: "t01" }]);
+    const sale = planRoleGrants({
+      role: "SALE",
+      villaIds: ["t01", "T01-T06"],
+      knownVillaIds: known,
+      accountId: "usr_lan",
+    });
+    assert.deepEqual(sale, [{ scopeRef: "usr_lan" }]);
+    const role = workingRoleFromGrants(
+      planned.map((item, index) => ({
+        role: "BUTLER" as const,
+        scopeRef: item.scopeRef,
+        status: "active" as const,
+        id: String(index),
+      })),
+      "BUTLER",
+    );
+    assert.deepEqual(role.villaIds, ["t06", "t01"]);
+    const page = source("../routes/admin_.roles.tsx");
+    assert.match(page, /type="checkbox"/);
+    assert.equal(page.includes("value={scopeRef}"), false);
+    assert.equal(page.includes("Phạm vi"), false);
+    const grant = functionBody("./dev-identity.server.ts", "grantRole");
+    assert.match(grant, /planRoleGrants/);
+    assert.equal(grant.includes("scopeRef: input"), false);
   });
 });

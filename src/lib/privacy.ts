@@ -17,9 +17,11 @@ export function visibleGuestName(record: GuestNameRecord, role: RoleSession): st
 
   if (role.persona === "ADMIN") return name;
   if (role.persona === "HOST") {
+    if (role.villaIds?.includes(record.villaId)) return name;
     return hostOwnsVilla(role.hostId, record.villaId) ? name : HIDDEN;
   }
   if (role.persona === "BUTLER") {
+    if (role.villaIds?.includes(record.villaId)) return name;
     const butler = butlerPeople.find((person) => person.id === role.butlerId);
     return butler?.villaIds?.includes(record.villaId) ? name : HIDDEN;
   }

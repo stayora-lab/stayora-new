@@ -78,7 +78,7 @@ export const lookupAccountGrants = createServerFn({ method: "POST" })
 
 export const adminGrantRole = createServerFn({ method: "POST" })
   .validator(
-    (input: { email: string; role: string; scopeRef: string | null; key?: string | null }) =>
+    (input: { email: string; role: string; villaIds?: string[]; key?: string | null }) =>
       input,
   )
   .handler(async ({ data }) => {

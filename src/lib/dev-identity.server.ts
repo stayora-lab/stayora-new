@@ -12,6 +12,7 @@ import {
   rolesDirectoryPayload,
   visibleSessionUser,
 } from "./identity-path.ts";
+import { planRoleGrants } from "./grant-scope.ts";
 import type { Persona } from "./domain/types.ts";
 import type { DevGrantRow, DevUser } from "./dev-types.ts";
 
@@ -308,57 +309,68 @@ export async function accountGrantsForOperator(
 export async function grantRole(input: {
   email: string;
   role: string;
-  scopeRef: string | null;
+  villaIds?: string[];
   key?: string | null;
 }): Promise<void> {
   const operatorIsAdmin = authorizeRole("admin", input.key).persona === "ADMIN";
+  if (!operatorIsAdmin) throw new Error("Chỉ Stayora vận hành được cấp vai trò");
+  const target = await userByEmail(input.email);
+  if (!target) throw new Error("Không thấy tài khoản này");
+  const planned = planRoleGrants({
+    role: input.role,
+    villaIds: input.villaIds,
+    knownVillaIds: PILOT_SEED.villas.map((villa) => villa.id),
+    accountId: target.id,
+  });
   const sql = await getSql();
-  await applyRoleGrant(
-    {
-      findByEmail: async (email) => {
-        const user = await userByEmail(email);
-        return user ? { id: user.id } : null;
+  for (const item of planned) {
+    await applyRoleGrant(
+      {
+        findByEmail: async (email) => {
+          const user = await userByEmail(email);
+          return user ? { id: user.id } : null;
+        },
+        findGrant: async (userId, role, scopeRef) => {
+          const existing = await sql<{ id: string }>`
+            select id from role_grants
+            where user_id = ${userId}
+              and role = ${role}
+              and scope_ref is not distinct from ${scopeRef}
+          `;
+          return existing[0] ?? null;
+        },
+        activateGrant: async (id, grantedBy) => {
+          await sql`
+            update role_grants
+            set status = 'active', granted_by = ${grantedBy}, granted_at = now()
+            where id = ${id}
+          `;
+        },
+        insertGrant: async (row) => {
+          await sql`
+            insert into role_grants (id, user_id, role, scope_ref, status, granted_by, granted_at)
+            values (
+              ${row.id},
+              ${row.userId},
+              ${row.role},
+              ${row.scopeRef},
+              'active',
+              ${row.grantedBy},
+              now()
+            )
+          `;
+        },
+        newId: () => `grant_${randomBytes(6).toString("hex")}`,
       },
-      findGrant: async (userId, role, scopeRef) => {
-        const existing = await sql<{ id: string }>`
-          select id from role_grants
-          where user_id = ${userId}
-            and role = ${role}
-            and scope_ref is not distinct from ${scopeRef}
-        `;
-        return existing[0] ?? null;
+      {
+        email: input.email,
+        role: input.role,
+        scopeRef: item.scopeRef,
+        operatorIsAdmin: true,
+        grantedBy: "ADMIN_KEY",
       },
-      activateGrant: async (id, grantedBy) => {
-        await sql`
-          update role_grants
-          set status = 'active', granted_by = ${grantedBy}, granted_at = now()
-          where id = ${id}
-        `;
-      },
-      insertGrant: async (row) => {
-        await sql`
-          insert into role_grants (id, user_id, role, scope_ref, status, granted_by, granted_at)
-          values (
-            ${row.id},
-            ${row.userId},
-            ${row.role},
-            ${row.scopeRef},
-            'active',
-            ${row.grantedBy},
-            now()
-          )
-        `;
-      },
-      newId: () => `grant_${randomBytes(6).toString("hex")}`,
-    },
-    {
-      email: input.email,
-      role: input.role,
-      scopeRef: input.scopeRef,
-      operatorIsAdmin,
-      grantedBy: "ADMIN_KEY",
-    },
-  );
+    );
+  }
 }
 
 export async function revokeRole(grantId: string, key?: string | null): Promise<void> {

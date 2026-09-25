@@ -33,6 +33,7 @@ import {
   resolveUnknown,
 } from "./engine.ts";
 import { seedWorld } from "./seed.ts";
+import { planRoleGrants } from "../grant-scope.ts";
 import type { Actor, PaymentOutcome, World } from "./types.ts";
 
 const HOST: Actor = { persona: "HOST" };
@@ -476,6 +477,72 @@ describe("assignment is not authority", () => {
     refused(() => evaluateStayCompletion(left, { stayId: booked.stayId, actor: dung }));
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "SCHEDULED");
     assertNoOverlap(world);
+  });
+
+  it("a butler granted one villa per grant can act on each of those villas", () => {
+    const known = ["t01", "t06", "t12"];
+    assert.throws(
+      () => planRoleGrants({ role: "BUTLER", villaIds: [], knownVillaIds: known, accountId: "usr_lan" }),
+      /ít nhất một villa/,
+    );
+    assert.throws(
+      () =>
+        planRoleGrants({
+          role: "BUTLER",
+          villaIds: ["T01-T06"],
+          knownVillaIds: known,
+          accountId: "usr_lan",
+        }),
+      /không có trong danh sách/,
+    );
+    const planned = planRoleGrants({
+      role: "BUTLER",
+      villaIds: ["t01", "t06"],
+      knownVillaIds: known,
+      accountId: "usr_lan",
+    });
+    assert.deepEqual(
+      planned.map((item) => item.scopeRef),
+      ["t01", "t06"],
+    );
+    const actor: Actor = {
+      persona: "BUTLER",
+      butlerId: "usr_lan",
+      assignedVillaIds: planned.map((item) => item.scopeRef!),
+    };
+    const first = bookedStay();
+    const prepared = reportPrepared(first.world, { stayId: first.stayId, actor });
+    assert.ok(prepared.world.stays.find((item) => item.id === first.stayId)?.preparedAt);
+
+    let second = createEmptyWorld(NOW);
+    const created = createRequest(second, {
+      villaId: "t06",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-12",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    second = acceptRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
+    const paid = pay(second, created.request.id);
+    const onSecond = reportPrepared(paid.world, { stayId: paid.stay!.id, actor });
+    assert.ok(onSecond.world.stays.find((item) => item.id === paid.stay!.id)?.preparedAt);
+
+    let other = createEmptyWorld(NOW);
+    const otherRequest = createRequest(other, {
+      villaId: "t12",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-12",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    other = acceptRequest(otherRequest.world, { requestId: otherRequest.request.id, actor: HOST }).world;
+    const otherPaid = pay(other, otherRequest.request.id);
+    assert.throws(
+      () => reportPrepared(otherPaid.world, { stayId: otherPaid.stay!.id, actor }),
+      (error: unknown) => error instanceof DomainError && error.code === "NOT_ASSIGNED",
+    );
   });
 });
 

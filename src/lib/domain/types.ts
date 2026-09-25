@@ -4,7 +4,7 @@ export type Actor =
   | { persona: "GUEST" }
   | { persona: "SALE"; saleId: string }
   | { persona: "HOST" }
-  | { persona: "BUTLER"; butlerId: string }
+  | { persona: "BUTLER"; butlerId: string; assignedVillaIds?: readonly string[] }
   | { persona: "BQL" }
   | { persona: "ADMIN" };
 

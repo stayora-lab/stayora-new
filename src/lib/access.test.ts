@@ -41,6 +41,43 @@ describe("dev access", () => {
     assert.deepEqual(role, { persona: "SALE", saleId: "sale-an" });
   });
 
+  it("host and butler villa grants authorize every selected villa", () => {
+    const host = resolveWorkingRole({
+      signedIn: true,
+      grants: [
+        { id: "h1", role: "HOST", scopeRef: "t01", status: "active" },
+        { id: "h2", role: "HOST", scopeRef: "t06", status: "active" },
+        { id: "bad", role: "HOST", scopeRef: "T01-T06", status: "active" },
+      ],
+      grantId: "h1",
+    });
+    assert.deepEqual(host.villaIds, ["t01", "t06"]);
+    assert.equal(host.hostId, "T01-T06");
+    const world = createEmptyWorld(NOW);
+    const block = {
+      type: "CREATE_BLOCK" as const,
+      start: "2026-12-01",
+      end: "2026-12-03",
+      blockKind: "OWNER" as const,
+    };
+    assert.equal(
+      applyWorldAction(world, { ...block, villaId: "t01" }, host).world.commitments.some(
+        (item) => item.villaId === "t01",
+      ),
+      true,
+    );
+    assert.equal(
+      applyWorldAction(world, { ...block, villaId: "t06" }, host).world.commitments.some(
+        (item) => item.villaId === "t06",
+      ),
+      true,
+    );
+    assert.throws(
+      () => applyWorldAction(world, { ...block, villaId: "t12" }, host),
+      (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+    );
+  });
+
   it("a revoke takes effect on the next resolution", () => {
     const revoked: AccessGrant = { ...hostGrant, status: "revoked" };
     const before = resolveWorkingRole({

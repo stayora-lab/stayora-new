@@ -99,6 +99,7 @@ export type ActionResult = {
 
 function assertHostVilla(role: RoleSession, villaId: string) {
   if (role.persona !== "HOST") return;
+  if (role.villaIds?.includes(villaId)) return;
   if (!hostOwnsVilla(role.hostId, villaId)) {
     throw new DomainError("FORBIDDEN", "Villa này không thuộc chủ nhà đang đăng nhập");
   }

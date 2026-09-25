@@ -39,6 +39,7 @@ function ictDay(iso: string): string {
 function OpsPage() {
   const persona = useBookingStore((state) => state.persona);
   const butlerId = useBookingStore((state) => state.butlerId);
+  const grants = useBookingStore((state) => state.grants);
   const world = useBookingStore((state) => state.world);
   const butlerPrepare = useBookingStore((state) => state.butlerPrepare);
   const butlerObserveArrival = useBookingStore((state) => state.butlerObserveArrival);
@@ -59,14 +60,18 @@ function OpsPage() {
 
   const isBql = persona === "BQL";
   const activeButlerId = butlerId ?? BUTLER_LINH;
+  const grantedVillas = grants
+    .filter((grant) => grant.status === "active" && grant.role === "BUTLER" && grant.scopeRef)
+    .map((grant) => grant.scopeRef as string)
+    .filter((id) => villas.some((villa) => villa.id === id));
   const role: RoleSession = isBql
     ? { persona: "BQL" }
-    : { persona: "BUTLER", butlerId: activeButlerId };
+    : { persona: "BUTLER", butlerId: activeButlerId, villaIds: grantedVillas };
   const butler = world.butlers.find((person) => person.id === activeButlerId);
   const opsDate = pickedDate ?? ictDay(world.now);
   const scope = isBql
     ? [...new Set(world.stays.map((stay) => stay.villaId))]
-    : (butler?.villaIds ?? []);
+    : [...new Set([...(butler?.villaIds ?? []), ...grantedVillas])];
   const board = butlerFieldBoard(world, opsDate, scope);
   const openStay = world.stays.find((stay) => stay.id === openId) ?? null;
   const sheetStay = sheet ? world.stays.find((stay) => stay.id === sheet.stayId) : undefined;
@@ -197,7 +202,7 @@ function OpsPage() {
                 <StayWork
                   stay={openStay}
                   role={role}
-                  canAct={!isBql && Boolean(butler?.villaIds?.includes(openStay.villaId))}
+                  canAct={!isBql && scope.includes(openStay.villaId)}
                   canHold={isBql}
                   onPlaceHold={() =>
                     run(() =>

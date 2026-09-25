@@ -6,6 +6,8 @@ export type RoleSession = {
   saleId?: string;
   hostId?: string;
   butlerId?: string;
+  /** Villas granted to this role, one grant each. Legacy person ids stay on hostId/butlerId. */
+  villaIds?: string[];
 };
 
 export const ROLE_STORAGE_KEY = "stayora-role";
@@ -23,6 +25,30 @@ export function roleFromGrant(role: Persona, scopeRef: string | null): RoleSessi
   if (role === "HOST") return { persona: "HOST", hostId: scopeRef ?? undefined };
   if (role === "SALE") return { persona: "SALE", saleId: scopeRef ?? undefined };
   if (role === "BUTLER") return { persona: "BUTLER", butlerId: scopeRef ?? undefined };
+  if (role === "BQL") return { persona: "BQL" };
+  if (role === "ADMIN") return { persona: "ADMIN" };
+  return { persona: "GUEST" };
+}
+
+const VILLA_IDS = new Set(PILOT_SEED.villas.map((villa) => villa.id));
+
+/** Every active grant of the chosen role. Villa scopes accumulate; they are not truncated. */
+export function workingRoleFromGrants(
+  grants: { role: Persona; scopeRef: string | null; status: "active" | "revoked" }[],
+  role: Persona,
+): RoleSession {
+  const scopes = grants
+    .filter((grant) => grant.status === "active" && grant.role === role)
+    .map((grant) => grant.scopeRef);
+  const villaIds = scopes.filter((id): id is string => Boolean(id && VILLA_IDS.has(id)));
+  const legacy = scopes.find((id) => id && !VILLA_IDS.has(id)) ?? undefined;
+  if (role === "HOST") return { persona: "HOST", hostId: legacy, villaIds };
+  if (role === "BUTLER") {
+    return { persona: "BUTLER", butlerId: legacy ?? (villaIds.length ? "granted" : undefined), villaIds };
+  }
+  if (role === "SALE") {
+    return { persona: "SALE", saleId: legacy ?? scopes.find((id): id is string => Boolean(id)) };
+  }
   if (role === "BQL") return { persona: "BQL" };
   if (role === "ADMIN") return { persona: "ADMIN" };
   return { persona: "GUEST" };
@@ -55,7 +81,13 @@ export function vaiFor(role: RoleSession): string {
 
 export function actorFromRole(role: RoleSession): Actor {
   if (role.persona === "SALE") return { persona: "SALE", saleId: role.saleId ?? "" };
-  if (role.persona === "BUTLER") return { persona: "BUTLER", butlerId: role.butlerId ?? "" };
+  if (role.persona === "BUTLER") {
+    return {
+      persona: "BUTLER",
+      butlerId: role.butlerId ?? "",
+      assignedVillaIds: role.villaIds,
+    };
+  }
   if (role.persona === "HOST") return { persona: "HOST" };
   if (role.persona === "BQL") return { persona: "BQL" };
   if (role.persona === "ADMIN") return { persona: "ADMIN" };

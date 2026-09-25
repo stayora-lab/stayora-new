@@ -91,7 +91,9 @@ function assertButlerAssigned(world: World, actor: Actor, villaId: string): void
     throw new DomainError("FORBIDDEN", "Only a Butler can change a Stay");
   }
   const butler = world.butlers.find((person) => person.id === actor.butlerId);
-  if (!butler?.villaIds?.includes(villaId)) {
+  const seeded = butler?.villaIds ?? [];
+  const granted = actor.assignedVillaIds ?? [];
+  if (![...seeded, ...granted].includes(villaId)) {
     throw new DomainError("NOT_ASSIGNED", "This villa is not assigned to this Butler");
   }
 }

@@ -23,7 +23,7 @@ import {
   type DevSessionPayload,
 } from "./dev-identity-api.ts";
 import type { WorldAction } from "./world-actions.ts";
-import { parseVai, ROLE_STORAGE_KEY, roleFromGrant, vaiFor, type RoleSession } from "./role.ts";
+import { parseVai, ROLE_STORAGE_KEY, workingRoleFromGrants, vaiFor, type RoleSession } from "./role.ts";
 
 export type SearchState = {
   checkIn: string;
@@ -209,7 +209,7 @@ export const useBookingStore = create<BookingState>()(
             });
             return;
           }
-          const role = roleFromGrant(chosen.role, chosen.scopeRef);
+          const role = workingRoleFromGrants(active, chosen.role);
           set({
             identity: session.user,
             grants: session.grants,
@@ -227,7 +227,10 @@ export const useBookingStore = create<BookingState>()(
       selectGrant: (grantId) => {
         const grant = get().grants.find((item) => item.id === grantId && item.status === "active");
         if (!grant) return;
-        const role = roleFromGrant(grant.role, grant.scopeRef);
+        const role = workingRoleFromGrants(
+          get().grants.filter((item) => item.status === "active"),
+          grant.role,
+        );
         set({
           grantId,
           persona: role.persona,

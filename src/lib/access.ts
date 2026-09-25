@@ -1,6 +1,6 @@
 import type { Persona } from "./domain/types.ts";
 import { authorizeRole } from "./authorize.ts";
-import { roleFromGrant, type RoleSession } from "./role.ts";
+import { roleFromGrant, workingRoleFromGrants, type RoleSession } from "./role.ts";
 
 export type AccessGrant = {
   id: string;
@@ -32,7 +32,7 @@ export function resolveWorkingRole(input: {
     const chosen = input.grantId
       ? active.find((grant) => grant.id === input.grantId)
       : active[0];
-    return chosen ? roleFromGrant(chosen.role, chosen.scopeRef) : { persona: "GUEST" };
+    return chosen ? workingRoleFromGrants(active, chosen.role) : { persona: "GUEST" };
   }
   if (input.demo) return authorizeRole(input.vai, input.key);
   return { persona: "GUEST" };

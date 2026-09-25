@@ -12,6 +12,7 @@ import type { DevGrantRow, DevUser } from "@/lib/dev-types";
 import { PILOT_SEED } from "@/lib/pilot-data";
 import { fetchAdminStatus } from "@/lib/world-api";
 import { useBookingStore } from "@/lib/store";
+import { villas } from "@/lib/villas";
 
 export const Route = createFileRoute("/admin_/roles")({
   loader: async () => {
@@ -33,7 +34,7 @@ function RolesPage() {
     initial.devDirectory ? (PILOT_SEED.people?.[0]?.email ?? "") : "",
   );
   const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]>("HOST");
-  const [scopeRef, setScopeRef] = useState("host-an");
+  const [villaIds, setVillaIds] = useState<string[]>([]);
   const [found, setFound] = useState<{ user: DevUser; grants: DevGrantRow[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +71,12 @@ function RolesPage() {
               event.preventDefault();
               setError(null);
               void adminGrantRole({
-                data: { email, role, scopeRef: role === "BQL" ? null : scopeRef, key: adminKey },
+                data: {
+                  email,
+                  role,
+                  villaIds: role === "HOST" || role === "BUTLER" ? villaIds : undefined,
+                  key: adminKey,
+                },
               })
                 .then(async () => {
                   await reloadDirectory();
@@ -94,7 +100,10 @@ function RolesPage() {
               Vai trò
               <select
                 value={role}
-                onChange={(event) => setRole(event.target.value as (typeof ROLE_OPTIONS)[number])}
+                onChange={(event) => {
+                  setRole(event.target.value as (typeof ROLE_OPTIONS)[number]);
+                  setVillaIds([]);
+                }}
                 className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
               >
                 {ROLE_OPTIONS.map((item) => (
@@ -102,15 +111,38 @@ function RolesPage() {
                 ))}
               </select>
             </label>
-            {role === "HOST" || role === "SALE" || role === "BUTLER" ? (
-              <label className="block text-sm">
-                Phạm vi
-                <input
-                  value={scopeRef}
-                  onChange={(event) => setScopeRef(event.target.value)}
-                  className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
-                />
-              </label>
+            {role === "HOST" || role === "BUTLER" ? (
+              <fieldset className="block text-sm">
+                <legend>Villa</legend>
+                <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl bg-cream p-2">
+                  {villas.map((villa) => (
+                    <label key={villa.id} className="flex items-center gap-2 px-1 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={villaIds.includes(villa.id)}
+                        onChange={(event) => {
+                          setVillaIds((current) =>
+                            event.target.checked
+                              ? [...current, villa.id]
+                              : current.filter((id) => id !== villa.id),
+                          );
+                        }}
+                      />
+                      <span>
+                        {villa.name}
+                        <span className="text-muted"> · {villa.id}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted">
+                  Mỗi villa là một vai riêng. Chọn nhiều villa thì cấp nhiều vai, không gộp thành một mã.
+                </p>
+              </fieldset>
+            ) : role === "SALE" ? (
+              <p className="text-sm text-muted">
+                Sale không gắn với villa. Hoa hồng ghi theo tài khoản này, không theo mã gõ tay.
+              </p>
             ) : null}
             {error ? <p className="text-sm text-lotus-deep">{error}</p> : null}
             <div className="flex gap-2">
@@ -161,6 +193,19 @@ function RolesPage() {
   );
 }
 
+function scopeLabel(role: string, scopeRef: string): string {
+  const villa = villas.find((item) => item.id === scopeRef);
+  if (villa) return `${villa.name} · ${villa.id}`;
+  if (role === "SALE" || role === "BQL") return scopeRef;
+  const legacy = [
+    ...PILOT_SEED.hosts.map((person) => person.id),
+    ...PILOT_SEED.butlers.map((person) => person.id),
+    ...(PILOT_SEED.bql ?? []).map((person) => person.id),
+  ];
+  if (legacy.includes(scopeRef)) return scopeRef;
+  return `${scopeRef} · không phải villa — thu hồi rồi cấp lại`;
+}
+
 function AccountGrants({
   user,
   grants,
@@ -182,7 +227,7 @@ function AccountGrants({
             <li key={grant.id} className="flex items-center justify-between gap-3 text-sm">
               <span>
                 {grant.role}
-                {grant.scopeRef ? ` · ${grant.scopeRef}` : ""} · {grant.status}
+                {grant.scopeRef ? ` · ${scopeLabel(grant.role, grant.scopeRef)}` : ""} · {grant.status}
               </span>
               {grant.status === "active" ? (
                 <button type="button" className="text-lotus" onClick={() => onRevoke(grant.id)}>

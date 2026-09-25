@@ -18,7 +18,7 @@ import {
 import type { StayRequest } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
-import { getVilla, villasForHost } from "@/lib/villas";
+import { getVilla, villas, villasForHost } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 
 export const Route = createFileRoute("/host")({
@@ -36,6 +36,7 @@ const TABS: { id: HostTab; label: string }[] = [
 
 function HostPage() {
   const hostId = useBookingStore((state) => state.hostId);
+  const grants = useBookingStore((state) => state.grants);
   const world = useBookingStore((state) => state.world);
   const hostAccept = useBookingStore((state) => state.hostAccept);
   const hostExternal = useBookingStore((state) => state.hostExternal);
@@ -51,9 +52,18 @@ function HostPage() {
   const clock = parseISO(world.now);
   const today = world.now.slice(0, 10);
   const summary = hostToday(world, today);
-  const mine = villasForHost(hostId);
+  const grantedIds = new Set(
+    grants
+      .filter((grant) => grant.status === "active" && grant.role === "HOST" && grant.scopeRef)
+      .map((grant) => grant.scopeRef as string)
+      .filter((id) => villas.some((villa) => villa.id === id)),
+  );
+  const mine = [
+    ...villasForHost(hostId),
+    ...villas.filter((villa) => grantedIds.has(villa.id)),
+  ].filter((villa, index, list) => list.findIndex((item) => item.id === villa.id) === index);
   const mineIds = new Set(mine.map((villa) => villa.id));
-  const hostRole = { persona: "HOST" as const, hostId };
+  const hostRole = { persona: "HOST" as const, hostId, villaIds: [...grantedIds] };
   const todayPending = summary.pending.filter((item) => mineIds.has(item.villaId));
   const todayArriving = summary.arriving.filter((item) => mineIds.has(item.villaId));
   const todayDeparting = summary.departing.filter((item) => mineIds.has(item.villaId));
