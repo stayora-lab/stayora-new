@@ -72,7 +72,7 @@ describe("fictional test dataset", () => {
     assert.ok(world.stays.some((item) => item.villaId === "t07" && item.status === "SCHEDULED"));
     assert.ok(
       world.bookings.some(
-        (item) => item.villaId === "t07" && item.status === "CANCELLED" && item.guestName === "Khách bị huỷ vì xung đột",
+        (item) => item.villaId === "t07" && item.status === "CANCELLED" && item.guestName === "Chị Hoa",
       ),
     );
 
@@ -95,8 +95,8 @@ describe("fictional test dataset", () => {
       board.prepare.map((stay) => stay.villaId),
       ["t01"],
     );
-    assert.equal(board.arriving.find((stay) => stay.villaId === "t01")?.guestName, "Khách lịch hôm nay");
-    assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.guestName, "Khách đang ở");
+    assert.equal(board.arriving.find((stay) => stay.villaId === "t01")?.guestName, "Chị Mai");
+    assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.guestName, "Anh Long");
     assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.status, "CHECKED_IN");
   });
 });

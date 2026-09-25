@@ -287,7 +287,7 @@
       "nights": 4,
       "guests": 4,
       "source": "Khách quen",
-      "guestName": "Gia đình Thử",
+      "guestName": "Gia đình Lê",
       "note": "External Khách quen — in-house."
     },
     {
@@ -296,7 +296,7 @@
       "nights": 3,
       "guests": 4,
       "source": "Airbnb",
-      "guestName": "Khách Airbnb Thử",
+      "guestName": "Anh Phong",
       "note": "Overlaps a Stayora booking on T05 → OPEN conflict."
     },
     {
@@ -305,7 +305,7 @@
       "nights": 2,
       "guests": 3,
       "source": "Booking.com",
-      "guestName": "Khách Booking Thử"
+      "guestName": "Chị Trang"
     },
     {
       "villaId": "t08",
@@ -313,7 +313,7 @@
       "nights": 3,
       "guests": 2,
       "source": "Agoda",
-      "guestName": "Khách Agoda Thử"
+      "guestName": "Anh Bảo"
     },
     {
       "villaId": "t11",
@@ -321,7 +321,7 @@
       "nights": 2,
       "guests": 4,
       "source": "Zalo",
-      "guestName": "Khách Zalo Thử"
+      "guestName": "Chị My"
     },
     {
       "villaId": "t12",
@@ -329,7 +329,7 @@
       "nights": 2,
       "guests": 2,
       "source": "Khác",
-      "guestName": "Khách nguồn Khác"
+      "guestName": "Anh Khôi"
     }
   ],
   "blocks": [

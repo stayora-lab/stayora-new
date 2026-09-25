@@ -5,6 +5,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useState } from "react";
 import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
+import { ButlerStayCard } from "@/components/butler-stay-card";
 import { HostCalendar } from "@/components/host-calendar";
 import { DateField } from "@/components/dates-guests";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import type { Stay } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
+import type { NextCardAction } from "@/lib/butler-card";
 import type { RoleSession } from "@/lib/role";
 
 export const Route = createFileRoute("/ops")({
@@ -105,6 +107,14 @@ function OpsPage() {
     setHasPhoto(false);
   }
 
+  function runCard(stayId: string, actionId: NextCardAction["id"]) {
+    if (actionId === "prepare") return run(() => butlerPrepare(stayId));
+    if (actionId === "observe-arrival") return run(() => butlerObserveArrival(stayId));
+    if (actionId === "check-in") return run(() => butlerCheckIn(stayId));
+    if (actionId === "observe-departure") return run(() => butlerObserveDeparture(stayId));
+    return run(() => butlerCheckOut(stayId));
+  }
+
   return (
     <RoleGate allow={["BUTLER", "BQL"]}>
       <main lang="vi" className="pb-24">
@@ -145,32 +155,40 @@ function OpsPage() {
           empty="Không còn villa cần chuẩn bị."
           stays={board.prepare}
           role={role}
-          emphasize="villa"
+          lane="prepare"
+          canAct={!isBql}
           onOpen={setOpenId}
+          onAction={runCard}
         />
         <BoardSection
           title="Khách đến"
           empty="Không có khách đến."
           stays={board.arriving}
           role={role}
-          emphasize="guest"
+          lane="arriving"
+          canAct={!isBql}
           onOpen={setOpenId}
+          onAction={runCard}
         />
         <BoardSection
           title="Khách đi"
           empty="Không có khách đi."
           stays={board.departing}
           role={role}
-          emphasize="guest"
+          lane="departing"
+          canAct={!isBql}
           onOpen={setOpenId}
+          onAction={runCard}
         />
         <BoardSection
           title="Đang ở"
           empty="Không có khách đang ở."
           stays={board.inHouse}
           role={role}
-          emphasize="guest"
+          lane="inHouse"
+          canAct={!isBql}
           onOpen={setOpenId}
+          onAction={runCard}
         />
 
         {isBql ? (
@@ -325,15 +343,19 @@ function BoardSection({
   empty,
   stays,
   role,
-  emphasize,
+  lane,
+  canAct,
   onOpen,
+  onAction,
 }: {
   title: string;
   empty: string;
   stays: Stay[];
   role: RoleSession;
-  emphasize: "villa" | "guest";
+  lane: "prepare" | "arriving" | "departing" | "inHouse";
+  canAct: boolean;
   onOpen: (stayId: string) => void;
+  onAction: (stayId: string, actionId: NextCardAction["id"]) => void;
 }) {
   return (
     <section className="mx-auto max-w-lg px-4 pt-8 sm:px-6">
@@ -347,26 +369,17 @@ function BoardSection({
             {empty}
           </p>
         ) : (
-          stays.map((stay) => {
-            const villa = getVilla(stay.villaId)?.name ?? stay.villaId;
-            const guest = visibleGuestName(stay, role);
-            const titleText = emphasize === "villa" ? villa : guest;
-            const detail = emphasize === "villa" ? guest : villa;
-            return (
-              <button
-                key={`${title}-${stay.id}`}
-                type="button"
-                onClick={() => onOpen(stay.id)}
-                className="w-full rounded-2xl bg-paper p-4 text-left shadow-[var(--shadow-border)]"
-              >
-                <p className="font-medium">{titleText}</p>
-                <p className="mt-1 text-sm text-ink-soft">{detail}</p>
-                <p className="mt-2 text-sm text-muted">
-                  {stay.guests} khách · {viDateRange(stay.checkIn, stay.checkOut)}
-                </p>
-              </button>
-            );
-          })
+          stays.map((stay) => (
+            <ButlerStayCard
+              key={`${title}-${stay.id}`}
+              stay={stay}
+              role={role}
+              lane={lane}
+              canAct={canAct}
+              onOpen={() => onOpen(stay.id)}
+              onAction={(actionId) => onAction(stay.id, actionId)}
+            />
+          ))
         )}
       </div>
     </section>

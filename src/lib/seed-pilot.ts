@@ -111,7 +111,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 28),
       checkOut: shift(today, 31),
       guests: 2,
-      guestName: "Khách hết hạn giữ",
+      // Scenario: exclusive hold that has already expired.
+      guestName: "Anh Khoa",
       actor: GUEST,
       id: "req_seed_expired",
     });
@@ -122,7 +123,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 36),
       checkOut: shift(today, 39),
       guests: 4,
-      guestName: "Khách giữ sắp hết hạn",
+      // Scenario: exclusive hold about to expire.
+      guestName: "Chị Hạnh",
       actor: SALE,
       id: "req_seed_hold_soon",
     });
@@ -137,7 +139,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: today,
       checkOut: shift(today, 3),
       guests: 4,
-      guestName: "Khách lịch hôm nay",
+      // Scenario: SCHEDULED, arriving today.
+      guestName: "Chị Mai",
       actor: SALE,
       id: "req_seed_scheduled_today",
     });
@@ -152,7 +155,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, -1),
       checkOut: today,
       guests: 4,
-      guestName: "Khách đang ở",
+      // Scenario: CHECKED_IN, departing today.
+      guestName: "Anh Long",
       actor: GUEST,
       id: "req_seed_checked_in",
     });
@@ -169,7 +173,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, -4),
       checkOut: shift(today, -1),
       guests: 2,
-      guestName: "Khách đã trả phòng",
+      // Scenario: CHECKED_OUT and COMPLETED yesterday.
+      guestName: "Gia đình Trần",
       actor: SALE,
       id: "req_seed_completed",
     });
@@ -190,7 +195,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, -1),
       checkOut: shift(today, 2),
       guests: 4,
-      guestName: "Khách không đến",
+      // Scenario: DID_NOT_OCCUR, was due yesterday.
+      guestName: "Chị Lan",
       actor: GUEST,
       id: "req_seed_no_show",
     });
@@ -213,7 +219,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 10),
       checkOut: shift(today, 13),
       guests: 4,
-      guestName: "Khách Stayora trùng Airbnb",
+      // Scenario: Stayora booking overlapped by an Airbnb stay.
+      guestName: "Anh Dũng",
       actor: SALE,
       id: "req_seed_conflict_stayora",
     });
@@ -241,7 +248,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 5),
       checkOut: shift(today, 7),
       guests: 2,
-      guestName: "Khách bị huỷ vì xung đột",
+      // Scenario: booking cancelled because an external stay was kept.
+      guestName: "Chị Hoa",
       actor: GUEST,
       id: "req_seed_cancelled_conflict",
     });
@@ -286,7 +294,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 14),
       checkOut: shift(today, 17),
       guests: 2,
-      guestName: "Khách đang chờ",
+      // Scenario: still PENDING.
+      guestName: "Anh Tuấn",
       actor: GUEST,
       id: "req_seed_pending",
     });
@@ -300,7 +309,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 22),
       checkOut: shift(today, 24),
       guests: 2,
-      guestName: "Khách bị từ chối",
+      // Scenario: DECLINED.
+      guestName: "Chị Ngọc",
       actor: GUEST,
       id: "req_seed_rejected",
     });
@@ -314,7 +324,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 16),
       checkOut: shift(today, 19),
       guests: 2,
-      guestName: "Khách giữ chỗ",
+      // Scenario: exclusive hold that wins the overlap.
+      guestName: "Anh Minh",
       actor: GUEST,
       id: "req_seed_hold_winner",
     });
@@ -323,7 +334,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 16),
       checkOut: shift(today, 19),
       guests: 2,
-      guestName: "Khách bị xung đột",
+      // Scenario: second request, CONFLICTED by the hold above.
+      guestName: "Chị Vy",
       actor: GUEST,
       id: "req_seed_conflicted",
     });
@@ -338,7 +350,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 25),
       checkOut: shift(today, 28),
       guests: 4,
-      guestName: "Khách thanh toán chưa rõ",
+      // Scenario: payment outcome UNKNOWN.
+      guestName: "Anh Phúc",
       actor: SALE,
       id: "req_seed_unknown",
     });
@@ -362,7 +375,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       checkIn: shift(today, 32),
       checkOut: shift(today, 35),
       guests: 4,
-      guestName: "Khách thanh toán trùng",
+      // Scenario: duplicate successful payment.
+      guestName: "Chị Quỳnh",
       actor: SALE,
       id: "req_seed_duplicate",
     });
