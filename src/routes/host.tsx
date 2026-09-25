@@ -41,8 +41,13 @@ function HostPage() {
   const hostExternal = useBookingStore((state) => state.hostExternal);
   const hostCreateBlock = useBookingStore((state) => state.hostCreateBlock);
   const hostReleaseBlock = useBookingStore((state) => state.hostReleaseBlock);
+  const reportIncident = useBookingStore((state) => state.reportIncident);
+  const placeProtectiveHold = useBookingStore((state) => state.placeProtectiveHold);
+  const releaseProtectiveHold = useBookingStore((state) => state.releaseProtectiveHold);
+  const recordMaintenanceFromHold = useBookingStore((state) => state.recordMaintenanceFromHold);
   const [tab, setTab] = useState<HostTab>("today");
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   const clock = parseISO(world.now);
   const today = world.now.slice(0, 10);
   const summary = hostToday(world, today);
@@ -68,6 +73,10 @@ function HostPage() {
       world.bookings.some((booking) => booking.requestId === item.id && booking.status === "CONFIRMED"),
   );
   const myStays = world.stays.filter((stay) => mineIds.has(stay.villaId));
+  const myIncidents = world.incidents.filter((item) => mineIds.has(item.villaId));
+  const myHolds = (world.protectiveHolds ?? []).filter(
+    (item) => item.status === "ACTIVE" && mineIds.has(item.villaId),
+  );
 
   async function run(action: () => Promise<void>) {
     setError(null);
@@ -141,12 +150,27 @@ function HostPage() {
               </p>
             ))}
           </TodayCard>
+          <TodayCard title="Cần chú ý" count={myIncidents.length + myHolds.length}>
+            {myIncidents.map((incident) => (
+              <p key={incident.id} className="text-sm">
+                {getVilla(incident.villaId)?.name} · {incident.note}
+              </p>
+            ))}
+            {myHolds.map((hold) => (
+              <p key={hold.id} className="text-sm">
+                {getVilla(hold.villaId)?.name} · Giữ bảo vệ
+                {hold.reviewDueAt <= world.now ? " · quá hạn xem lại" : ""}
+              </p>
+            ))}
+          </TodayCard>
           <TodayCard
             title="Xung đột lịch đang mở"
-            count={summary.openConflicts.length}
+            count={summary.openConflicts.filter((item) => mineIds.has(item.villaId)).length}
             onClick={() => setTab("calendar")}
           >
-            {summary.openConflicts.map((conflict) => (
+            {summary.openConflicts
+              .filter((item) => mineIds.has(item.villaId))
+              .map((conflict) => (
               <p key={conflict.id} className="text-sm">
                 {getVilla(conflict.villaId)?.name} · Stayora vận hành sẽ xử lý
               </p>
@@ -163,6 +187,34 @@ function HostPage() {
               );
             })}
           </TodayCard>
+          {myHolds.length > 0 ? (
+            <div className="space-y-3">
+              {myHolds.map((hold) => (
+                <article key={hold.id} className="rounded-2xl border-2 border-[#8a5a12] bg-[#f8edd6] p-4">
+                  <p className="font-medium text-[#6a4310]">
+                    {getVilla(hold.villaId)?.name} · Giữ bảo vệ
+                  </p>
+                  <p className="mt-1 text-sm text-[#6a4310]">{hold.note}</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button variant="outline" onClick={() => run(() => releaseProtectiveHold(hold.id))}>
+                      Gỡ giữ
+                    </Button>
+                    <Button variant="ink" onClick={() => run(() => recordMaintenanceFromHold(hold.id))}>
+                      Ghi bảo trì
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          <label className="block text-sm">
+            Ghi chú khi báo việc
+            <input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              className="mt-1 h-11 w-full rounded-xl bg-paper px-3 shadow-[var(--shadow-border)]"
+            />
+          </label>
         </section>
       ) : null}
 
@@ -174,6 +226,8 @@ function HostPage() {
             onExternal={(input) => run(() => hostExternal(input))}
             onBlock={(input) => run(() => hostCreateBlock(input))}
             onRelease={(id) => run(() => hostReleaseBlock(id))}
+            onPlaceHold={(input) => run(() => placeProtectiveHold(input))}
+            onReleaseHold={(id) => run(() => releaseProtectiveHold(id))}
           />
         </section>
       ) : null}
@@ -255,6 +309,31 @@ function HostPage() {
                       {booking.status === "CANCELLED" ? " · đã huỷ" : ""}
                     </p>
                   ) : null}
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        run(() => reportIncident(stay.id, note.trim() || "Cần xem villa", false))
+                      }
+                    >
+                      Báo việc
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        run(() =>
+                          placeProtectiveHold({
+                            villaId: stay.villaId,
+                            start: stay.checkIn,
+                            end: stay.checkOut,
+                            note: note.trim() || "Cần xem villa",
+                          }),
+                        )
+                      }
+                    >
+                      Giữ bảo vệ
+                    </Button>
+                  </div>
                 </article>
               );
             })

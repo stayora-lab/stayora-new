@@ -9,9 +9,10 @@ import {
   commitmentsOnDate,
   formatDueAt,
   personaLabel,
+  protectiveHoldsOnDate,
   viDateRange,
 } from "@/lib/domain";
-import type { BlockKind, Commitment, ExternalSource, World } from "@/lib/domain";
+import type { BlockKind, Commitment, ExternalSource, ProtectiveHold, World } from "@/lib/domain";
 import { getVilla, villas as allVillas, type Villa } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import { useBookingStore } from "@/lib/store";
@@ -57,6 +58,9 @@ export function HostCalendar({
   onExternal,
   onBlock,
   onRelease,
+  onPlaceHold,
+  onReleaseHold,
+  composer = true,
 }: {
   world: World;
   villas?: Villa[];
@@ -76,6 +80,14 @@ export function HostCalendar({
     note?: string;
   }) => void;
   onRelease: (commitmentId: string) => void;
+  onPlaceHold?: (input: {
+    villaId: string;
+    start: string;
+    end: string;
+    note: string;
+  }) => void;
+  onReleaseHold?: (holdId: string) => void;
+  composer?: boolean;
 }) {
   const today = world.now.slice(0, 10);
   const [start, setStart] = useState(today);
@@ -148,6 +160,7 @@ export function HostCalendar({
         <Legend swatch="bg-sand text-ink" label="Giữ chỗ" />
         <Legend swatch="bg-cream-deep text-ink-soft" label="Chặn" />
         <Legend swatch="bg-ink-soft text-cream" label="Bảo trì" />
+        <Legend swatch="border-2 border-[#8a5a12] bg-[#f8edd6]" label="Giữ bảo vệ" />
         <Legend swatch="border-2 border-[#b42318] bg-[#fdecea] text-[#7a1f16]" label="Xung đột" />
       </div>
       <div className="mt-3 overflow-x-auto">
@@ -178,18 +191,29 @@ export function HostCalendar({
                 </th>
                 {dates.map((date) => {
                   const items = commitmentsOnDate(world, villa.id, date);
+                  const holds = protectiveHoldsOnDate(world, villa.id, date);
                   const conflict = items.length > 1;
+                  const holdOnly = holds.length > 0 && items.length === 0;
                   const label = conflict
                     ? "Xung đột"
-                    : items[0]
-                      ? commitmentCellLabel(items[0])
-                      : "Trống";
+                    : holdOnly
+                      ? "Giữ bảo vệ"
+                      : items[0]
+                        ? commitmentCellLabel(items[0])
+                        : "Trống";
+                  const tone = conflict
+                    ? "border-2 border-[#b42318] bg-[#fdecea] text-[#7a1f16]"
+                    : holdOnly
+                      ? "border-2 border-[#8a5a12] bg-[#f8edd6] text-[#6a4310]"
+                      : holds.length > 0
+                        ? `${cellTone(items)} ring-2 ring-[#8a5a12]`
+                        : cellTone(items);
                   return (
                     <td key={date} className="p-0.5">
                       <button
                         type="button"
                         onClick={() => openCell(villa.id, date)}
-                        className={`flex h-16 w-20 flex-col justify-center rounded-lg px-1.5 text-left text-[11px] leading-tight ${cellTone(items)}`}
+                        className={`flex h-16 w-20 flex-col justify-center rounded-lg px-1.5 text-left text-[11px] leading-tight ${tone}`}
                       >
                         {conflict ? (
                           <span className="mb-0.5 flex items-center gap-0.5 font-semibold">
@@ -197,8 +221,11 @@ export function HostCalendar({
                             Xung đột
                           </span>
                         ) : (
-                          <span className="line-clamp-3">{label}</span>
+                          <span className="line-clamp-2">{label}</span>
                         )}
+                        {holds.length > 0 && !holdOnly ? (
+                          <span className="mt-0.5 font-semibold text-[#6a4310]">Giữ bảo vệ</span>
+                        ) : null}
                       </button>
                     </td>
                   );
@@ -215,7 +242,8 @@ export function HostCalendar({
           <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-paper p-5 pb-10">
             <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-sand" />
             {sheet?.kind === "cell" ? (
-              sheet.commitments.length === 0 ? (
+              sheet.commitments.length === 0 &&
+              protectiveHoldsOnDate(world, sheet.villaId, sheet.date).length === 0 ? (
                 <EmptyCell
                   villaId={sheet.villaId}
                   date={sheet.date}
@@ -233,19 +261,44 @@ export function HostCalendar({
                   setNote={setNote}
                   onExternal={submitExternal}
                   onBlock={submitBlock}
+                  onPlaceHold={
+                    onPlaceHold
+                      ? () => {
+                          if (!sheet || sheet.kind !== "cell") return;
+                          onPlaceHold({
+                            villaId: sheet.villaId,
+                            start: sheet.date,
+                            end: checkOut || addIso(sheet.date, 1),
+                            note: note.trim() || "Đang xem villa",
+                          });
+                          setSheet(null);
+                        }
+                      : undefined
+                  }
+                  composer={composer}
                 />
               ) : (
                 <OccupiedCell
                   world={world}
                   date={sheet.date}
                   commitments={sheet.commitments}
+                  holds={protectiveHoldsOnDate(world, sheet.villaId, sheet.date)}
                   onRelease={(id) => {
                     onRelease(id);
                     setSheet(null);
                   }}
+                  onReleaseHold={
+                    onReleaseHold
+                      ? (id) => {
+                          onReleaseHold(id);
+                          setSheet(null);
+                        }
+                      : undefined
+                  }
                   onExternal={() =>
                     setSheet({ kind: "external", villaId: sheet.villaId, checkIn: sheet.date })
                   }
+                  showExternal={composer && sheet.commitments.length > 0}
                 />
               )
             ) : null}
@@ -300,20 +353,26 @@ function OccupiedCell({
   world,
   date,
   commitments,
+  holds,
   onRelease,
+  onReleaseHold,
   onExternal,
+  showExternal,
 }: {
   world: World;
   date: string;
   commitments: Commitment[];
+  holds: ProtectiveHold[];
   onRelease: (id: string) => void;
+  onReleaseHold?: (id: string) => void;
   onExternal: () => void;
+  showExternal: boolean;
 }) {
   const conflict = commitments.length > 1;
   return (
     <div>
       <p className="text-xs font-semibold tracking-wider text-lotus uppercase">
-        {conflict ? "Xung đột" : "Chi tiết ô"}
+        {conflict ? "Xung đột" : holds.length ? "Giữ bảo vệ" : "Chi tiết ô"}
       </p>
       <h2 className="mt-1 font-serif text-2xl">{format(parseISO(date), "EEEE d/M", { locale: vi })}</h2>
       {conflict ? (
@@ -321,14 +380,38 @@ function OccupiedCell({
           Hai chỗ cùng lúc. Stayora vận hành sẽ xử lý — không tự chọn bên thắng.
         </p>
       ) : null}
+      {holds.length > 0 ? (
+        <div className="mt-4 space-y-3">
+          {holds.map((hold) => (
+            <article key={hold.id} className="rounded-2xl border-2 border-[#8a5a12] bg-[#f8edd6] p-4">
+              <p className="font-medium text-[#6a4310]">Giữ bảo vệ</p>
+              <p className="mt-1 text-sm text-[#6a4310]">
+                Đang xem villa. Đặt chỗ đang có vẫn giữ. Không phải bảo trì.
+              </p>
+              <p className="mt-2 text-sm">{hold.note}</p>
+              <p className="mt-1 text-sm text-muted">{viDateRange(hold.start, hold.end)}</p>
+              {hold.reviewDueAt <= world.now ? (
+                <p className="mt-2 text-sm font-medium text-[#6a4310]">Đã quá hạn xem lại. Vẫn đang giữ.</p>
+              ) : null}
+              {onReleaseHold ? (
+                <Button variant="outline" className="mt-4 w-full" onClick={() => onReleaseHold(hold.id)}>
+                  Gỡ giữ bảo vệ
+                </Button>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
       <div className="mt-4 space-y-3">
         {commitments.map((commitment) => (
           <CommitmentDetail key={commitment.id} world={world} commitment={commitment} onRelease={onRelease} />
         ))}
       </div>
-      <Button variant="outline" className="mt-5 w-full" onClick={onExternal}>
-        Ghi đặt ngoài chồng lên
-      </Button>
+      {showExternal ? (
+        <Button variant="outline" className="mt-5 w-full" onClick={onExternal}>
+          Ghi đặt ngoài chồng lên
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -394,6 +477,8 @@ function EmptyCell({
   setNote,
   onExternal,
   onBlock,
+  onPlaceHold,
+  composer = true,
   only,
 }: {
   villaId: string;
@@ -412,10 +497,14 @@ function EmptyCell({
   setNote: (value: string) => void;
   onExternal?: () => void;
   onBlock?: () => void;
+  onPlaceHold?: () => void;
+  composer?: boolean;
   only?: "external" | "block";
 }) {
   const villa = getVilla(villaId);
-  const [mode, setMode] = useState<"external" | "block">(only ?? "external");
+  const [mode, setMode] = useState<"external" | "block" | "protect">(
+    only ?? (composer ? "external" : "protect"),
+  );
   return (
     <div>
       <p className="text-xs font-semibold tracking-wider text-muted uppercase">Trống</p>
@@ -423,8 +512,8 @@ function EmptyCell({
       <p className="mt-1 text-sm text-muted">
         Từ {format(parseISO(date), "d/M")} · chọn ngày đi
       </p>
-      {!only ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
+      {!only && composer ? (
+        <div className="mt-4 grid grid-cols-3 gap-2">
           <Button
             variant={mode === "external" ? "primary" : "outline"}
             onClick={() => setMode("external")}
@@ -434,6 +523,14 @@ function EmptyCell({
           <Button variant={mode === "block" ? "primary" : "outline"} onClick={() => setMode("block")}>
             Chặn lịch
           </Button>
+          {onPlaceHold ? (
+            <Button
+              variant={mode === "protect" ? "primary" : "outline"}
+              onClick={() => setMode("protect")}
+            >
+              Giữ bảo vệ
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -447,7 +544,24 @@ function EmptyCell({
         />
       </label>
 
-      {mode === "external" ? (
+      {mode === "protect" && onPlaceHold ? (
+        <>
+          <label className="mt-3 block text-sm">
+            Việc đang xem
+            <input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              className="mt-1 h-12 w-full rounded-xl bg-cream px-4"
+            />
+          </label>
+          <p className="mt-2 text-xs text-muted">
+            Tạm giữ ngày này để xem villa. Đặt chỗ đang có không bị xoá. Không phải bảo trì.
+          </p>
+          <Button className="mt-5 w-full" onClick={onPlaceHold}>
+            Giữ bảo vệ
+          </Button>
+        </>
+      ) : mode === "external" ? (
         <>
           <label className="mt-3 block text-sm">
             Nguồn

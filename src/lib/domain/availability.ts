@@ -20,6 +20,19 @@ export function activeCommitments(world: World): Commitment[] {
   });
 }
 
+export function commitmentsOverlap(
+  world: World,
+  villaId: string,
+  start: string,
+  end: string,
+): boolean {
+  return activeCommitments(world).some(
+    (commitment) =>
+      commitment.villaId === villaId &&
+      rangesOverlap(start, end, commitment.start, commitment.end),
+  );
+}
+
 export function isAvailable(
   world: World,
   villaId: string,
@@ -32,10 +45,12 @@ export function isAvailable(
   } catch {
     return false;
   }
-  return !activeCommitments(world).some(
-    (commitment) =>
-      commitment.villaId === villaId &&
-      rangesOverlap(checkIn, checkOut, commitment.start, commitment.end),
+  return (
+    !commitmentsOverlap(world, villaId, checkIn, checkOut) &&
+    !activeProtectiveHolds(world).some(
+      (hold) =>
+        hold.villaId === villaId && rangesOverlap(checkIn, checkOut, hold.start, hold.end),
+    )
   );
 }
 
@@ -57,6 +72,16 @@ export function overlappingActive(world: World): [Commitment, Commitment][] {
     }
   }
   return pairs;
+}
+
+export function activeProtectiveHolds(world: World) {
+  return (world.protectiveHolds ?? []).filter((hold) => hold.status === "ACTIVE");
+}
+
+export function protectiveHoldsOnDate(world: World, villaId: string, date: string) {
+  return activeProtectiveHolds(world).filter(
+    (hold) => hold.villaId === villaId && hold.start <= date && date < hold.end,
+  );
 }
 
 export function commitmentsOnDate(world: World, villaId: string, date: string): Commitment[] {

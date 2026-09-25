@@ -5,6 +5,7 @@ import { ImagePlus, X } from "lucide-react";
 import { useState } from "react";
 import { Drawer } from "vaul";
 import { RoleGate } from "@/components/site-chrome";
+import { HostCalendar } from "@/components/host-calendar";
 import { DateField } from "@/components/dates-guests";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@/lib/domain";
 import type { Stay } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
-import { getVilla } from "@/lib/villas";
+import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import type { RoleSession } from "@/lib/role";
 
@@ -46,6 +47,8 @@ function OpsPage() {
   const butlerCheckOut = useBookingStore((state) => state.butlerCheckOut);
   const butlerNoShow = useBookingStore((state) => state.butlerNoShow);
   const butlerIncident = useBookingStore((state) => state.butlerIncident);
+  const placeProtectiveHold = useBookingStore((state) => state.placeProtectiveHold);
+  const releaseProtectiveHold = useBookingStore((state) => state.releaseProtectiveHold);
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -120,11 +123,20 @@ function OpsPage() {
           </div>
           {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
           {isBql ? (
-            <p className="mt-3 text-sm text-muted">Chỉ xem. Không nhận phòng, không trả phòng.</p>
+            <p className="mt-3 text-sm text-muted">
+              Xem ngày đến, ngày đi, và việc cần chú ý. Có thể giữ bảo vệ khi villa cần được xem. Không nhận phòng, không trả phòng.
+            </p>
           ) : (
             <p className="mt-3 text-sm text-muted">Chỉ villa được giao cho bạn.</p>
           )}
         </div>
+
+        <Attention
+          world={world}
+          villaIds={isBql ? villas.map((villa) => villa.id) : scope}
+          canHold={isBql}
+          onRelease={(id) => run(() => releaseProtectiveHold(id))}
+        />
 
         <BoardSection
           title="Cần chuẩn bị"
@@ -159,6 +171,23 @@ function OpsPage() {
           onOpen={setOpenId}
         />
 
+        {isBql ? (
+          <section className="pt-8">
+            <h2 className="mx-auto max-w-lg px-4 font-serif text-2xl sm:px-6">Lịch</h2>
+            <div className="mt-3">
+              <HostCalendar
+                world={world}
+                composer={false}
+                onExternal={() => undefined}
+                onBlock={() => undefined}
+                onRelease={() => undefined}
+                onPlaceHold={(input) => run(() => placeProtectiveHold(input))}
+                onReleaseHold={(id) => run(() => releaseProtectiveHold(id))}
+              />
+            </div>
+          </section>
+        ) : null}
+
         <Drawer.Root open={Boolean(openStay)} onOpenChange={(open) => !open && setOpenId(null)}>
           <Drawer.Portal>
             <Drawer.Overlay className="fixed inset-0 z-50 bg-ink/40" />
@@ -169,6 +198,17 @@ function OpsPage() {
                   stay={openStay}
                   role={role}
                   canAct={!isBql && Boolean(butler?.villaIds?.includes(openStay.villaId))}
+                  canHold={isBql}
+                  onPlaceHold={() =>
+                    run(() =>
+                      placeProtectiveHold({
+                        villaId: openStay.villaId,
+                        start: openStay.checkIn,
+                        end: openStay.checkOut,
+                        note: "Cần xem villa",
+                      }),
+                    )
+                  }
                   onPrepare={() => run(() => butlerPrepare(openStay.id))}
                   onArrival={() => run(() => butlerObserveArrival(openStay.id))}
                   onCheckIn={() => run(() => butlerCheckIn(openStay.id))}
@@ -326,7 +366,55 @@ function BoardSection({
   );
 }
 
-function factLine(label: string, at?: string) {
+function Attention({
+  world,
+  villaIds,
+  canHold,
+  onRelease,
+}: {
+  world: { incidents: { id: string; villaId: string; note: string }[]; protectiveHolds?: { id: string; villaId: string; note: string; status: string; reviewDueAt: string }[]; now: string };
+  villaIds: string[];
+  canHold: boolean;
+  onRelease: (id: string) => void;
+}) {
+  const allowed = new Set(villaIds);
+  const incidents = world.incidents.filter((item) => allowed.has(item.villaId));
+  const holds = (world.protectiveHolds ?? []).filter(
+    (item) => item.status === "ACTIVE" && allowed.has(item.villaId),
+  );
+  if (incidents.length === 0 && holds.length === 0) return null;
+  return (
+    <section className="mx-auto max-w-lg px-4 pt-8 sm:px-6">
+      <h2 className="font-serif text-2xl">Cần chú ý</h2>
+      <div className="mt-3 space-y-3">
+        {incidents.map((incident) => (
+          <article key={incident.id} className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]">
+            <p className="font-medium">{getVilla(incident.villaId)?.name ?? incident.villaId}</p>
+            <p className="mt-1 text-sm text-ink-soft">{incident.note}</p>
+          </article>
+        ))}
+        {holds.map((hold) => (
+          <article key={hold.id} className="rounded-2xl border-2 border-[#8a5a12] bg-[#f8edd6] p-4">
+            <p className="font-medium text-[#6a4310]">
+              {getVilla(hold.villaId)?.name ?? hold.villaId} · Giữ bảo vệ
+            </p>
+            <p className="mt-1 text-sm text-[#6a4310]">{hold.note}</p>
+            {hold.reviewDueAt <= world.now ? (
+              <p className="mt-2 text-sm font-medium">Đã quá hạn xem lại. Vẫn đang giữ.</p>
+            ) : null}
+            {canHold ? (
+              <Button variant="outline" className="mt-3 w-full" onClick={() => onRelease(hold.id)}>
+                Gỡ giữ bảo vệ
+              </Button>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function factLine(label: string, at: string | undefined) {
   if (!at) return null;
   return (
     <p key={label} className="text-sm text-ink">
@@ -340,6 +428,8 @@ function StayWork({
   stay,
   role,
   canAct,
+  canHold,
+  onPlaceHold,
   onPrepare,
   onArrival,
   onCheckIn,
@@ -351,6 +441,8 @@ function StayWork({
   stay: Stay;
   role: RoleSession;
   canAct: boolean;
+  canHold: boolean;
+  onPlaceHold: () => void;
   onPrepare: () => void;
   onArrival: () => void;
   onCheckIn: () => void;
@@ -418,6 +510,16 @@ function StayWork({
           ) : null}
           <Button variant="ghost" className="h-12" onClick={onIncident}>
             Báo sự cố
+          </Button>
+        </div>
+      ) : null}
+      {canHold ? (
+        <div className="mt-5 grid grid-cols-1 gap-2">
+          <Button variant="ghost" className="h-12" onClick={onIncident}>
+            Báo sự cố
+          </Button>
+          <Button className="h-12" onClick={onPlaceHold}>
+            Giữ bảo vệ
           </Button>
         </div>
       ) : null}

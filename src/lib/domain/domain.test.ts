@@ -12,6 +12,9 @@ import {
   evaluateStayCompletion,
   observeArrival,
   observeDeparture,
+  placeProtectiveHold,
+  recordMaintenanceFromHold,
+  releaseProtectiveHold,
   reportPrepared,
   createBlock,
   createEmptyWorld,
@@ -1546,5 +1549,154 @@ describe("Phase 2 host calendar, external, admin", () => {
       );
     }
     assertNoOverlap(booked.world);
+  });
+});
+
+describe("emergency protective hold is not a maintenance block", () => {
+  it("placing a protective hold does not create a maintenance block", () => {
+    const booked = bookedStay();
+    const before = booked.world.commitments.length;
+    const placed = placeProtectiveHold(booked.world, {
+      villaId: "t01",
+      start: "2026-12-01",
+      end: "2026-12-04",
+      note: "Máy lạnh kêu",
+      actor: BQL,
+    });
+    assert.equal(placed.hold.status, "ACTIVE");
+    assert.equal(
+      placed.world.commitments.some((item) => item.blockKind === "MAINTENANCE"),
+      false,
+    );
+    assert.equal(placed.world.commitments.length, before);
+    assert.equal(placed.world.protectiveHolds[0]?.id, placed.hold.id);
+    assert.notEqual(placed.hold.id, placed.world.commitments[0]?.id);
+    assertNoOverlap(placed.world);
+  });
+
+  it("recording maintenance is a separate host action and is not the hold", () => {
+    let world = createEmptyWorld(NOW);
+    const placed = placeProtectiveHold(world, {
+      villaId: "t02",
+      start: "2026-12-10",
+      end: "2026-12-12",
+      note: "Xem mái",
+      actor: HOST,
+    });
+    world = placed.world;
+    assert.throws(
+      () => recordMaintenanceFromHold(world, { holdId: placed.hold.id, actor: BQL }),
+      (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+    );
+    const maintained = recordMaintenanceFromHold(world, { holdId: placed.hold.id, actor: HOST });
+    assert.equal(maintained.hold.status, "ENDED");
+    assert.equal(maintained.hold.endedAs, "MAINTENANCE");
+    assert.equal(maintained.commitment.kind, "AVAILABILITY_BLOCK");
+    assert.equal(maintained.commitment.blockKind, "MAINTENANCE");
+    assert.notEqual(maintained.hold.id, maintained.commitment.id);
+    assert.equal(
+      maintained.world.protectiveHolds.some((item) => item.status === "ACTIVE"),
+      false,
+    );
+    assertNoOverlap(maintained.world);
+  });
+});
+
+describe("emergency protective hold is not an inventory commitment", () => {
+  it("a protective hold over a stay does not end the booking or open a conflict", () => {
+    const booked = bookedStay();
+    const beforeStay = booked.world.stays.find((item) => item.id === booked.stayId);
+    const beforeBooking = booked.world.bookings.find((item) => item.id === booked.bookingId);
+    const beforeCommitment = booked.world.commitments.find(
+      (item) => item.bookingId === booked.bookingId,
+    );
+    const noted = reportIncident(booked.world, {
+      stayId: booked.stayId,
+      actor: HOST,
+      note: "Mùi khét",
+      hasPhoto: false,
+    });
+    assert.equal(noted.world.commitments, booked.world.commitments);
+    assert.equal(noted.world.bookings, booked.world.bookings);
+    assert.equal((noted.world.protectiveHolds ?? []).length, 0);
+    const placed = placeProtectiveHold(noted.world, {
+      villaId: "t01",
+      start: "2026-12-01",
+      end: "2026-12-04",
+      note: "Mùi khét",
+      incidentId: noted.world.incidents[0]?.id,
+      actor: BQL,
+    });
+    const stay = placed.world.stays.find((item) => item.id === booked.stayId);
+    const booking = placed.world.bookings.find((item) => item.id === booked.bookingId);
+    const commitment = placed.world.commitments.find((item) => item.bookingId === booked.bookingId);
+    assert.equal(stay?.status, beforeStay?.status);
+    assert.equal(booking?.status, beforeBooking?.status);
+    assert.equal(commitment?.status, "ACTIVE");
+    assert.equal(commitment?.id, beforeCommitment?.id);
+    assert.equal(placed.world.conflicts.length, booked.world.conflicts.length);
+    assert.equal(isAvailable(placed.world, "t01", "2026-12-01", "2026-12-04"), false);
+    assert.throws(
+      () => placeProtectiveHold(placed.world, {
+        villaId: "t01",
+        start: "2026-12-01",
+        end: "2026-12-02",
+        note: "Không được",
+        actor: BUTLER,
+      }),
+      (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+    );
+    assertNoOverlap(placed.world);
+  });
+
+  it("a protective hold blocks a new stayora commitment without choosing a winner", () => {
+    let world = createEmptyWorld(NOW);
+    const placed = placeProtectiveHold(world, {
+      villaId: "t04",
+      start: "2026-12-01",
+      end: "2026-12-04",
+      note: "Đang xem",
+      actor: BQL,
+    });
+    world = placed.world;
+    const created = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "An",
+      actor: GUEST,
+    });
+    const accepted = acceptRequest(created.world, { requestId: created.request.id, actor: HOST });
+    assert.equal(accepted.request.status, "CONFLICTED");
+    assert.equal(
+      accepted.world.commitments.some((item) => item.requestId === created.request.id),
+      false,
+    );
+    assert.equal(accepted.world.bookings.length, 0);
+    assert.equal(accepted.world.conflicts.length, 0);
+    const occupied = placeProtectiveHold(bookedStay().world, {
+      villaId: "t01",
+      start: "2026-12-01",
+      end: "2026-12-04",
+      note: "Có khách",
+      actor: HOST,
+    });
+    const bookingBefore = occupied.world.bookings.find((item) => item.status === "CONFIRMED");
+    assert.throws(
+      () => recordMaintenanceFromHold(occupied.world, { holdId: occupied.hold.id, actor: HOST }),
+      (error: unknown) => error instanceof DomainError && error.code === "BOOKING_REMAINS",
+    );
+    assert.equal(
+      occupied.world.bookings.find((item) => item.id === bookingBefore?.id)?.status,
+      "CONFIRMED",
+    );
+    assert.equal(occupied.hold.status, "ACTIVE");
+    const overdue = advanceTime(world, 25 * 60 * 60 * 1000);
+    assert.equal(overdue.protectiveHolds[0]?.status, "ACTIVE");
+    assert.ok(overdue.protectiveHolds[0]!.reviewDueAt <= overdue.now);
+    assertNoOverlap(accepted.world);
+    assertNoOverlap(occupied.world);
+    assertNoOverlap(overdue);
   });
 });

@@ -203,6 +203,22 @@ export type Incident = {
   createdBy: Persona;
 };
 
+/** Availability block that is not an inventory commitment. ADR-P067. */
+export type ProtectiveHold = {
+  id: string;
+  villaId: string;
+  start: string;
+  end: string;
+  incidentId?: string;
+  note: string;
+  status: "ACTIVE" | "ENDED";
+  createdAt: string;
+  createdBy: Persona;
+  reviewDueAt: string;
+  endedAt?: string;
+  endedAs?: "RELEASED" | "MAINTENANCE";
+};
+
 export type Commission = {
   id: string;
   bookingId: string;
@@ -230,6 +246,7 @@ export type World = {
   attempts: PaymentAttempt[];
   refundCases: RefundCase[];
   conflicts: InventoryConflict[];
+  protectiveHolds: ProtectiveHold[];
   auditLog: AuditEntry[];
   externalAccommodations: ExternalAccommodation[];
   sales: Person[];

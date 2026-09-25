@@ -1,6 +1,7 @@
 import { parseISO } from "date-fns";
 import {
   activeCommitments,
+  commitmentsOverlap,
   isAvailable,
   isHoldActive,
   openConflictsCovering,
@@ -13,7 +14,7 @@ import {
   requireVilla,
   SALE_MAI,
 } from "./catalog.ts";
-import { COMMISSION_RATE, HOLD_MS } from "./config.ts";
+import { COMMISSION_RATE, HOLD_MS, PROTECTIVE_HOLD_REVIEW_MS } from "./config.ts";
 import type {
   Actor,
   AuditEntry,
@@ -26,6 +27,7 @@ import type {
   PaymentAttempt,
   PaymentObligation,
   PaymentOutcome,
+  ProtectiveHold,
   RefundCase,
   RefundReason,
   Stay,
@@ -228,6 +230,7 @@ export function createEmptyWorld(now: string): World {
     attempts: [],
     refundCases: [],
     conflicts: [],
+    protectiveHolds: [],
     auditLog: [],
     externalAccommodations: [],
     sales: [{ id: SALE_MAI, name: "Chủ nhà An" }],
@@ -259,7 +262,7 @@ export function createRequest(
   if (input.guests > villa.sleeps) {
     throw new DomainError("TOO_MANY_GUESTS", `Sleeps up to ${villa.sleeps}`);
   }
-  if (!isAvailable(world, input.villaId, input.checkIn, input.checkOut)) {
+  if (commitmentsOverlap(world, input.villaId, input.checkIn, input.checkOut)) {
     throw new DomainError("NOT_AVAILABLE", "Not available for these dates");
   }
   const source = input.actor.persona === "SALE" ? "SALE" : "GUEST";
@@ -798,11 +801,13 @@ export function reportIncident(
   input: { stayId: string; actor: Actor; note: string; hasPhoto: boolean },
 ): { world: World } {
   world = expireHolds(world);
-  if (input.actor.persona !== "BUTLER") {
-    throw new DomainError("FORBIDDEN", "Only a Butler can report an incident");
-  }
   const stay = requireStay(world, input.stayId);
-  assertButlerAssigned(world, input.actor, stay.villaId);
+  if (input.actor.persona === "BUTLER") {
+    assertButlerAssigned(world, input.actor, stay.villaId);
+  } else if (input.actor.persona !== "HOST" && input.actor.persona !== "BQL") {
+    throw new DomainError("FORBIDDEN", "Only Host, Butler, or BQL can report an incident");
+  }
+  if (!input.note.trim()) throw new DomainError("MISSING_REASON", "A note is required");
   const incident = {
     id: nid("inc"),
     stayId: stay.id,
@@ -810,7 +815,7 @@ export function reportIncident(
     note: input.note.trim(),
     hasPhoto: input.hasPhoto,
     createdAt: world.now,
-    createdBy: "BUTLER" as const,
+    createdBy: input.actor.persona,
   };
   return {
     world: withAudit(
@@ -819,6 +824,147 @@ export function reportIncident(
       "REPORT_INCIDENT",
       incident.id,
     ),
+  };
+}
+
+function assertHoldActor(actor: Actor): void {
+  if (actor.persona !== "HOST" && actor.persona !== "BQL") {
+    throw new DomainError("FORBIDDEN", "This person cannot place or release a protective hold");
+  }
+}
+
+/** Protective hold. Not a maintenance block and not an inventory commitment. */
+export function placeProtectiveHold(
+  world: World,
+  input: {
+    villaId: string;
+    start: string;
+    end: string;
+    note: string;
+    incidentId?: string;
+    actor: Actor;
+  },
+): { world: World; hold: ProtectiveHold } {
+  world = expireHolds(world);
+  assertHoldActor(input.actor);
+  requireVilla(input.villaId);
+  if (!input.note.trim()) throw new DomainError("MISSING_REASON", "A note is required");
+  if (nightsBetween(input.start, input.end) < 1) {
+    throw new DomainError("INVALID", "End must be after start");
+  }
+  const hold: ProtectiveHold = {
+    id: nid("eph"),
+    villaId: input.villaId,
+    start: input.start,
+    end: input.end,
+    incidentId: input.incidentId,
+    note: input.note.trim(),
+    status: "ACTIVE",
+    createdAt: world.now,
+    createdBy: input.actor.persona,
+    reviewDueAt: new Date(parseISO(world.now).getTime() + PROTECTIVE_HOLD_REVIEW_MS).toISOString(),
+  };
+  return {
+    world: withAudit(
+      { ...world, protectiveHolds: [hold, ...(world.protectiveHolds ?? [])] },
+      input.actor,
+      "PLACE_PROTECTIVE_HOLD",
+      hold.id,
+    ),
+    hold,
+  };
+}
+
+export function releaseProtectiveHold(
+  world: World,
+  input: { holdId: string; actor: Actor },
+): { world: World; hold: ProtectiveHold } {
+  world = expireHolds(world);
+  assertHoldActor(input.actor);
+  const current = (world.protectiveHolds ?? []).find((item) => item.id === input.holdId);
+  if (!current) throw new DomainError("NOT_FOUND", "Protective hold not found");
+  if (current.status !== "ACTIVE") {
+    throw new DomainError("INVALID_TRANSITION", "Protective hold is already ended");
+  }
+  const hold: ProtectiveHold = {
+    ...current,
+    status: "ENDED",
+    endedAt: world.now,
+    endedAs: "RELEASED",
+  };
+  return {
+    world: withAudit(
+      {
+        ...world,
+        protectiveHolds: (world.protectiveHolds ?? []).map((item) =>
+          item.id === hold.id ? hold : item,
+        ),
+      },
+      input.actor,
+      "RELEASE_PROTECTIVE_HOLD",
+      hold.id,
+    ),
+    hold,
+  };
+}
+
+/**
+ * Host evaluation: write a maintenance block only when no booking is on those
+ * dates. Existing bookings are left as they are.
+ */
+export function recordMaintenanceFromHold(
+  world: World,
+  input: { holdId: string; actor: Actor },
+): { world: World; hold: ProtectiveHold; commitment: Commitment } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  const current = (world.protectiveHolds ?? []).find((item) => item.id === input.holdId);
+  if (!current) throw new DomainError("NOT_FOUND", "Protective hold not found");
+  if (current.status !== "ACTIVE") {
+    throw new DomainError("INVALID_TRANSITION", "Protective hold is already ended");
+  }
+  const blocking = activeCommitments(world).filter(
+    (commitment) =>
+      commitment.villaId === current.villaId &&
+      rangesOverlap(current.start, current.end, commitment.start, commitment.end),
+  );
+  if (blocking.length > 0) {
+    throw new DomainError("BOOKING_REMAINS", "A booking is still on these dates");
+  }
+  const hold: ProtectiveHold = {
+    ...current,
+    status: "ENDED",
+    endedAt: world.now,
+    endedAs: "MAINTENANCE",
+  };
+  const commitment: Commitment = {
+    id: nid("blk"),
+    villaId: current.villaId,
+    start: current.start,
+    end: current.end,
+    kind: "AVAILABILITY_BLOCK",
+    status: "ACTIVE",
+    basis: "BLOCK",
+    blockKind: "MAINTENANCE",
+    note: current.note,
+    createdBy: "HOST",
+    createdAt: world.now,
+  };
+  return {
+    world: withAudit(
+      {
+        ...world,
+        protectiveHolds: (world.protectiveHolds ?? []).map((item) =>
+          item.id === hold.id ? hold : item,
+        ),
+        commitments: [...world.commitments, commitment],
+      },
+      input.actor,
+      "RECORD_MAINTENANCE",
+      commitment.id,
+    ),
+    hold,
+    commitment,
   };
 }
 

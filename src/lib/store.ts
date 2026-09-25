@@ -111,6 +111,16 @@ type BookingState = {
   butlerObserveDeparture: (stayId: string) => Promise<void>;
   butlerNoShow: (stayId: string, reason: string) => Promise<void>;
   butlerIncident: (stayId: string, note: string, hasPhoto: boolean) => Promise<void>;
+  reportIncident: (stayId: string, note: string, hasPhoto: boolean) => Promise<void>;
+  placeProtectiveHold: (input: {
+    villaId: string;
+    start: string;
+    end: string;
+    note: string;
+    incidentId?: string;
+  }) => Promise<void>;
+  releaseProtectiveHold: (holdId: string) => Promise<void>;
+  recordMaintenanceFromHold: (holdId: string) => Promise<void>;
 };
 
 function roleOf(state: BookingState): RoleSession {
@@ -370,6 +380,18 @@ export const useBookingStore = create<BookingState>()(
       },
       butlerIncident: async (stayId, note, hasPhoto) => {
         await get().runAction({ type: "REPORT_INCIDENT", stayId, note, hasPhoto });
+      },
+      reportIncident: async (stayId, note, hasPhoto) => {
+        await get().runAction({ type: "REPORT_INCIDENT", stayId, note, hasPhoto });
+      },
+      placeProtectiveHold: async (input) => {
+        await get().runAction({ type: "PLACE_PROTECTIVE_HOLD", ...input });
+      },
+      releaseProtectiveHold: async (holdId) => {
+        await get().runAction({ type: "RELEASE_PROTECTIVE_HOLD", holdId });
+      },
+      recordMaintenanceFromHold: async (holdId) => {
+        await get().runAction({ type: "RECORD_MAINTENANCE_FROM_HOLD", holdId });
       },
     }),
     {

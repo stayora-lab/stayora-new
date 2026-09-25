@@ -16,6 +16,9 @@ import {
   recordExternalBooking,
   recordPayment,
   rejectRequest,
+  placeProtectiveHold,
+  recordMaintenanceFromHold,
+  releaseProtectiveHold,
   releaseBlock,
   reportIncident,
   resolveConflict,
@@ -76,6 +79,16 @@ export type WorldAction =
   | { type: "OBSERVE_DEPARTURE"; stayId: string }
   | { type: "DID_NOT_OCCUR"; stayId: string; reason: string }
   | { type: "REPORT_INCIDENT"; stayId: string; note: string; hasPhoto: boolean }
+  | {
+      type: "PLACE_PROTECTIVE_HOLD";
+      villaId: string;
+      start: string;
+      end: string;
+      note: string;
+      incidentId?: string;
+    }
+  | { type: "RELEASE_PROTECTIVE_HOLD"; holdId: string }
+  | { type: "RECORD_MAINTENANCE_FROM_HOLD"; holdId: string }
   | { type: "ADVANCE_TIME" }
   | { type: "RESET" };
 
@@ -98,6 +111,20 @@ function villaIdFor(world: World, action: WorldAction): string | undefined {
   }
   if (action.type === "RELEASE_BLOCK") {
     return world.commitments.find((item) => item.id === action.commitmentId)?.villaId;
+  }
+  if (action.type === "RELEASE_PROTECTIVE_HOLD" || action.type === "RECORD_MAINTENANCE_FROM_HOLD") {
+    return (world.protectiveHolds ?? []).find((item) => item.id === action.holdId)?.villaId;
+  }
+  if (
+    action.type === "CHECK_IN" ||
+    action.type === "CHECK_OUT" ||
+    action.type === "PREPARE" ||
+    action.type === "OBSERVE_ARRIVAL" ||
+    action.type === "OBSERVE_DEPARTURE" ||
+    action.type === "DID_NOT_OCCUR" ||
+    action.type === "REPORT_INCIDENT"
+  ) {
+    return world.stays.find((item) => item.id === action.stayId)?.villaId;
   }
   return undefined;
 }
@@ -238,6 +265,25 @@ export function applyWorldAction(
         hasPhoto: action.hasPhoto,
         actor,
       });
+      return { world: result.world };
+    }
+    case "PLACE_PROTECTIVE_HOLD": {
+      const result = placeProtectiveHold(world, {
+        villaId: action.villaId,
+        start: action.start,
+        end: action.end,
+        note: action.note,
+        incidentId: action.incidentId,
+        actor,
+      });
+      return { world: result.world };
+    }
+    case "RELEASE_PROTECTIVE_HOLD": {
+      const result = releaseProtectiveHold(world, { holdId: action.holdId, actor });
+      return { world: result.world };
+    }
+    case "RECORD_MAINTENANCE_FROM_HOLD": {
+      const result = recordMaintenanceFromHold(world, { holdId: action.holdId, actor });
       return { world: result.world };
     }
     case "ADVANCE_TIME":

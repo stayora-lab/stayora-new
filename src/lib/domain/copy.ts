@@ -201,6 +201,8 @@ export function domainMessageVi(error: unknown): string {
     switch (error.code) {
       case "NOT_AVAILABLE":
         return "Villa không trống cho ngày này";
+      case "BOOKING_REMAINS":
+        return "Đặt chỗ hiện có vẫn giữ. Chưa ghi bảo trì.";
       case "TOO_MANY_GUESTS":
         return "Vượt sức chứa của villa";
       case "FORBIDDEN":
