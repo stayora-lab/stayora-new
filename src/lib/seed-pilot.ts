@@ -10,7 +10,9 @@ import {
   createEmptyWorld,
   createRequest,
   markDidNotOccur,
+  placeProtectiveHold,
   recordExternalBooking,
+  recordExternalFact,
   recordPayment,
   rejectRequest,
   resolveConflict,
@@ -397,6 +399,207 @@ function seedStayoraScenarios(world: World, today: string): World {
       }).world;
     }
   }
+
+  world = seedHienWeek(world, today);
+  return world;
+}
+
+type HienStep = "check-in" | "check-out" | "BOOKING_CANCELLED" | "NO_SHOW" | "OTHER_AUTHORIZED_REASON";
+
+/** Confirmed Stayora stay. Checkout is not evaluated, so "check-out" stays CHECKED_OUT. */
+function bookStayora(
+  world: World,
+  today: string,
+  input: {
+    id: string;
+    villaId: string;
+    checkInOffset: number;
+    nights: number;
+    guests: number;
+    guestName: string;
+    then?: HienStep;
+  },
+): World {
+  const checkIn = shift(today, input.checkInOffset);
+  const created = createRequest(world, {
+    villaId: input.villaId,
+    checkIn,
+    checkOut: shift(checkIn, input.nights),
+    guests: input.guests,
+    guestName: input.guestName,
+    actor: SALE,
+    id: input.id,
+  });
+  world = acceptRequest(created.world, {
+    handling: "EXCLUSIVE",
+    requestId: created.request.id,
+    actor: HOST,
+  }).world;
+  world = payInitial(world, created.request.id);
+  const stay = world.stays.find((item) => item.requestId === created.request.id);
+  if (!stay || !input.then) return world;
+  if (input.then === "check-in" || input.then === "check-out") {
+    world = checkInStay(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
+  }
+  if (input.then === "check-out") {
+    world = checkOutStay(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
+  }
+  if (input.then === "BOOKING_CANCELLED" || input.then === "NO_SHOW" || input.then === "OTHER_AUTHORIZED_REASON") {
+    world = markDidNotOccur(world, { stayId: stay.id, actor: BUTLER_CHI, reason: input.then }).world;
+  }
+  return world;
+}
+
+/**
+ * Extra T01–T06 variety for the butler who holds those villas.
+ * Dates are offsets from today. Existing T07–T12 scenarios are left alone.
+ * A CHECKED_OUT stay is not evaluated: the blocker catalogue is undecided, and
+ * completion is a separate step, so the gap is the data rather than a new rule.
+ */
+function seedHienWeek(world: World, today: string): World {
+  world = bookStayora(world, today, {
+    id: "req_hien_arrive_today",
+    villaId: "t06",
+    checkInOffset: 0,
+    nights: 1,
+    guests: 8,
+    guestName: "Chị Hà",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_arrive_tomorrow_t04",
+    villaId: "t04",
+    checkInOffset: 1,
+    nights: 2,
+    guests: 2,
+    guestName: "Chị Oanh",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_arrive_tomorrow_t05",
+    villaId: "t05",
+    checkInOffset: 1,
+    nights: 3,
+    guests: 5,
+    guestName: "Anh Việt",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_arrive_plus3",
+    villaId: "t03",
+    checkInOffset: 3,
+    nights: 4,
+    guests: 10,
+    guestName: "Gia đình Nguyễn",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_arrive_plus4",
+    villaId: "t02",
+    checkInOffset: 4,
+    nights: 2,
+    guests: 6,
+    guestName: "Chị Thảo",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_checked_out",
+    villaId: "t04",
+    checkInOffset: -7,
+    nights: 2,
+    guests: 2,
+    guestName: "Chị Đào",
+    then: "check-out",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_dno_cancelled",
+    villaId: "t01",
+    checkInOffset: -5,
+    nights: 2,
+    guests: 2,
+    guestName: "Anh Sơn",
+    then: "BOOKING_CANCELLED",
+  });
+  world = bookStayora(world, today, {
+    id: "req_hien_dno_other",
+    villaId: "t05",
+    checkInOffset: -5,
+    nights: 3,
+    guests: 3,
+    guestName: "Chị Hương",
+    then: "OTHER_AUTHORIZED_REASON",
+  });
+
+  const inHouse = world.stays.find(
+    (stay) => stay.villaId === "t02" && stay.origin === "EXTERNAL" && stay.guestName === "Gia đình Lê",
+  );
+  if (inHouse?.status === "SCHEDULED") {
+    world = checkInStay(world, { stayId: inHouse.id, actor: BUTLER_CHI }).world;
+  }
+
+  world = recordExternalBooking(world, {
+    villaId: "t01",
+    checkIn: shift(today, 6),
+    checkOut: shift(today, 9),
+    guests: 4,
+    source: "Booking.com",
+    guestName: "Chị Diễm",
+    actor: HOST,
+  }).world;
+  world = recordExternalBooking(world, {
+    villaId: "t06",
+    checkIn: shift(today, 5),
+    checkOut: shift(today, 8),
+    guests: 6,
+    source: "Zalo",
+    guestName: "Anh Tú",
+    actor: HOST,
+  }).world;
+
+  // Fact only. The Host queue shows it; it does not hold the calendar.
+  world = recordExternalFact(world, {
+    villaId: "t03",
+    checkIn: shift(today, 14),
+    checkOut: shift(today, 17),
+    guests: 4,
+    source: "Agoda",
+    guestName: "Anh Lộc",
+    actor: HOST,
+  }).world;
+
+  world = placeProtectiveHold(world, {
+    villaId: "t01",
+    start: shift(today, 12),
+    end: shift(today, 14),
+    note: "Máy lạnh phòng master hỏng, cần xem villa trước khi giao",
+    actor: HOST,
+  }).world;
+
+  const competitiveIn = shift(today, 8);
+  const competitiveOut = shift(today, 11);
+  const first = createRequest(world, {
+    villaId: "t02",
+    checkIn: competitiveIn,
+    checkOut: competitiveOut,
+    guests: 2,
+    guestName: "Anh Bình",
+    actor: GUEST,
+    id: "req_hien_competitive_a",
+  });
+  const second = createRequest(first.world, {
+    villaId: "t02",
+    checkIn: competitiveIn,
+    checkOut: competitiveOut,
+    guests: 4,
+    guestName: "Chị Trúc",
+    actor: SALE,
+    id: "req_hien_competitive_b",
+  });
+  world = acceptRequest(second.world, {
+    handling: "COMPETITIVE",
+    requestId: first.request.id,
+    actor: HOST,
+  }).world;
+  world = acceptRequest(world, {
+    handling: "COMPETITIVE",
+    requestId: second.request.id,
+    actor: HOST,
+  }).world;
 
   return world;
 }

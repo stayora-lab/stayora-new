@@ -77,7 +77,7 @@ describe("fictional test dataset", () => {
     );
 
     const scheduled = world.stays.find(
-      (item) => item.villaId === "t01" && item.origin === "STAYORA",
+      (item) => item.villaId === "t01" && item.origin === "STAYORA" && item.checkIn === today,
     );
     assert.equal(scheduled?.status, "SCHEDULED");
     assert.equal(scheduled?.checkIn, today);
@@ -92,11 +92,101 @@ describe("fictional test dataset", () => {
     const chi = PILOT_SEED.butlers.find((person) => person.id === "butler-chi");
     const board = butlerFieldBoard(world, today, chi?.villaIds ?? []);
     assert.deepEqual(
-      board.prepare.map((stay) => stay.villaId),
-      ["t01"],
+      board.prepare.map((stay) => stay.villaId).sort(),
+      ["t01", "t06"],
     );
     assert.equal(board.arriving.find((stay) => stay.villaId === "t01")?.guestName, "Chị Mai");
     assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.guestName, "Anh Long");
     assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.status, "CHECKED_IN");
+  });
+
+  it("keeps a varied T01–T06 week for the assigned butler", () => {
+    const world = seedFromPilot(NOW);
+    const today = todayIct(NOW);
+    const mine = new Set(["t01", "t02", "t03", "t04", "t05", "t06"]);
+    const stays = world.stays.filter((stay) => mine.has(stay.villaId));
+    const on = (offset: number) => {
+      const date = new Date(`${today}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + offset);
+      return date.toISOString().slice(0, 10);
+    };
+    const arriving = (offset: number) =>
+      stays.filter(
+        (stay) =>
+          stay.checkIn === on(offset) &&
+          stay.status !== "DID_NOT_OCCUR" &&
+          stay.status !== "CANCELLED",
+      );
+    assert.ok(arriving(0).length >= 2, "two arrivals today");
+    assert.ok(arriving(1).length >= 2, "two arrivals tomorrow");
+    assert.ok(
+      stays.filter((stay) => stay.checkIn === on(3) || stay.checkIn === on(4)).length >= 2,
+      "two arrivals in 3–4 days",
+    );
+    const departureDays = new Set(
+      stays
+        .filter(
+          (stay) =>
+            stay.status !== "DID_NOT_OCCUR" &&
+            stay.status !== "CANCELLED" &&
+            stay.checkOut >= today &&
+            stay.checkOut <= on(7),
+        )
+        .map((stay) => stay.checkOut),
+    );
+    assert.ok(departureDays.size >= 3, [...departureDays].join(","));
+    assert.ok(
+      stays.some(
+        (stay) => stay.status === "CHECKED_IN" && stay.checkIn < today && today < stay.checkOut,
+      ),
+    );
+    assert.ok(stays.some((stay) => stay.status === "CHECKED_OUT" && !stay.completedAt));
+    assert.ok(stays.some((stay) => stay.status === "COMPLETED" && stay.checkOut < today));
+    for (const reason of ["BOOKING_CANCELLED", "NO_SHOW", "OTHER_AUTHORIZED_REASON"]) {
+      assert.ok(
+        stays.some((stay) => stay.status === "DID_NOT_OCCUR" && stay.didNotOccurReason === reason),
+        reason,
+      );
+    }
+    const names = stays.map((stay) => stay.guestName);
+    assert.equal(new Set(names).size, names.length);
+    assert.ok(names.every((name) => !name.startsWith("Khách ")));
+    assert.ok(stays.some((stay) => stay.guests >= 8));
+    assert.ok(stays.some((stay) => stay.guests === 2));
+    const external = stays.filter((stay) => stay.origin === "EXTERNAL");
+    assert.ok(external.length >= 3);
+    assert.ok(new Set(external.map((stay) => stay.originLabel)).size >= 3);
+    assert.ok(
+      (world.externalAccommodations ?? []).some(
+        (fact) => mine.has(fact.villaId) && !fact.commitmentId,
+      ),
+    );
+    assert.ok(
+      (world.protectiveHolds ?? []).some((hold) => hold.status === "ACTIVE" && mine.has(hold.villaId)),
+    );
+    assert.ok(
+      world.commitments.some(
+        (item) =>
+          item.kind === "AVAILABILITY_BLOCK" && item.blockKind === "MAINTENANCE" && mine.has(item.villaId),
+      ),
+    );
+    assert.ok(
+      world.commitments.some(
+        (item) =>
+          item.kind === "AVAILABILITY_BLOCK" && item.blockKind === "OWNER" && mine.has(item.villaId),
+      ),
+    );
+    assert.ok(world.conflicts.some((item) => item.status === "OPEN" && mine.has(item.villaId)));
+    const competitive = world.requests.filter(
+      (item) =>
+        mine.has(item.villaId) && item.handling === "COMPETITIVE" && item.status === "ACCEPTED",
+    );
+    assert.equal(competitive.length, 2);
+    assert.equal(
+      world.commitments.filter(
+        (item) => item.kind === "HOLD" && competitive.some((request) => request.id === item.requestId),
+      ).length,
+      0,
+    );
   });
 });
