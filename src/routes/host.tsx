@@ -40,6 +40,8 @@ function HostPage() {
   const world = useBookingStore((state) => state.world);
   const hostAccept = useBookingStore((state) => state.hostAccept);
   const hostExternal = useBookingStore((state) => state.hostExternal);
+  const hostRecordFact = useBookingStore((state) => state.hostRecordFact);
+  const hostEstablishExternal = useBookingStore((state) => state.hostEstablishExternal);
   const hostCreateBlock = useBookingStore((state) => state.hostCreateBlock);
   const hostReleaseBlock = useBookingStore((state) => state.hostReleaseBlock);
   const reportIncident = useBookingStore((state) => state.reportIncident);
@@ -86,6 +88,12 @@ function HostPage() {
   const myIncidents = world.incidents.filter((item) => mineIds.has(item.villaId));
   const myHolds = (world.protectiveHolds ?? []).filter(
     (item) => item.status === "ACTIVE" && mineIds.has(item.villaId),
+  );
+  const openReports = (world.externalReports ?? []).filter(
+    (item) => !item.factId && mineIds.has(item.villaId),
+  );
+  const factsWaiting = (world.externalAccommodations ?? []).filter(
+    (item) => !item.commitmentId && mineIds.has(item.villaId),
   );
 
   async function run(action: () => Promise<void>) {
@@ -173,6 +181,47 @@ function HostPage() {
               </p>
             ))}
           </TodayCard>
+          {openReports.map((report) => (
+            <article key={report.id} className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]">
+              <p className="text-xs font-semibold tracking-wider text-muted uppercase">Tin báo</p>
+              <p className="mt-1 font-medium">{getVilla(report.villaId)?.name}</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                {viDateRange(report.checkIn, report.checkOut)} · {report.source}
+              </p>
+              <p className="mt-2 text-sm text-muted">Chưa ghi nhận. Lịch không đổi.</p>
+              <Button
+                className="mt-3 w-full"
+                onClick={() =>
+                  run(() =>
+                    hostRecordFact({
+                      villaId: report.villaId,
+                      checkIn: report.checkIn,
+                      checkOut: report.checkOut,
+                      guests: report.guests,
+                      source: report.source,
+                      guestName: report.guestName,
+                      reportId: report.id,
+                    }),
+                  )
+                }
+              >
+                Ghi nhận tin này
+              </Button>
+            </article>
+          ))}
+          {factsWaiting.map((fact) => (
+            <article key={fact.id} className="rounded-2xl border border-moss bg-paper p-4">
+              <p className="text-xs font-semibold tracking-wider text-moss uppercase">Đã ghi nhận</p>
+              <p className="mt-1 font-medium">{getVilla(fact.villaId)?.name}</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                {viDateRange(fact.checkIn, fact.checkOut)} · {fact.source}
+              </p>
+              <p className="mt-2 text-sm text-muted">Chưa giữ chỗ. Lịch vẫn trống.</p>
+              <Button className="mt-3 w-full" onClick={() => run(() => hostEstablishExternal(fact.id))}>
+                Giữ chỗ theo ghi nhận này
+              </Button>
+            </article>
+          ))}
           <TodayCard
             title="Xung đột lịch đang mở"
             count={summary.openConflicts.filter((item) => mineIds.has(item.villaId)).length}
@@ -234,6 +283,7 @@ function HostPage() {
             world={world}
             villas={mine}
             onExternal={(input) => run(() => hostExternal(input))}
+            onRecordFact={(input) => run(() => hostRecordFact(input))}
             onBlock={(input) => run(() => hostCreateBlock(input))}
             onRelease={(id) => run(() => hostReleaseBlock(id))}
             onPlaceHold={(input) => run(() => placeProtectiveHold(input))}

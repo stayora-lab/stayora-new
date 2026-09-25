@@ -51,3 +51,41 @@ export const PROTECTIVE_HOLD_REVIEW_MS = 24 * 60 * 60 * 1000;
  * already could. Not a grant decision.
  */
 export const PROTECTIVE_HOLD_ACTORS = "bql-and-host-of-villa";
+
+/**
+ * ADR-P066. A scheduled Stay that did not take place needs one of these.
+ * Not a prototype stand-in for an open policy.
+ */
+export const NON_OCCURRENCE_REASONS = [
+  "BOOKING_CANCELLED",
+  "NO_SHOW",
+  "OTHER_AUTHORIZED_REASON",
+] as const;
+
+/**
+ * PROTOTYPE ASSUMPTION (G-v2.3, FD-12):
+ * Who holds External Accommodation Recording Authority is not granted.
+ * This prototype lets the Host record a Fact. Sale and the assigned Butler
+ * may only submit a report. A report never becomes a Fact by itself.
+ * Not a grant decision.
+ */
+export const EXTERNAL_RECORDING_ACTOR = "host";
+
+/**
+ * PROTOTYPE ASSUMPTION (G-v2.3, coverage row 14):
+ * When a recorded Fact must become an External-backed Commitment is not decided.
+ * This prototype lets the Host establish that commitment later, or in the same
+ * action as recording the Fact. A Fact with no commitment does not hold the
+ * calendar. Not policy.
+ */
+export const EXTERNAL_COMMITMENT_TIMING = "host-may-wait";
+
+/**
+ * PROTOTYPE ASSUMPTION (G-v2.3, ADR-P066):
+ * Who may record that a scheduled Stay did not take place is not named.
+ * This prototype keeps the assigned Butler, and requires one of
+ * NON_OCCURRENCE_REASONS. Cancelling a Booking does not write the Stay.
+ * Not a grant decision.
+ */
+export const NON_OCCURRENCE_ACTOR = "assigned-butler";
+

@@ -87,6 +87,25 @@ type BookingState = {
     source: ExternalSource;
     guestName?: string;
   }) => Promise<void>;
+  hostRecordFact: (input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+    reportId?: string;
+  }) => Promise<void>;
+  hostEstablishExternal: (factId: string) => Promise<void>;
+  submitExternalReport: (input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+    note?: string;
+  }) => Promise<void>;
   hostCreateBlock: (input: {
     villaId: string;
     start: string;
@@ -344,6 +363,15 @@ export const useBookingStore = create<BookingState>()(
       },
       hostExternal: async (input) => {
         await get().runAction({ type: "RECORD_EXTERNAL", ...input });
+      },
+      hostRecordFact: async (input) => {
+        await get().runAction({ type: "RECORD_EXTERNAL_FACT", ...input });
+      },
+      hostEstablishExternal: async (factId) => {
+        await get().runAction({ type: "ESTABLISH_EXTERNAL", factId });
+      },
+      submitExternalReport: async (input) => {
+        await get().runAction({ type: "SUBMIT_EXTERNAL_REPORT", ...input });
       },
       hostCreateBlock: async (input) => {
         await get().runAction({ type: "CREATE_BLOCK", ...input });

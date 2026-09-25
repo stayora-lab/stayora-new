@@ -101,9 +101,14 @@ function YourStayPage() {
           payment={balance ? balanceLine(balance, balancePaid) : undefined}
         />
 
-        {stay.status === "CANCELLED" && stay.origin === "STAYORA" ? (
+        {booking?.status === "CANCELLED" && stay.status === "SCHEDULED" ? (
+          <p className="mt-4 rounded-2xl bg-cream-deep px-4 py-3 text-sm text-ink">
+            Đặt chỗ Stayora đã huỷ. Kỳ ở vẫn là sắp đến, cho đến khi được ghi là không diễn ra.
+          </p>
+        ) : null}
+        {stay.status === "DID_NOT_OCCUR" ? (
           <p className="mt-4 rounded-2xl bg-[#fdecea] px-4 py-3 text-sm text-[#7a1f16]">
-            Lượt ở này đã bị huỷ — Stayora sẽ liên hệ về hoàn tiền
+            Kỳ ở này không diễn ra.
           </p>
         ) : null}
 

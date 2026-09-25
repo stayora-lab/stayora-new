@@ -14,6 +14,9 @@ import {
   markDidNotOccur,
   markRefundDone,
   recordExternalBooking,
+  recordExternalFact,
+  establishExternalCommitment,
+  submitExternalReport,
   recordPayment,
   rejectRequest,
   placeProtectiveHold,
@@ -53,6 +56,27 @@ export type WorldAction =
       source: ExternalSource;
       guestName?: string;
     }
+  | {
+      type: "SUBMIT_EXTERNAL_REPORT";
+      villaId: string;
+      checkIn: string;
+      checkOut: string;
+      guests: number;
+      source: ExternalSource;
+      guestName?: string;
+      note?: string;
+    }
+  | {
+      type: "RECORD_EXTERNAL_FACT";
+      villaId: string;
+      checkIn: string;
+      checkOut: string;
+      guests: number;
+      source: ExternalSource;
+      guestName?: string;
+      reportId?: string;
+    }
+  | { type: "ESTABLISH_EXTERNAL"; factId: string }
   | {
       type: "CREATE_BLOCK";
       villaId: string;
@@ -107,6 +131,9 @@ function assertHostVilla(role: RoleSession, villaId: string) {
 
 function villaIdFor(world: World, action: WorldAction): string | undefined {
   if ("villaId" in action && typeof action.villaId === "string") return action.villaId;
+  if (action.type === "ESTABLISH_EXTERNAL") {
+    return (world.externalAccommodations ?? []).find((item) => item.id === action.factId)?.villaId;
+  }
   if (action.type === "ACCEPT_REQUEST" || action.type === "REJECT_REQUEST") {
     return world.requests.find((item) => item.id === action.requestId)?.villaId;
   }
@@ -176,6 +203,36 @@ export function applyWorldAction(
         guestName: action.guestName,
         actor,
       });
+      return { world: result.world };
+    }
+    case "SUBMIT_EXTERNAL_REPORT": {
+      const result = submitExternalReport(world, {
+        villaId: action.villaId,
+        checkIn: action.checkIn,
+        checkOut: action.checkOut,
+        guests: action.guests,
+        source: action.source,
+        guestName: action.guestName,
+        note: action.note,
+        actor,
+      });
+      return { world: result.world };
+    }
+    case "RECORD_EXTERNAL_FACT": {
+      const result = recordExternalFact(world, {
+        villaId: action.villaId,
+        checkIn: action.checkIn,
+        checkOut: action.checkOut,
+        guests: action.guests,
+        source: action.source,
+        guestName: action.guestName,
+        reportId: action.reportId,
+        actor,
+      });
+      return { world: result.world };
+    }
+    case "ESTABLISH_EXTERNAL": {
+      const result = establishExternalCommitment(world, { factId: action.factId, actor });
       return { world: result.world };
     }
     case "CREATE_BLOCK": {

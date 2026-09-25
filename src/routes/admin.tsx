@@ -343,7 +343,9 @@ function AdminPage() {
           <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-paper p-5 pb-10">
             <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-sand" />
             <p className="font-serif text-2xl">Giải quyết xung đột</p>
-            <p className="mt-2 text-sm text-muted">Chỉ kết thúc một commitment. Cần lý do.</p>
+            <p className="mt-2 text-sm text-muted">
+              Giữ một lịch, kết thúc lịch kia. Đặt chỗ Stayora có thể huỷ. Kỳ ở không tự đổi theo.
+            </p>
             {conflict ? (
               <>
                 <label className="mt-4 block text-sm">

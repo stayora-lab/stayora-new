@@ -201,7 +201,7 @@ function seedStayoraScenarios(world: World, today: string): World {
       world = markDidNotOccur(world, {
         stayId: stay.id,
         actor: BUTLER_CHI,
-        reason: "Khách thử không đến",
+        reason: "NO_SHOW",
       }).world;
     }
   }

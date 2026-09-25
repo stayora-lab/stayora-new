@@ -69,7 +69,12 @@ describe("fictional test dataset", () => {
 
     assert.equal(world.attempts.filter((item) => item.status === "UNKNOWN").length, 1);
     assert.ok(world.refundCases.some((item) => item.reason === "DUPLICATE_PAYMENT"));
-    assert.ok(world.stays.some((item) => item.villaId === "t07" && item.status === "CANCELLED"));
+    assert.ok(world.stays.some((item) => item.villaId === "t07" && item.status === "SCHEDULED"));
+    assert.ok(
+      world.bookings.some(
+        (item) => item.villaId === "t07" && item.status === "CANCELLED" && item.guestName === "Khách bị huỷ vì xung đột",
+      ),
+    );
 
     const scheduled = world.stays.find(
       (item) => item.villaId === "t01" && item.origin === "STAYORA",

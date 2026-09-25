@@ -56,6 +56,7 @@ export function HostCalendar({
   world,
   villas = allVillas,
   onExternal,
+  onRecordFact,
   onBlock,
   onRelease,
   onPlaceHold,
@@ -65,6 +66,14 @@ export function HostCalendar({
   world: World;
   villas?: Villa[];
   onExternal: (input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+  }) => void;
+  onRecordFact?: (input: {
     villaId: string;
     checkIn: string;
     checkOut: string;
@@ -114,18 +123,20 @@ export function HostCalendar({
     setBlockKind("OWNER");
   }
 
-  function submitExternal() {
+  function submitExternal(hold: boolean) {
     if (!sheet || (sheet.kind !== "external" && sheet.kind !== "cell")) return;
     const villaId = sheet.villaId;
     const checkIn = sheet.kind === "external" ? sheet.checkIn : sheet.date;
-    onExternal({
+    const input = {
       villaId,
       checkIn,
       checkOut: checkOut || addIso(checkIn, 2),
       guests,
       source,
       guestName: guestName.trim() || undefined,
-    });
+    };
+    if (hold) onExternal(input);
+    else onRecordFact?.(input);
     setSheet(null);
   }
 
@@ -259,7 +270,8 @@ export function HostCalendar({
                   setBlockKind={setBlockKind}
                   note={note}
                   setNote={setNote}
-                  onExternal={submitExternal}
+                  onExternal={() => submitExternal(true)}
+                  onRecordFact={onRecordFact ? () => submitExternal(false) : undefined}
                   onBlock={submitBlock}
                   onPlaceHold={
                     onPlaceHold
@@ -318,7 +330,8 @@ export function HostCalendar({
                 setBlockKind={setBlockKind}
                 note={note}
                 setNote={setNote}
-                onExternal={submitExternal}
+                onExternal={() => submitExternal(true)}
+                onRecordFact={onRecordFact ? () => submitExternal(false) : undefined}
                 only="external"
               />
             ) : null}
@@ -476,6 +489,7 @@ function EmptyCell({
   note,
   setNote,
   onExternal,
+  onRecordFact,
   onBlock,
   onPlaceHold,
   composer = true,
@@ -496,6 +510,7 @@ function EmptyCell({
   note: string;
   setNote: (value: string) => void;
   onExternal?: () => void;
+  onRecordFact?: () => void;
   onBlock?: () => void;
   onPlaceHold?: () => void;
   composer?: boolean;
@@ -595,10 +610,17 @@ function EmptyCell({
               className="mt-1 h-12 w-full rounded-xl bg-cream px-4"
             />
           </label>
-          <p className="mt-2 text-xs text-muted">Không hỏi giá, doanh thu hay thanh toán.</p>
+          <p className="mt-2 text-xs text-muted">
+            Ghi nhận là việc đã có khách ngoài. Giữ chỗ mới chặn lịch. Không tạo đặt Stayora, không hỏi giá.
+          </p>
           <Button className="mt-5 w-full" onClick={onExternal}>
-            Ghi đặt ngoài
+            Ghi nhận và giữ chỗ
           </Button>
+          {onRecordFact ? (
+            <Button variant="outline" className="mt-2 w-full" onClick={onRecordFact}>
+              Chỉ ghi nhận
+            </Button>
+          ) : null}
         </>
       ) : (
         <>

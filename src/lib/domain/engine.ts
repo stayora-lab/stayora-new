@@ -14,7 +14,7 @@ import {
   requireVilla,
   SALE_MAI,
 } from "./catalog.ts";
-import { COMMISSION_RATE, HOLD_MS, PROTECTIVE_HOLD_REVIEW_MS } from "./config.ts";
+import { COMMISSION_RATE, HOLD_MS, NON_OCCURRENCE_REASONS, PROTECTIVE_HOLD_REVIEW_MS } from "./config.ts";
 import type {
   Actor,
   AuditEntry,
@@ -22,6 +22,7 @@ import type {
   Commission,
   Commitment,
   ExternalAccommodation,
+  ExternalReport,
   ExternalSource,
   InventoryConflict,
   PaymentAttempt,
@@ -235,6 +236,7 @@ export function createEmptyWorld(now: string): World {
     protectiveHolds: [],
     auditLog: [],
     externalAccommodations: [],
+    externalReports: [],
     sales: [{ id: SALE_MAI, name: "Chủ nhà An" }],
     butlers: [
       { id: BUTLER_LINH, name: "Quản gia Chi", villaIds: ["t01", "t02", "t03", "t04", "t05", "t06"] },
@@ -777,13 +779,17 @@ export function markDidNotOccur(
   if (stay.status !== "SCHEDULED") {
     throw new DomainError("INVALID_TRANSITION", "No-show is only possible from scheduled");
   }
-  if (!input.reason.trim()) {
-    throw new DomainError("MISSING_REASON", "A reason is required");
+  if (!input.reason.trim() || !NON_OCCURRENCE_REASONS.includes(input.reason as (typeof NON_OCCURRENCE_REASONS)[number])) {
+    throw new DomainError(
+      "MISSING_REASON",
+      "A non-occurrence reason is required: BOOKING_CANCELLED, NO_SHOW, or OTHER_AUTHORIZED_REASON",
+    );
   }
+  const reason = input.reason as (typeof NON_OCCURRENCE_REASONS)[number];
   const updated: Stay = {
     ...stay,
     status: "DID_NOT_OCCUR",
-    didNotOccurReason: input.reason.trim(),
+    didNotOccurReason: reason,
     didNotOccurAt: world.now,
   };
   return {
@@ -792,7 +798,7 @@ export function markDidNotOccur(
       input.actor,
       "DID_NOT_OCCUR",
       updated.id,
-      input.reason.trim(),
+      reason,
     ),
     stay: updated,
   };
@@ -970,6 +976,218 @@ export function recordMaintenanceFromHold(
   };
 }
 
+function reportsOf(world: World): ExternalReport[] {
+  return world.externalReports ?? [];
+}
+
+export function submitExternalReport(
+  world: World,
+  input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+    note?: string;
+    actor: Actor;
+  },
+): { world: World; report: ExternalReport } {
+  world = expireHolds(world);
+  requireVilla(input.villaId);
+  if (input.actor.persona === "BUTLER") {
+    assertButlerAssigned(world, input.actor, input.villaId);
+  } else if (input.actor.persona !== "SALE") {
+    throw new DomainError("FORBIDDEN", "Only Sale or an assigned Butler can submit a report");
+  }
+  if (nightsBetween(input.checkIn, input.checkOut) < 1) {
+    throw new DomainError("INVALID", "Check-out must be after check-in");
+  }
+  const report: ExternalReport = {
+    id: nid("rpt"),
+    villaId: input.villaId,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    guests: input.guests,
+    guestName: input.guestName?.trim() || undefined,
+    source: input.source,
+    note: input.note?.trim() || undefined,
+    reportedBy: input.actor.persona,
+    reporterId: input.actor.persona === "SALE" ? input.actor.saleId : input.actor.butlerId,
+    createdAt: world.now,
+  };
+  return {
+    world: withAudit(
+      { ...world, externalReports: [report, ...reportsOf(world)] },
+      input.actor,
+      "SUBMIT_EXTERNAL_REPORT",
+      report.id,
+    ),
+    report,
+  };
+}
+
+function writeExternalFact(
+  world: World,
+  input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+    reportId?: string;
+  },
+): { world: World; fact: ExternalAccommodation } {
+  const fact: ExternalAccommodation = {
+    id: nid("ext"),
+    villaId: input.villaId,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    guests: input.guests,
+    guestName: input.guestName?.trim() || undefined,
+    source: input.source,
+    reportId: input.reportId,
+    recordedAt: world.now,
+  };
+  let reports = reportsOf(world);
+  if (input.reportId) {
+    reports = reports.map((item) =>
+      item.id === input.reportId ? { ...item, factId: fact.id } : item,
+    );
+  }
+  return {
+    world: {
+      ...world,
+      externalAccommodations: [fact, ...(world.externalAccommodations ?? [])],
+      externalReports: reports,
+    },
+    fact,
+  };
+}
+
+/** Fact only. Does not hold the calendar and does not create a Stay or a Booking. */
+export function recordExternalFact(
+  world: World,
+  input: {
+    villaId: string;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+    source: ExternalSource;
+    guestName?: string;
+    reportId?: string;
+    actor: Actor;
+  },
+): { world: World; fact: ExternalAccommodation } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  requireVilla(input.villaId);
+  let fields = input;
+  if (input.reportId) {
+    const report = reportsOf(world).find((item) => item.id === input.reportId);
+    if (!report) throw new DomainError("NOT_FOUND", "Report not found");
+    if (report.factId) {
+      throw new DomainError("INVALID_TRANSITION", "This report is already recorded");
+    }
+    fields = { ...input, ...report, reportId: report.id };
+  } else if (nightsBetween(input.checkIn, input.checkOut) < 1) {
+    throw new DomainError("INVALID", "Check-out must be after check-in");
+  }
+  const written = writeExternalFact(world, fields);
+  return {
+    world: withAudit(written.world, input.actor, "RECORD_EXTERNAL_FACT", written.fact.id),
+    fact: written.fact,
+  };
+}
+
+function writeExternalCommitment(
+  world: World,
+  fact: ExternalAccommodation,
+): { world: World; stay: Stay; commitment: Commitment; conflict?: InventoryConflict } {
+  const overlapping = activeCommitments(world).filter(
+    (commitment) =>
+      commitment.villaId === fact.villaId &&
+      rangesOverlap(fact.checkIn, fact.checkOut, commitment.start, commitment.end),
+  );
+  const stayId = nid("sty");
+  const commitmentId = nid("cmt");
+  const butler = world.butlers.find((person) => person.villaIds?.includes(fact.villaId));
+  const stay: Stay = {
+    id: stayId,
+    villaId: fact.villaId,
+    checkIn: fact.checkIn,
+    checkOut: fact.checkOut,
+    guests: fact.guests,
+    guestName: fact.guestName?.trim() || "Khách",
+    origin: "EXTERNAL",
+    originLabel: fact.source,
+    status: "SCHEDULED",
+    assignedButlerId: butler?.id,
+  };
+  const commitment: Commitment = {
+    id: commitmentId,
+    villaId: fact.villaId,
+    start: fact.checkIn,
+    end: fact.checkOut,
+    kind: "CONFIRMED_ACCOMMODATION",
+    status: "ACTIVE",
+    basis: "EXTERNAL",
+    stayId,
+    externalId: fact.id,
+    source: fact.source,
+    reference: reference("EXT"),
+    createdBy: "HOST",
+    createdAt: world.now,
+  };
+  const linked: ExternalAccommodation = { ...fact, commitmentId };
+  let conflicts = world.conflicts ?? [];
+  let conflict: InventoryConflict | undefined;
+  if (overlapping.length > 0) {
+    conflict = {
+      id: nid("cnf"),
+      villaId: fact.villaId,
+      commitmentIds: [...overlapping.map((item) => item.id), commitmentId],
+      status: "OPEN",
+      createdAt: world.now,
+    };
+    conflicts = [conflict, ...conflicts];
+  }
+  return {
+    world: {
+      ...world,
+      externalAccommodations: (world.externalAccommodations ?? []).map((item) =>
+        item.id === fact.id ? linked : item,
+      ),
+      stays: [stay, ...world.stays],
+      commitments: [...world.commitments, commitment],
+      conflicts,
+    },
+    stay,
+    commitment,
+    conflict,
+  };
+}
+
+/** External-backed Commitment from a Fact that does not have one yet. No Booking. */
+export function establishExternalCommitment(
+  world: World,
+  input: { factId: string; actor: Actor },
+): { world: World; stay: Stay; commitment: Commitment; conflict?: InventoryConflict } {
+  world = expireHolds(world);
+  assertHost(input.actor);
+  const fact = (world.externalAccommodations ?? []).find((item) => item.id === input.factId);
+  if (!fact) throw new DomainError("NOT_FOUND", "External fact not found");
+  if (fact.commitmentId) {
+    throw new DomainError("INVALID_TRANSITION", "This fact already holds the calendar");
+  }
+  const attached = writeExternalCommitment(world, fact);
+  return {
+    ...attached,
+    world: withAudit(attached.world, input.actor, "ESTABLISH_EXTERNAL", attached.commitment.id),
+  };
+}
+
 export function recordExternalBooking(
   world: World,
   input: {
@@ -985,81 +1203,14 @@ export function recordExternalBooking(
   world = expireHolds(world);
   assertHost(input.actor);
   requireVilla(input.villaId);
-  const nights = nightsBetween(input.checkIn, input.checkOut);
-  if (nights < 1) throw new DomainError("INVALID", "Check-out must be after check-in");
-  const overlapping = activeCommitments(world).filter(
-    (commitment) =>
-      commitment.villaId === input.villaId &&
-      rangesOverlap(input.checkIn, input.checkOut, commitment.start, commitment.end),
-  );
-  const external: ExternalAccommodation = {
-    id: nid("ext"),
-    villaId: input.villaId,
-    checkIn: input.checkIn,
-    checkOut: input.checkOut,
-    guests: input.guests,
-    guestName: input.guestName?.trim() || undefined,
-    source: input.source,
-  };
-  const stayId = nid("sty");
-  const commitmentId = nid("cmt");
-  const ref = reference("EXT");
-  const butler = world.butlers.find((person) => person.villaIds?.includes(input.villaId));
-  const stay: Stay = {
-    id: stayId,
-    villaId: input.villaId,
-    checkIn: input.checkIn,
-    checkOut: input.checkOut,
-    guests: input.guests,
-    guestName: input.guestName?.trim() || "Khách",
-    origin: "EXTERNAL",
-    originLabel: input.source,
-    status: "SCHEDULED",
-    assignedButlerId: butler?.id,
-  };
-  const commitment: Commitment = {
-    id: commitmentId,
-    villaId: input.villaId,
-    start: input.checkIn,
-    end: input.checkOut,
-    kind: "CONFIRMED_ACCOMMODATION",
-    status: "ACTIVE",
-    basis: "EXTERNAL",
-    stayId,
-    externalId: external.id,
-    source: input.source,
-    reference: ref,
-    createdBy: "HOST",
-    createdAt: world.now,
-  };
-  let conflicts = world.conflicts ?? [];
-  let conflict: InventoryConflict | undefined;
-  if (overlapping.length > 0) {
-    conflict = {
-      id: nid("cnf"),
-      villaId: input.villaId,
-      commitmentIds: [...overlapping.map((item) => item.id), commitmentId],
-      status: "OPEN",
-      createdAt: world.now,
-    };
-    conflicts = [conflict, ...conflicts];
+  if (nightsBetween(input.checkIn, input.checkOut) < 1) {
+    throw new DomainError("INVALID", "Check-out must be after check-in");
   }
+  const written = writeExternalFact(world, input);
+  const attached = writeExternalCommitment(written.world, written.fact);
   return {
-    world: withAudit(
-      {
-        ...world,
-        externalAccommodations: [external, ...world.externalAccommodations],
-        stays: [stay, ...world.stays],
-        commitments: [...world.commitments, commitment],
-        conflicts,
-      },
-      input.actor,
-      "RECORD_EXTERNAL",
-      stay.id,
-    ),
-    stay,
-    commitment,
-    conflict,
+    ...attached,
+    world: withAudit(attached.world, input.actor, "RECORD_EXTERNAL", attached.stay.id),
   };
 }
 
@@ -1228,24 +1379,10 @@ export function resolveConflict(
           ? { ...item, status: "CANCELLED" as const, cancelledAt: world.now }
           : item,
       );
-      stays = world.stays.map((item) =>
-        item.id === booking.stayId && item.status === "SCHEDULED"
-          ? { ...item, status: "CANCELLED" as const }
-          : item,
-      );
       commissions = world.commissions.map((item) =>
         item.bookingId === booking.id ? { ...item, status: "VOID" as const } : item,
       );
     }
-  }
-
-  if (ending.kind === "CONFIRMED_ACCOMMODATION" && ending.basis === "EXTERNAL") {
-    const stayId = ending.stayId;
-    stays = stays.map((item) =>
-      item.id === stayId && item.status === "SCHEDULED"
-        ? { ...item, status: "CANCELLED" as const }
-        : item,
-    );
   }
 
   if (ending.kind === "HOLD" && ending.requestId) {
@@ -1364,7 +1501,9 @@ export function stayGuestLabel(status: Stay["status"]): string {
 }
 
 export function opsLists(world: World, date: string) {
-  const live = world.stays.filter((stay) => stay.status !== "CANCELLED");
+  const live = world.stays.filter(
+    (stay) => stay.status !== "CANCELLED" && stay.status !== "DID_NOT_OCCUR",
+  );
   const arriving = live.filter((stay) => stay.checkIn === date);
   const departing = live.filter(
     (stay) =>

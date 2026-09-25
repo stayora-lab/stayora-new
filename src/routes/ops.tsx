@@ -87,11 +87,8 @@ function OpsPage() {
 
   function submitNoShow() {
     if (!sheet || sheet.kind !== "noshow" || !sheetStay) return;
-    if (!reason.trim()) {
-      setError("Cần nêu lý do");
-      return;
-    }
-    run(() => butlerNoShow(sheetStay.id, reason));
+    if (!reason.trim()) setReason("NO_SHOW");
+    run(() => butlerNoShow(sheetStay.id, reason.trim() || "NO_SHOW"));
     setSheet(null);
     setReason("");
   }
@@ -253,20 +250,25 @@ function OpsPage() {
                 <>
                   <p className="font-serif text-2xl">Khách không đến</p>
                   <p className="mt-2 text-sm text-ink-soft">
-                    {getVilla(sheetStay.villaId)?.name} · {visibleGuestName(sheetStay, role)}. Cần lý do. Không tự ghi khi quá ngày.
+                    {getVilla(sheetStay.villaId)?.name} · {visibleGuestName(sheetStay, role)}. Chọn lý do. Không tự ghi khi quá ngày.
                   </p>
-                  <textarea
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    placeholder="Lý do"
-                    rows={4}
-                    className="mt-4 w-full rounded-xl bg-cream p-3 text-ink outline-none ring-lotus/40 focus:ring-2"
-                  />
+                  <label className="mt-4 block text-sm">
+                    Lý do
+                    <select
+                      value={reason || "NO_SHOW"}
+                      onChange={(event) => setReason(event.target.value)}
+                      className="mt-1 h-12 w-full rounded-xl bg-cream px-3"
+                    >
+                      <option value="NO_SHOW">Khách không đến</option>
+                      <option value="BOOKING_CANCELLED">Đặt chỗ đã huỷ</option>
+                      <option value="OTHER_AUTHORIZED_REASON">Lý do khác đã được phép</option>
+                    </select>
+                  </label>
                   <div className="mt-6 flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setSheet(null)}>
                       Huỷ
                     </Button>
-                    <Button className="flex-1" onClick={submitNoShow} disabled={!reason.trim()}>
+                    <Button className="flex-1" onClick={submitNoShow}>
                       Ghi nhận
                     </Button>
                   </div>

@@ -1,3 +1,7 @@
+import type { NON_OCCURRENCE_REASONS } from "./config.ts";
+
+export type NonOccurrenceReason = (typeof NON_OCCURRENCE_REASONS)[number];
+
 export type Persona = "GUEST" | "SALE" | "HOST" | "BUTLER" | "BQL" | "ADMIN";
 
 export type Actor =
@@ -103,7 +107,7 @@ export type Stay = {
   originLabel: string;
   status: StayStatus;
   assignedButlerId?: string;
-  didNotOccurReason?: string;
+  didNotOccurReason?: NonOccurrenceReason;
   preparedAt?: string;
   arrivalObservedAt?: string;
   departureObservedAt?: string;
@@ -162,6 +166,22 @@ export type RefundCase = {
   resolvedAt?: string;
 };
 
+export type ExternalReport = {
+  id: string;
+  villaId: string;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  guestName?: string;
+  source: ExternalSource;
+  note?: string;
+  reportedBy: "SALE" | "BUTLER";
+  reporterId?: string;
+  createdAt: string;
+  /** Set when a Fact is recorded from this report. The report stays. */
+  factId?: string;
+};
+
 export type ExternalAccommodation = {
   id: string;
   villaId: string;
@@ -170,6 +190,11 @@ export type ExternalAccommodation = {
   guests: number;
   guestName?: string;
   source: ExternalSource;
+  /** The report this Fact came from, when there was one. */
+  reportId?: string;
+  recordedAt?: string;
+  /** Set only when an External-backed Commitment exists. */
+  commitmentId?: string;
 };
 
 export type InventoryConflict = {
@@ -249,6 +274,7 @@ export type World = {
   protectiveHolds: ProtectiveHold[];
   auditLog: AuditEntry[];
   externalAccommodations: ExternalAccommodation[];
+  externalReports: ExternalReport[];
   sales: Person[];
   butlers: Person[];
 };

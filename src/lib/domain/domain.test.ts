@@ -25,6 +25,9 @@ import {
   markRefundDone,
   opsLists,
   recordExternalBooking,
+  recordExternalFact,
+  establishExternalCommitment,
+  submitExternalReport,
   recordPayment,
   rejectRequest,
   releaseBlock,
@@ -250,7 +253,7 @@ describe("Stay transitions", () => {
     const booked = bookedStay();
     const world = checkInStay(booked.world, { stayId: booked.stayId, actor: BUTLER }).world;
     assert.throws(
-      () => markDidNotOccur(world, { stayId: booked.stayId, actor: BUTLER, reason: "Khách báo hủy trễ" }),
+      () => markDidNotOccur(world, { stayId: booked.stayId, actor: BUTLER, reason: "NO_SHOW" }),
       (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
     );
     assertNoOverlap(world);
@@ -303,7 +306,7 @@ describe("Stay transitions", () => {
     const world = markDidNotOccur(booked.world, {
       stayId: booked.stayId,
       actor: BUTLER,
-      reason: "Khách báo bận đột xuất",
+      reason: "NO_SHOW",
     }).world;
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "DID_NOT_OCCUR");
     const commitment = world.commitments.find(
@@ -1192,7 +1195,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     );
     assert.equal(
       resolved.world.stays.find((item) => item.id === booked.stayId)?.status,
-      "CANCELLED",
+      "SCHEDULED",
     );
     assert.equal(resolved.world.refundCases[0]?.reason, "CONFLICT_RESOLUTION");
     assert.equal(resolved.world.refundCases[0]?.status, "OPEN");
@@ -1211,7 +1214,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     assertNoOverlap(resolved.world);
   });
 
-  it("end Stayora commitment → Booking CANCELLED, Stay CANCELLED, Commission VOID, stay not in opsLists, checkInStay refused, RefundCase CONFLICT_RESOLUTION", () => {
+  it("end Stayora commitment → Booking CANCELLED, Stay still SCHEDULED, then DID_NOT_OCCUR is a separate step", () => {
     const booked = bookedStay(SALE);
     const external = recordExternalBooking(booked.world, {
       villaId: "t01",
@@ -1232,22 +1235,38 @@ describe("Phase 2 host calendar, external, admin", () => {
       actor: ADMIN,
     });
     assert.equal(resolved.world.bookings.find((item) => item.id === booked.bookingId)?.status, "CANCELLED");
-    assert.equal(resolved.world.stays.find((item) => item.id === booked.stayId)?.status, "CANCELLED");
+    assert.equal(resolved.world.stays.find((item) => item.id === booked.stayId)?.status, "SCHEDULED");
+    assert.notEqual(resolved.world.stays.find((item) => item.id === booked.stayId)?.status, "DID_NOT_OCCUR");
     assert.equal(resolved.world.commissions[0]?.status, "VOID");
     assert.equal(resolved.world.refundCases[0]?.reason, "CONFLICT_RESOLUTION");
-    const lists = opsLists(resolved.world, "2026-12-01");
+    assert.equal(
+      opsLists(resolved.world, "2026-12-01").arriving.some((stay) => stay.id === booked.stayId),
+      true,
+    );
+    const marked = markDidNotOccur(resolved.world, {
+      stayId: booked.stayId,
+      actor: BUTLER,
+      reason: "BOOKING_CANCELLED",
+    });
+    assert.equal(marked.stay.status, "DID_NOT_OCCUR");
+    assert.equal(marked.stay.didNotOccurReason, "BOOKING_CANCELLED");
+    assert.equal(
+      marked.world.bookings.find((item) => item.id === booked.bookingId)?.status,
+      "CANCELLED",
+    );
+    const lists = opsLists(marked.world, "2026-12-01");
     assert.equal(
       lists.arriving.some((stay) => stay.id === booked.stayId),
       false,
     );
     assert.throws(
-      () => checkInStay(resolved.world, { stayId: booked.stayId, actor: BUTLER }),
+      () => checkInStay(marked.world, { stayId: booked.stayId, actor: BUTLER }),
       (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
     );
-    assertNoOverlap(resolved.world);
+    assertNoOverlap(marked.world);
   });
 
-  it("end EXTERNAL commitment → its Stay CANCELLED, not in opsLists", () => {
+  it("end EXTERNAL commitment → its Stay stays SCHEDULED until a separate non-occurrence", () => {
     const booked = bookedStay();
     const external = recordExternalBooking(booked.world, {
       villaId: "t01",
@@ -1267,13 +1286,25 @@ describe("Phase 2 host calendar, external, admin", () => {
       reason: "Giữ Stayora",
       actor: ADMIN,
     });
-    assert.equal(resolved.world.stays.find((item) => item.id === external.stay.id)?.status, "CANCELLED");
+    assert.equal(resolved.world.stays.find((item) => item.id === external.stay.id)?.status, "SCHEDULED");
     assert.equal(
       opsLists(resolved.world, "2026-12-01").arriving.some((stay) => stay.id === external.stay.id),
-      false,
+      true,
     );
     assert.equal(resolved.world.bookings.find((item) => item.id === booked.bookingId)?.status, "CONFIRMED");
-    assertNoOverlap(resolved.world);
+    const marked = markDidNotOccur(resolved.world, {
+      stayId: external.stay.id,
+      actor: BUTLER,
+      reason: "OTHER_AUTHORIZED_REASON",
+    });
+    assert.equal(marked.stay.status, "DID_NOT_OCCUR");
+    assert.equal(marked.stay.didNotOccurReason, "OTHER_AUTHORIZED_REASON");
+    assert.equal(
+      opsLists(marked.world, "2026-12-01").arriving.some((stay) => stay.id === external.stay.id),
+      false,
+    );
+    assert.equal(marked.world.bookings.find((item) => item.id === booked.bookingId)?.status, "CONFIRMED");
+    assertNoOverlap(marked.world);
   });
 
   it("end HOLD → Request CONFLICTED", () => {
@@ -1402,16 +1433,23 @@ describe("Phase 2 host calendar, external, admin", () => {
       actor: ADMIN,
     });
     assert.equal(resolved.world.commissions[0]?.status, "VOID");
+    const checked = checkInStay(resolved.world, { stayId: booked.stayId, actor: BUTLER });
+    const left = checkOutStay(checked.world, { stayId: booked.stayId, actor: BUTLER });
+    const done = evaluateStayCompletion(left.world, { stayId: booked.stayId, actor: BUTLER });
+    assert.equal(done.stay.status, "COMPLETED");
+    assert.equal(done.world.commissions[0]?.status, "VOID");
+    const marked = markDidNotOccur(resolved.world, {
+      stayId: booked.stayId,
+      actor: BUTLER,
+      reason: "BOOKING_CANCELLED",
+    });
     assert.throws(
-      () => checkInStay(resolved.world, { stayId: booked.stayId, actor: BUTLER }),
-      (error: unknown) => error instanceof DomainError,
+      () => checkInStay(marked.world, { stayId: booked.stayId, actor: BUTLER }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
     );
-    assert.throws(
-      () => checkOutStay(resolved.world, { stayId: booked.stayId, actor: BUTLER }),
-      (error: unknown) => error instanceof DomainError,
-    );
-    assert.equal(resolved.world.commissions[0]?.status, "VOID");
-    assertNoOverlap(resolved.world);
+    assert.equal(marked.world.commissions[0]?.status, "VOID");
+    assertNoOverlap(done.world);
+    assertNoOverlap(marked.world);
   });
 
   it("every mutating function appends exactly one audit entry", () => {
@@ -1504,7 +1542,7 @@ describe("Phase 2 host calendar, external, admin", () => {
     world = markDidNotOccur(world, {
       stayId: world.bookings.find((item) => item.requestId === noShow.request.id)!.stayId,
       actor: BUTLER,
-      reason: "Không đến",
+      reason: "NO_SHOW",
     }).world;
     assert.equal(world.auditLog.length, beforeNoShow + 1);
 
@@ -1765,5 +1803,160 @@ describe("emergency protective hold is not an inventory commitment", () => {
     assertNoOverlap(accepted.world);
     assertNoOverlap(occupied.world);
     assertNoOverlap(overdue);
+  });
+});
+
+describe("External report, fact, and commitment", () => {
+  it("a Sale or Butler report is not a Fact and does not hold the calendar", () => {
+    let world = createEmptyWorld(NOW);
+    const reported = submitExternalReport(world, {
+      villaId: "t04",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-13",
+      guests: 2,
+      source: "Zalo",
+      guestName: "Hoa",
+      note: "Khách quen của sale",
+      actor: SALE,
+    });
+    world = reported.world;
+    assert.equal(reported.report.factId, undefined);
+    assert.equal(world.externalAccommodations.length, 0);
+    assert.equal(world.stays.length, 0);
+    assert.equal(world.commitments.length, 0);
+    assert.equal(world.bookings.length, 0);
+    assert.equal(isAvailable(world, "t04", "2026-12-10", "2026-12-13"), true);
+    const fromButler = submitExternalReport(world, {
+      villaId: "t01",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-12",
+      guests: 2,
+      source: "Airbnb",
+      actor: BUTLER,
+    });
+    assert.equal(fromButler.world.externalAccommodations.length, 0);
+    assert.throws(
+      () =>
+        submitExternalReport(world, {
+          villaId: "t04",
+          checkIn: "2026-12-10",
+          checkOut: "2026-12-12",
+          guests: 2,
+          source: "Zalo",
+          actor: HOST,
+        }),
+      (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+    );
+    assertNoOverlap(fromButler.world);
+  });
+
+  it("a Host can record a Fact while no External-backed Commitment exists", () => {
+    const world = createEmptyWorld(NOW);
+    const reported = submitExternalReport(world, {
+      villaId: "t04",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-13",
+      guests: 2,
+      source: "Zalo",
+      actor: SALE,
+    });
+    const recorded = recordExternalFact(reported.world, {
+      villaId: "t04",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-13",
+      guests: 2,
+      source: "Zalo",
+      reportId: reported.report.id,
+      actor: HOST,
+    });
+    assert.equal(recorded.fact.reportId, reported.report.id);
+    assert.equal(recorded.fact.commitmentId, undefined);
+    assert.equal(recorded.world.externalReports[0]?.factId, recorded.fact.id);
+    assert.equal(recorded.world.stays.length, 0);
+    assert.equal(recorded.world.commitments.length, 0);
+    assert.equal(recorded.world.bookings.length, 0);
+    assert.equal(isAvailable(recorded.world, "t04", "2026-12-10", "2026-12-13"), true);
+    const direct = recordExternalFact(world, {
+      villaId: "t05",
+      checkIn: "2026-12-15",
+      checkOut: "2026-12-17",
+      guests: 3,
+      source: "Khách quen",
+      actor: HOST,
+    });
+    assert.equal(direct.fact.reportId, undefined);
+    assert.equal(direct.fact.commitmentId, undefined);
+    assert.equal(direct.world.bookings.length, 0);
+    assert.throws(
+      () =>
+        recordExternalFact(world, {
+          villaId: "t05",
+          checkIn: "2026-12-15",
+          checkOut: "2026-12-17",
+          guests: 2,
+          source: "Zalo",
+          actor: SALE,
+        }),
+      (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+    );
+    assertNoOverlap(recorded.world);
+    assertNoOverlap(direct.world);
+  });
+
+  it("establishing a commitment is a different truth from the Fact, and one action can write both without a Booking", () => {
+    const world = createEmptyWorld(NOW);
+    const recorded = recordExternalFact(world, {
+      villaId: "t04",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-13",
+      guests: 2,
+      source: "Airbnb",
+      guestName: "Hoa",
+      actor: HOST,
+    });
+    const held = establishExternalCommitment(recorded.world, {
+      factId: recorded.fact.id,
+      actor: HOST,
+    });
+    const fact = held.world.externalAccommodations.find((item) => item.id === recorded.fact.id);
+    assert.ok(fact);
+    assert.notEqual(fact.id, held.commitment.id);
+    assert.equal(fact.commitmentId, held.commitment.id);
+    assert.equal(held.commitment.externalId, fact.id);
+    assert.equal(held.commitment.basis, "EXTERNAL");
+    assert.equal(held.stay.origin, "EXTERNAL");
+    assert.equal(held.world.bookings.length, 0);
+    assert.equal(isAvailable(held.world, "t04", "2026-12-10", "2026-12-13"), false);
+    const together = recordExternalBooking(world, {
+      villaId: "t06",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-12",
+      guests: 2,
+      source: "Booking.com",
+      actor: HOST,
+    });
+    const written = together.world.externalAccommodations[0];
+    assert.ok(written);
+    assert.notEqual(written.id, together.commitment.id);
+    assert.equal(written.commitmentId, together.commitment.id);
+    assert.equal(together.world.bookings.length, 0);
+    assert.equal(together.world.obligations.length, 0);
+    assertNoOverlap(held.world);
+    assertNoOverlap(together.world);
+  });
+
+  it("refuses a prose reason and accepts only a non-occurrence reason", () => {
+    const booked = bookedStay();
+    assert.throws(
+      () => markDidNotOccur(booked.world, { stayId: booked.stayId, actor: BUTLER, reason: "Khách bận" }),
+      (error: unknown) => error instanceof DomainError && error.code === "MISSING_REASON",
+    );
+    const marked = markDidNotOccur(booked.world, {
+      stayId: booked.stayId,
+      actor: BUTLER,
+      reason: "NO_SHOW",
+    });
+    assert.equal(marked.stay.status, "DID_NOT_OCCUR");
+    assertNoOverlap(marked.world);
   });
 });
