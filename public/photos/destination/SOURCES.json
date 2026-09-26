@@ -82,11 +82,39 @@
     "note": "Ảnh thật phòng tập Oceanami do Founder cung cấp. Khu cardio, máy chạy và xe đạp."
   },
   {
-    "file": "maison.jpg",
-    "type": "ai-generated",
-    "addedAt": "2026-09-22T21:30:00+07:00",
+    "file": "maison-01.jpg",
+    "type": "real",
+    "addedAt": "2026-09-26T17:10:00+07:00",
     "approvedBy": "Founder",
-    "note": "Ảnh minh hoạ nhà hàng Maison."
+    "note": "Ảnh thật nhà hàng Maison do Founder cung cấp. Sân ngoài, ô dù trắng và vàng."
+  },
+  {
+    "file": "maison-02.jpg",
+    "type": "real",
+    "addedAt": "2026-09-26T17:10:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh thật nhà hàng Maison do Founder cung cấp. Phòng ăn, bàn gỗ và ghế xanh."
+  },
+  {
+    "file": "maison-03.jpg",
+    "type": "real",
+    "addedAt": "2026-09-26T17:10:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh thật nhà hàng Maison do Founder cung cấp. Phòng ăn nhìn rộng ra cửa kính."
+  },
+  {
+    "file": "maison-04.jpg",
+    "type": "real",
+    "addedAt": "2026-09-26T17:10:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh thật nhà hàng Maison do Founder cung cấp. Quầy buffet."
+  },
+  {
+    "file": "maison-05.jpg",
+    "type": "real",
+    "addedAt": "2026-09-26T17:10:00+07:00",
+    "approvedBy": "Founder",
+    "note": "Ảnh thật nhà hàng Maison do Founder cung cấp. Mặt nhà kính ban đêm."
   },
   {
     "file": "lua-spa.jpg",

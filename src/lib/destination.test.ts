@@ -12,6 +12,7 @@ import {
   HERO_SUBTITLE,
   HERO_TITLE,
   LOCATION_LABEL,
+  MAISON_PHOTOS,
 } from "./destination.ts";
 import { PHOTO_CATALOG } from "./photos.ts";
 import { villas } from "./villas.ts";
@@ -133,6 +134,41 @@ describe("image provenance", () => {
       assert.ok(villa.images.length >= 1, villa.id);
       assert.equal(villa.images[0]?.illustration, true);
     }
+  });
+
+  it("uses the founder's real Maison photos and keeps them off the hero", () => {
+    const files = [
+      "maison-01.jpg",
+      "maison-02.jpg",
+      "maison-03.jpg",
+      "maison-04.jpg",
+      "maison-05.jpg",
+    ];
+    assert.deepEqual(
+      MAISON_PHOTOS.map((photo) => photo.file),
+      files,
+    );
+    for (const file of files) {
+      const photo = PHOTO_CATALOG.find(
+        (item) => item.folder === "destination" && item.file === file,
+      );
+      assert.equal(photo?.type, "real", file);
+      assert.equal(photo?.sourceUrl, undefined, file);
+    }
+    assert.equal(
+      PHOTO_CATALOG.some((item) => item.file === "maison.jpg"),
+      false,
+    );
+    const card = AMENITY_CARDS.find((item) => item.name === "Nhà hàng Maison");
+    assert.equal(card?.free, false);
+    assert.deepEqual(
+      card?.photos?.map((photo) => photo.file),
+      files,
+    );
+    assert.equal(
+      HERO_SLIDES.some((slide) => slide.file.startsWith("maison")),
+      false,
+    );
   });
 
   it("does not use destination photos as villa photos", () => {

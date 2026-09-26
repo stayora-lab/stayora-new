@@ -80,6 +80,35 @@ export const GYM_PHOTOS: AmenityPhoto[] = [
   },
 ];
 
+/** Founder-supplied stills of Maison. Not illustrations. Paid, so not a hero slide. */
+export const MAISON_PHOTOS: AmenityPhoto[] = [
+  {
+    file: "maison-01.jpg",
+    src: "/photos/destination/maison-01.jpg",
+    alt: "Sân ngoài nhà hàng Maison, ô dù trắng và vàng",
+  },
+  {
+    file: "maison-02.jpg",
+    src: "/photos/destination/maison-02.jpg",
+    alt: "Phòng ăn Maison, bàn gỗ và ghế xanh nhìn ra biển",
+  },
+  {
+    file: "maison-03.jpg",
+    src: "/photos/destination/maison-03.jpg",
+    alt: "Phòng ăn Maison nhìn rộng, cửa kính và hàng dừa",
+  },
+  {
+    file: "maison-04.jpg",
+    src: "/photos/destination/maison-04.jpg",
+    alt: "Quầy buffet nhà hàng Maison",
+  },
+  {
+    file: "maison-05.jpg",
+    src: "/photos/destination/maison-05.jpg",
+    alt: "Nhà hàng Maison nhìn từ ngoài vào ban đêm",
+  },
+];
+
 export type HeroSlide = {
   file: string;
   src: string;
@@ -150,9 +179,8 @@ export const AMENITY_CARDS: AmenityCard[] = [
   },
   {
     ...AMENITIES[4],
-    file: "maison.jpg",
-    src: "/photos/destination/maison.jpg",
-    alt: "Nhà hàng Maison",
+    ...MAISON_PHOTOS[0],
+    photos: MAISON_PHOTOS,
   },
   {
     ...AMENITIES[5],

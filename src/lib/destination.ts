@@ -35,6 +35,7 @@ export {
   HERO_SUBTITLE,
   HERO_TITLE,
   LOCATION_LABEL,
+  MAISON_PHOTOS,
   VILLA_COMMON_AMENITIES_LINE,
   formatAmenityHours,
 } from "../content/destination-oceanami.ts";
