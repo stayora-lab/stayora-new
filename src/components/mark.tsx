@@ -34,16 +34,12 @@ export function StayoraIcon({ className }: { className?: string }) {
 
 type OceanamiTone = "on-photo" | "on-paper";
 
-function oceanamiToneClass(tone: OceanamiTone) {
-  return tone === "on-photo" ? "oceanami-mono-white" : "oceanami-mono-ink";
-}
-
 /**
- * Official Oceanami seal from oceanami.com — Núi, Biển, Hoa Anh Đào.
- * Always rendered monochrome in Stayora UI (CSS filter; files are untouched).
+ * Oceanami seal — Núi, Biển, Hoa Anh Đào.
+ * The header export is a wide canvas; the UI uses the cropped square mark
+ * so the emblem stays inside the viewport and keeps its color.
  */
 export function OceanamiEmblem({
-  tone = "on-paper",
   className,
 }: {
   tone?: OceanamiTone;
@@ -52,32 +48,20 @@ export function OceanamiEmblem({
   return (
     <img
       src="/brand/oceanami-mark.png"
-      alt=""
-      className={cn("h-8 w-8 shrink-0 object-contain", oceanamiToneClass(tone), className)}
-      aria-hidden="true"
+      alt="Oceanami"
+      width={96}
+      height={96}
+      className={cn("size-16 max-h-24 max-w-[40vw] shrink-0 object-contain sm:size-20", className)}
     />
   );
 }
 
 export function OceanamiLockup({
-  tone = "on-paper",
-  compact = false,
   className,
 }: {
   tone?: OceanamiTone;
   compact?: boolean;
   className?: string;
 }) {
-  return (
-    <img
-      src="/brand/oceanami-lockup.png"
-      alt="Oceanami"
-      className={cn(
-        "w-auto object-contain object-left",
-        compact ? "h-8 sm:h-9" : "h-10 sm:h-12",
-        oceanamiToneClass(tone),
-        className,
-      )}
-    />
-  );
+  return <OceanamiEmblem className={className} />;
 }

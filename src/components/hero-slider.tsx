@@ -128,7 +128,7 @@ export function HeroSlider({
           <p className="text-xs font-semibold tracking-wider text-cream/80 uppercase">
             Điểm đến
           </p>
-          <OceanamiLockup tone="on-photo" className="mt-3 h-8 max-w-full sm:h-14" />
+          <OceanamiLockup className="mt-3 drop-shadow-[0_4px_12px_rgba(26,22,20,0.35)]" />
           <h1 id={labelId} className="mt-3 font-serif text-title text-cream">
             {HERO_TITLE}
           </h1>
