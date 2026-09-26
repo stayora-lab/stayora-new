@@ -1,21 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AccountLookupResult } from "@/components/account-lookup";
+import { AccountField, AccountLookupResult } from "@/components/account-lookup";
 import { SearchSelect } from "@/components/search-select";
 import { AdminAccess, RoleGate } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import {
   ACCOUNT_PENDING_ROLE,
-  ACCOUNT_SUGGESTION_LABEL,
-  ACCOUNT_SUGGESTION_MISS,
+  ACCOUNT_SEARCH_DEBOUNCE_MS,
+  accountSearchPhase,
+  accountSearchQuery,
   isServerAccountMissing,
   presentAccountLookup,
+  type AccountSearchRemote,
 } from "@/lib/account-lookup";
 import {
   adminGrantRole,
   adminRevokeRole,
   fetchDevDirectory,
   lookupAccountGrants,
+  searchAccounts,
 } from "@/lib/dev-identity-api";
 import type { DevGrantRow, DevUser } from "@/lib/dev-types";
 import { DESTINATION_NAME, PILOT_SEED } from "@/lib/pilot-data";
@@ -25,7 +28,7 @@ import {
   grantRoleNeedsVillas,
   type GrantRoleId,
 } from "@/lib/grant-form";
-import { accountPickerItems, villaPickerItems } from "@/lib/search-select";
+import { villaPickerItems } from "@/lib/search-select";
 import { fetchAdminStatus } from "@/lib/world-api";
 import { useBookingStore } from "@/lib/store";
 import { villas } from "@/lib/villas";
@@ -50,6 +53,8 @@ function RolesPage() {
     initial.devDirectory ? (PILOT_SEED.people?.[0]?.email ?? "") : "",
   );
   const [accountQuery, setAccountQuery] = useState("");
+  const [remote, setRemote] = useState<AccountSearchRemote | null>(null);
+  const [picked, setPicked] = useState<{ name: string; email: string } | null>(null);
   const [role, setRole] = useState<GrantRoleId | null>(null);
   const [villaIds, setVillaIds] = useState<string[]>([]);
   const [reviewing, setReviewing] = useState(false);
@@ -60,15 +65,18 @@ function RolesPage() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const villaItems = villaPickerItems(villas, DESTINATION_NAME);
-  const accountItems = accountPickerItems(rows.map((row) => row.user));
   const waiting = rows.filter((row) => !row.grants.some((grant) => grant.status === "active"));
   const holding = rows.filter((row) => row.grants.some((grant) => grant.status === "active"));
   const foundInRoster = Boolean(found && rows.some((row) => row.user.id === found.user.id));
   const lookedUpAccount = found && !foundInRoster ? found : null;
   const lookedUp = lookedUpAccount ? presentAccountLookup(lookedUpAccount) : null;
+  const rosterUser = rows.find((row) => row.user.email === email)?.user;
   const accountLabel =
-    accountItems.find((item) => item.id === email)?.name ??
+    (picked?.email === email ? picked.name : null) ??
+    rosterUser?.name ??
     (found?.user.email === email ? found.user.name : email);
+  const selected = email ? { name: accountLabel || email, email } : null;
+  const searchPhase = accountSearchPhase(accountQuery, remote);
   const villaLabels = villaIds.map((id) => {
     const villa = villas.find((item) => item.id === id);
     return villa ? `${villa.name} (${villa.id})` : id;
@@ -79,6 +87,31 @@ function RolesPage() {
     if (!highlightedId) return;
     document.getElementById(`account-${highlightedId}`)?.scrollIntoView({ block: "nearest" });
   }, [highlightedId, rows, found]);
+
+  useEffect(() => {
+    const decision = accountSearchQuery(accountQuery);
+    if (!decision.ready) {
+      setRemote(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void searchAccounts({ data: { query: decision.needle, key: adminKey } })
+        .then((result) => {
+          if (cancelled) return;
+          setRemote({ settledQuery: decision.needle, accounts: result.accounts });
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setRemote({ settledQuery: decision.needle, accounts: [], failed: true });
+          setError(err instanceof Error ? err.message : "Không tìm được tài khoản");
+        });
+    }, ACCOUNT_SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [accountQuery, adminKey]);
 
   async function reloadDirectory() {
     const next = await fetchDevDirectory();
@@ -107,6 +140,25 @@ function RolesPage() {
       else setError(message);
       return null;
     }
+  }
+
+  function pickAccount(hit: { name: string; email: string }) {
+    setPicked(hit);
+    setEmail(hit.email);
+    setAccountQuery("");
+    setRemote(null);
+    setReviewing(false);
+    setLookupMiss(null);
+    void showAccount(hit.email);
+  }
+
+  function clearAccount() {
+    setPicked(null);
+    setEmail("");
+    setAccountQuery("");
+    setFound(null);
+    setLookupMiss(null);
+    setReviewing(false);
   }
 
   async function confirmGrant() {
@@ -160,26 +212,22 @@ function RolesPage() {
               setReviewing(true);
             }}
           >
-            <SearchSelect
-              label="Tài khoản"
-              items={accountItems}
-              selectedIds={email ? [email] : []}
-              multiple={false}
-              placeholder="Tìm theo tên hoặc email"
+            <AccountField
               query={accountQuery}
-              onQueryChange={setAccountQuery}
-              listLabel={ACCOUNT_SUGGESTION_LABEL}
-              missMessage={ACCOUNT_SUGGESTION_MISS}
-              hideListUntilQuery={!devDirectory}
-              onChange={(ids) => {
-                const next = ids[0] ?? "";
-                setEmail(next);
+              onQueryChange={(value) => {
+                setAccountQuery(value);
                 setReviewing(false);
-                const row = rows.find((item) => item.user.email === next);
-                if (row) setFound(row);
-                else if (!next) setFound(null);
+                if (value.trim().toLowerCase() !== email.toLowerCase()) {
+                  setEmail("");
+                  setPicked(null);
+                }
               }}
-              selectedAsChipsOnly
+              onPick={pickAccount}
+              onSubmitQuery={(value) => void showAccount(value || email)}
+              phase={searchPhase}
+              hits={remote?.accounts ?? []}
+              selected={selected}
+              onClear={clearAccount}
             />
             <fieldset>
               <legend className="text-sm">Vai trò</legend>
@@ -314,7 +362,7 @@ function RolesPage() {
             </>
           ) : (
             <p className="mt-8 text-sm text-muted">
-              Danh sách tài khoản thử không mở khi đăng nhập thử đang tắt. Gõ email rồi bấm Xem vai trò.
+              Danh sách tài khoản thử không mở khi đăng nhập thử đang tắt. Gõ tên hoặc email ở ô Tài khoản — kết quả lấy từ cơ sở dữ liệu.
             </p>
           )}
         </main>

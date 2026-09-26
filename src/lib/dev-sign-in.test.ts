@@ -386,7 +386,17 @@ describe("roles page does not require DEV_SIGN_IN", () => {
     const roles = source("../routes/admin_.roles.tsx");
     assert.match(roles, /Danh sách tài khoản thử không mở/);
     assert.match(roles, /lookupAccountGrants/);
+    assert.match(roles, /searchAccounts/);
     assert.equal(roles.includes("Đăng nhập thử đang tắt"), false);
+    const search = functionBody("./dev-identity.server.ts", "searchAccountsForOperator");
+    const gate = search.indexOf("assertOperator");
+    const table = search.indexOf("from dev_identity");
+    assert.ok(gate >= 0 && table > gate);
+    assert.match(search, /strpos\(lower\(email\)/);
+    assert.match(search, /strpos\(lower\(name\)/);
+    assert.equal(search.includes("assertDevSignInEnabled"), false);
+    assert.equal(search.includes("PILOT_SEED"), false);
+    assert.match(source("./dev-identity-api.ts"), /searchAccountsForOperator/);
   });
 
   it("refuses a typed scope and writes one grant per real villa", () => {

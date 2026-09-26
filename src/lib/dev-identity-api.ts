@@ -76,6 +76,13 @@ export const lookupAccountGrants = createServerFn({ method: "POST" })
     return accountGrantsForOperator(data.email, data.key);
   });
 
+export const searchAccounts = createServerFn({ method: "POST" })
+  .validator((input: { query: string; key?: string | null }) => input)
+  .handler(async ({ data }) => {
+    const { searchAccountsForOperator } = await import("./dev-identity.server.ts");
+    return searchAccountsForOperator(data.query, data.key);
+  });
+
 export const adminGrantRole = createServerFn({ method: "POST" })
   .validator(
     (input: { email: string; role: string; villaIds?: string[]; key?: string | null }) =>

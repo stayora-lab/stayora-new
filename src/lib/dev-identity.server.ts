@@ -12,6 +12,11 @@ import {
   rolesDirectoryPayload,
   visibleSessionUser,
 } from "./identity-path.ts";
+import {
+  ACCOUNT_SEARCH_LIMIT,
+  accountSearchQuery,
+  type AccountSearchHit,
+} from "./account-lookup.ts";
 import { planRoleGrants } from "./grant-scope.ts";
 import type { Persona } from "./domain/types.ts";
 import type { DevGrantRow, DevUser } from "./dev-types.ts";
@@ -304,6 +309,31 @@ export async function accountGrantsForOperator(
     user: { id: user.id, email: user.email, name: user.name },
     grants: await grantsForUser(user.id),
   };
+}
+
+/**
+ * Live search of dev_identity. Admin key only — same gate as granting a role.
+ * Does not read the fictional roster and does not require DEV_SIGN_IN.
+ * Predicate matches matchAccounts: substring of lower(email) or lower(name).
+ */
+export async function searchAccountsForOperator(
+  query: string,
+  key?: string | null,
+): Promise<{ status: "short" | "empty" | "ready"; accounts: AccountSearchHit[] }> {
+  assertOperator(key);
+  const decision = accountSearchQuery(query);
+  if (!decision.ready) return { status: "short", accounts: [] };
+  const sql = await getSql();
+  const rows = await sql<{ id: string; email: string; name: string }>`
+    select id, email, name
+    from dev_identity
+    where strpos(lower(email), ${decision.needle}) > 0
+       or strpos(lower(name), ${decision.needle}) > 0
+    order by email
+    limit ${ACCOUNT_SEARCH_LIMIT}
+  `;
+  const accounts = rows.map((row) => ({ id: row.id, email: row.email, name: row.name }));
+  return { status: accounts.length > 0 ? "ready" : "empty", accounts };
 }
 
 export async function grantRole(input: {
