@@ -1,12 +1,14 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
+import { User } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { OceanamiLockup, StayoraLockup } from "@/components/mark";
+import { OceanamiLockup, StayoraIcon, StayoraLockup } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
 import { DESTINATION_COPY, LOCATION_LABEL } from "@/lib/destination";
 import { PILOT_SEED } from "@/lib/pilot-data";
 import { workspaceFor } from "@/lib/role";
+import { showDemoPersonaSwitch } from "@/lib/site-header";
 import { useBookingStore } from "@/lib/store";
 
 const PERSONAS: { id: Persona; label: string; to: string }[] = [
@@ -75,18 +77,18 @@ export function AccountChip() {
     return (
       <Link
         to="/login"
-        className="inline-flex h-9 items-center rounded-full px-3 text-sm font-medium text-ink hover:bg-cream-deep"
+        className="hidden h-9 items-center rounded-full px-3 text-sm font-medium text-ink hover:bg-cream-deep md:inline-flex"
       >
         Đăng nhập
       </Link>
     );
   }
   return (
-    <div className="flex items-center gap-2">
+    <div className="hidden items-center gap-2 md:flex">
       {active.length === 0 ? (
-        <span className="hidden text-xs text-muted sm:inline">Đang chờ vai trò</span>
+        <span className="text-xs text-muted">Đang chờ vai trò</span>
       ) : null}
-      <span className="hidden max-w-28 truncate text-sm text-ink-soft sm:inline">{identity.name}</span>
+      <span className="max-w-28 truncate text-sm text-ink-soft">{identity.name}</span>
       <button
         type="button"
         onClick={() => void signOutIdentity()}
@@ -97,16 +99,74 @@ export function AccountChip() {
     </div>
   );
 }
+
+/** One icon on the mobile row. The words live in the menu, not in the bar. */
+export function AccountMenu() {
+  const identity = useBookingStore((state) => state.identity);
+  const grants = useBookingStore((state) => state.grants);
+  const signOutIdentity = useBookingStore((state) => state.signOutIdentity);
+  const [open, setOpen] = useState(false);
+  const active = grants.filter((grant) => grant.status === "active");
+
+  return (
+    <div className="relative md:hidden">
+      <button
+        type="button"
+        data-account-menu
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={identity ? identity.name : "Tài khoản"}
+        className="inline-flex size-9 items-center justify-center rounded-full bg-paper text-ink shadow-[var(--shadow-border)]"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <User className="size-4" aria-hidden />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          data-account-panel
+          className="absolute right-0 z-40 mt-2 w-52 rounded-2xl bg-paper p-2 shadow-[var(--shadow-lift)]"
+        >
+          {identity ? (
+            <>
+              <p className="px-3 py-2 text-sm font-medium">{identity.name}</p>
+              {active.length === 0 ? (
+                <p className="px-3 pb-2 text-xs text-muted">Đang chờ vai trò</p>
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                className="flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-medium"
+                onClick={() => void signOutIdentity()}
+              >
+                Thoát
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              role="menuitem"
+              className="flex h-11 items-center rounded-xl px-3 text-sm font-medium"
+              onClick={() => setOpen(false)}
+            >
+              Đăng nhập
+            </Link>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 export function PersonaSwitch() {
   const persona = useBookingStore((state) => state.persona);
   const demoMode = useBookingStore((state) => state.demoMode);
   const identity = useBookingStore((state) => state.identity);
   const setRole = useBookingStore((state) => state.setRole);
   const navigate = useNavigate();
-  if (!demoMode || identity) return null;
+  if (!showDemoPersonaSwitch(demoMode, Boolean(identity))) return null;
 
   return (
-    <label className="flex items-center gap-2 text-xs text-muted">
+    <label data-persona-switch className="flex items-center gap-2 text-xs text-muted">
       <span className="hidden sm:inline">Vai</span>
       <select
         value={persona}
@@ -124,7 +184,7 @@ export function PersonaSwitch() {
           const target = PERSONAS.find((item) => item.id === next);
           if (target) void navigate({ to: target.to });
         }}
-        className="h-9 max-w-44 rounded-full bg-paper px-3 text-sm font-medium text-ink shadow-[var(--shadow-border)]"
+        className="h-9 rounded-full bg-paper px-3 text-sm font-medium text-ink shadow-[var(--shadow-border)]"
       >
         {PERSONAS.map((item) => (
           <option key={item.id} value={item.id}>
@@ -138,7 +198,10 @@ export function PersonaSwitch() {
 
 function DestinationChip() {
   return (
-    <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-paper px-3 text-xs font-medium text-ink-soft shadow-[var(--shadow-border)] sm:text-sm">
+    <span
+      data-destination
+      className="hidden h-9 shrink-0 items-center rounded-full bg-paper px-3 text-sm font-medium text-ink-soft shadow-[var(--shadow-border)] md:inline-flex"
+    >
       Oceanami · Phước Hải
     </span>
   );
@@ -174,10 +237,14 @@ export function SiteHeader() {
           Đang chờ Stayora cấp vai trò
         </p>
       ) : null}
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+      <div
+        data-header-row
+        className="mx-auto flex h-14 max-w-6xl flex-nowrap items-center justify-between gap-2 px-4 md:h-16 md:gap-3 md:px-6"
+      >
         <div className="flex min-w-0 items-center gap-3">
-          <Link to="/" className="shrink-0" aria-label="Stayora home">
-            <StayoraLockup />
+          <Link to="/" className="shrink-0" aria-label="Stayora">
+            <StayoraIcon className="size-8 object-contain md:hidden" />
+            <StayoraLockup className="hidden md:block" />
           </Link>
           {workspace ? (
             <div className="hidden min-w-0 md:block">
@@ -186,17 +253,18 @@ export function SiteHeader() {
             </div>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <DestinationChip />
           <ContextSwitch />
           <PersonaSwitch />
+          <AccountMenu />
           <AccountChip />
           {hydrated && persona === "GUEST" && latest ? (
             latestBooking ? (
               <Link
                 to="/your-stay/$stayId"
                 params={{ stayId: latestBooking.stayId }}
-                className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep sm:inline"
+                className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep md:inline"
               >
                 Kỳ nghỉ của bạn
               </Link>
@@ -204,14 +272,11 @@ export function SiteHeader() {
               <Link
                 to="/requests/$requestId"
                 params={{ requestId: latest.id }}
-                className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep sm:inline"
+                className="hidden rounded-full px-3 py-2 text-sm font-medium text-ink hover:bg-cream-deep md:inline"
               >
                 Yêu cầu của bạn
               </Link>
             )
-          ) : null}
-          {stamp ? (
-            <p className="text-xs text-muted md:hidden">Cập nhật lúc {stamp}</p>
           ) : null}
         </div>
       </div>
