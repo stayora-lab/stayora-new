@@ -42,6 +42,7 @@ export const AMENITIES: Amenity[] = [
   { name: "Phòng tập", hours: ["8:00–18:00"], free: true },
   { name: "Cảnh quan, đường dạo và bãi đỗ xe", free: true },
   { name: "Nhà hàng Maison", hours: ["6:30–10:00", "11:30–14:30", "17:30–21:30"], free: false },
+  { name: "Sangria Lounge", free: false },
   { name: "Lụa Spa", hours: ["8:00–20:00"], free: false },
   { name: "Khu bạt nhún trẻ em Jumping Galaxy", hours: ["8:00–17:00"], free: false },
   { name: "Cho thuê xe đạp đi trong khu", free: false },
@@ -106,6 +107,35 @@ export const MAISON_PHOTOS: AmenityPhoto[] = [
     file: "maison-05.jpg",
     src: "/photos/destination/maison-05.jpg",
     alt: "Nhà hàng Maison nhìn từ ngoài vào ban đêm",
+  },
+];
+
+/** Founder-supplied stills of Sangria Lounge. Hours are not recorded here. Not a hero slide. */
+export const SANGRIA_PHOTOS: AmenityPhoto[] = [
+  {
+    file: "sangria-01.jpg",
+    src: "/photos/destination/sangria-01.jpg",
+    alt: "Ghế nắng và ô dù vàng bên hồ tại Sangria Lounge",
+  },
+  {
+    file: "sangria-02.jpg",
+    src: "/photos/destination/sangria-02.jpg",
+    alt: "Hồ và sân nắng Sangria Lounge",
+  },
+  {
+    file: "sangria-03.jpg",
+    src: "/photos/destination/sangria-03.jpg",
+    alt: "Sân hồ cạnh nhà Sangria Lounge",
+  },
+  {
+    file: "sangria-04.jpg",
+    src: "/photos/destination/sangria-04.jpg",
+    alt: "Nhà tròn Sangria Lounge nhìn từ hồ",
+  },
+  {
+    file: "sangria-05.jpg",
+    src: "/photos/destination/sangria-05.jpg",
+    alt: "Phòng khách Sangria Lounge",
   },
 ];
 
@@ -184,18 +214,23 @@ export const AMENITY_CARDS: AmenityCard[] = [
   },
   {
     ...AMENITIES[5],
+    ...SANGRIA_PHOTOS[0],
+    photos: SANGRIA_PHOTOS,
+  },
+  {
+    ...AMENITIES[6],
     file: "lua-spa.jpg",
     src: "/photos/destination/lua-spa.jpg",
     alt: "Lụa Spa",
   },
   {
-    ...AMENITIES[6],
+    ...AMENITIES[7],
     file: "jumping-galaxy.jpg",
     src: "/photos/destination/jumping-galaxy.jpg",
     alt: "Khu bạt nhún trẻ em Jumping Galaxy",
   },
   {
-    ...AMENITIES[7],
+    ...AMENITIES[8],
     file: "bicycle.jpg",
     src: "/photos/destination/bicycle.jpg",
     alt: "Xe đạp cho thuê trong khu",

@@ -13,6 +13,7 @@ import {
   HERO_TITLE,
   LOCATION_LABEL,
   MAISON_PHOTOS,
+  SANGRIA_PHOTOS,
 } from "./destination.ts";
 import { PHOTO_CATALOG } from "./photos.ts";
 import { villas } from "./villas.ts";
@@ -169,6 +170,40 @@ describe("image provenance", () => {
       HERO_SLIDES.some((slide) => slide.file.startsWith("maison")),
       false,
     );
+  });
+
+  it("uses the founder's real Sangria Lounge photos and does not invent hours", () => {
+    const files = [
+      "sangria-01.jpg",
+      "sangria-02.jpg",
+      "sangria-03.jpg",
+      "sangria-04.jpg",
+      "sangria-05.jpg",
+    ];
+    assert.deepEqual(
+      SANGRIA_PHOTOS.map((photo) => photo.file),
+      files,
+    );
+    for (const file of files) {
+      const photo = PHOTO_CATALOG.find(
+        (item) => item.folder === "destination" && item.file === file,
+      );
+      assert.equal(photo?.type, "real", file);
+      assert.equal(photo?.sourceUrl, undefined, file);
+    }
+    const card = AMENITY_CARDS.find((item) => item.name === "Sangria Lounge");
+    assert.equal(card?.free, false);
+    assert.equal(card?.hours, undefined);
+    assert.deepEqual(
+      card?.photos?.map((photo) => photo.file),
+      files,
+    );
+    assert.equal(
+      HERO_SLIDES.some((slide) => /sangria/i.test(slide.file + slide.caption + slide.alt)),
+      false,
+    );
+    const pool = AMENITY_CARDS.find((item) => item.name === "Hồ bơi chung");
+    assert.equal(pool?.file, "pool.jpg");
   });
 
   it("does not use destination photos as villa photos", () => {
