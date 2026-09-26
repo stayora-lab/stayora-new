@@ -50,6 +50,36 @@ export const AMENITIES: Amenity[] = [
 export const AMENITIES_FREE = AMENITIES.filter((item) => item.free);
 export const AMENITIES_PAID = AMENITIES.filter((item) => !item.free);
 
+export type AmenityPhoto = {
+  file: string;
+  src: string;
+  alt: string;
+};
+
+/** Founder-supplied stills of the Oceanami gym. Not illustrations. */
+export const GYM_PHOTOS: AmenityPhoto[] = [
+  {
+    file: "gym-01.jpg",
+    src: "/photos/destination/gym-01.jpg",
+    alt: "Lối vào phòng tập Oceanami, nhìn vào khu máy",
+  },
+  {
+    file: "gym-02.jpg",
+    src: "/photos/destination/gym-02.jpg",
+    alt: "Khu máy tập đa năng cạnh cửa kính nhìn ra vườn",
+  },
+  {
+    file: "gym-03.jpg",
+    src: "/photos/destination/gym-03.jpg",
+    alt: "Máy tập cạnh cửa kính và hàng dừa",
+  },
+  {
+    file: "gym-04.jpg",
+    src: "/photos/destination/gym-04.jpg",
+    alt: "Khu cardio phòng tập với máy chạy bộ và xe đạp, nhìn ra vườn dừa",
+  },
+];
+
 export type HeroSlide = {
   file: string;
   src: string;
@@ -83,17 +113,15 @@ export const HERO_SLIDES: HeroSlide[] = [
     caption: "Cảnh quan và mùa hoa trong khu",
   },
   {
-    file: "gym.jpg",
-    src: "/photos/destination/gym.jpg",
-    alt: "Phòng tập của khu nghỉ dưỡng",
+    file: "gym-04.jpg",
+    src: "/photos/destination/gym-04.jpg",
+    alt: "Khu cardio phòng tập với máy chạy bộ và xe đạp, nhìn ra vườn dừa",
     caption: "Phòng tập · 8:00–18:00",
   },
 ];
 
-export type AmenityCard = Amenity & {
-  file: string;
-  src: string;
-  alt: string;
+export type AmenityCard = Amenity & AmenityPhoto & {
+  photos?: AmenityPhoto[];
 };
 
 export const AMENITY_CARDS: AmenityCard[] = [
@@ -111,9 +139,8 @@ export const AMENITY_CARDS: AmenityCard[] = [
   },
   {
     ...AMENITIES[2],
-    file: "gym.jpg",
-    src: "/photos/destination/gym.jpg",
-    alt: "Phòng tập của khu nghỉ dưỡng",
+    ...GYM_PHOTOS[0],
+    photos: GYM_PHOTOS,
   },
   {
     ...AMENITIES[3],

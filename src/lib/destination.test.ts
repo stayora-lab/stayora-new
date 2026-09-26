@@ -6,6 +6,8 @@ import {
   AMENITIES_PAID,
   DESTINATION_COPY,
   GUEST_ARRIVAL,
+  AMENITY_CARDS,
+  GYM_PHOTOS,
   HERO_SLIDES,
   HERO_SUBTITLE,
   HERO_TITLE,
@@ -101,9 +103,32 @@ describe("amenities config", () => {
 });
 
 describe("image provenance", () => {
-  it("marks gym and villa photos as ai-generated", () => {
-    const gym = PHOTO_CATALOG.find((photo) => photo.file === "gym.jpg");
-    assert.equal(gym?.type, "ai-generated");
+  it("uses the founder's real gym photos and keeps villa photos as illustrations", () => {
+    const gymFiles = ["gym-01.jpg", "gym-02.jpg", "gym-03.jpg", "gym-04.jpg"];
+    assert.deepEqual(
+      GYM_PHOTOS.map((photo) => photo.file),
+      gymFiles,
+    );
+    for (const file of gymFiles) {
+      const photo = PHOTO_CATALOG.find(
+        (item) => item.folder === "destination" && item.file === file,
+      );
+      assert.equal(photo?.type, "real", file);
+      assert.equal(photo?.sourceUrl, undefined, file);
+    }
+    assert.equal(
+      PHOTO_CATALOG.some((item) => item.file === "gym.jpg"),
+      false,
+    );
+    const card = AMENITY_CARDS.find((item) => item.name === "Phòng tập");
+    assert.deepEqual(
+      card?.photos?.map((photo) => photo.file),
+      gymFiles,
+    );
+    assert.equal(
+      HERO_SLIDES.find((slide) => slide.caption.startsWith("Phòng tập"))?.file,
+      "gym-04.jpg",
+    );
     for (const villa of villas) {
       assert.ok(villa.images.length >= 1, villa.id);
       assert.equal(villa.images[0]?.illustration, true);

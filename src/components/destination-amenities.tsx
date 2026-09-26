@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Photo } from "@/components/photo";
 import {
   AMENITIES_FOOTNOTE,
@@ -7,7 +8,9 @@ import {
   AMENITIES_SECTION_ID,
   AMENITY_CARDS,
   formatAmenityHours,
+  type AmenityPhoto,
 } from "@/lib/destination";
+import { cn } from "@/lib/utils";
 
 export function DestinationAmenities() {
   const free = AMENITY_CARDS.filter((item) => item.free);
@@ -45,7 +48,7 @@ function Group({
               className="overflow-hidden rounded-2xl bg-paper shadow-[var(--shadow-border)]"
             >
               <div className="relative aspect-photo">
-                <Photo src={item.src} alt={item.alt} />
+                <CardPhoto item={item} />
               </div>
               <div className="p-4">
                 <p className="font-medium">{item.name}</p>
@@ -57,4 +60,69 @@ function Group({
       </ul>
     </div>
   );
+}
+
+function CardPhoto({ item }: { item: (typeof AMENITY_CARDS)[number] }) {
+  if (!item.photos || item.photos.length < 2) {
+    return <Photo src={item.src} alt={item.alt} />;
+  }
+  return <AmenitySlider name={item.name} photos={item.photos} />;
+}
+
+function AmenitySlider({ name, photos }: { name: string; photos: AmenityPhoto[] }) {
+  const [index, setIndex] = useState(0);
+  const reduced = usePrefersReducedMotion();
+  const photo = photos[index] ?? photos[0];
+
+  useEffect(() => {
+    if (reduced) return;
+    const id = window.setInterval(() => {
+      setIndex((current) => (current + 1) % photos.length);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [photos.length, reduced]);
+
+  return (
+    <div className="relative size-full" data-amenity-slider={name}>
+      <Photo src={photo.src} alt={photo.alt} />
+      <div
+        className="absolute inset-x-0 bottom-1.5 flex justify-center"
+        role="tablist"
+        aria-label={`Ảnh ${name}`}
+      >
+        <div className="flex rounded-full bg-ink/55 px-1">
+          {photos.map((shot, slideIndex) => (
+            <button
+              key={shot.file}
+              type="button"
+              role="tab"
+              aria-selected={slideIndex === index}
+              aria-label={`${name}, ảnh ${slideIndex + 1}`}
+              onClick={() => setIndex(slideIndex)}
+              className="inline-flex h-9 min-w-7 items-center justify-center"
+            >
+              <span
+                className={cn(
+                  "block h-1.5 rounded-full",
+                  slideIndex === index ? "w-4 bg-cream" : "w-1.5 bg-cream/55",
+                )}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(media.matches);
+    const onChange = () => setReduced(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
 }
