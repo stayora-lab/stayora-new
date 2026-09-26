@@ -1,8 +1,8 @@
 import { format, parseISO } from "date-fns";
 import { nextCardAction, type NextCardAction } from "./butler-card.ts";
 import { addIsoDays } from "./butler-timeline.ts";
-import { butlerFieldBoard } from "./domain/engine.ts";
-import type { ProtectiveHold, Stay, World } from "./domain/types.ts";
+import { butlerFieldBoard, readinessOf } from "./domain/engine.ts";
+import type { ProtectiveHold, Stay, VillaReadinessState, World } from "./domain/types.ts";
 
 /**
  * PROTOTYPE ASSUMPTION
@@ -37,6 +37,8 @@ export type CardEvent = {
 
 export type CardAction =
   | { kind: "stay"; id: NextCardAction["id"]; label: string; tone: ActionTone; stayId: string }
+  | { kind: "begin-cleaning"; label: string; tone: "moss"; villaId: string }
+  | { kind: "complete-cleaning"; label: string; tone: "moss"; villaId: string }
   | { kind: "release-hold"; label: string; tone: "lotus"; holdId: string };
 
 export type VillaCardModel = {
@@ -49,6 +51,7 @@ export type VillaCardModel = {
   lateLabel: string | null;
   attentionNote: string | null;
   holdOverdue: boolean;
+  readiness: VillaReadinessState;
   action: CardAction | null;
 };
 
@@ -61,7 +64,6 @@ export type DayLayout = {
 export type BoardFlags = { canAct: boolean; canHold: boolean };
 
 const ACTION_PRIORITY: NextCardAction["id"][] = [
-  "prepare",
   "observe-departure",
   "check-out",
   "observe-arrival",
@@ -120,7 +122,6 @@ function attentionFor(world: World, villaId: string, date: string, today: string
 function stayAction(stay: Stay, date: string): NextCardAction | null {
   if (stay.status === "CHECKED_IN" && stay.checkOut <= date) return nextCardAction(stay, "departing");
   if (stay.status !== "SCHEDULED" || stay.checkIn > date) return null;
-  if (!stay.preparedAt) return nextCardAction(stay, "prepare");
   return nextCardAction(stay, "arriving");
 }
 
@@ -129,7 +130,15 @@ function chooseAction(
   date: string,
   flags: BoardFlags,
   holdId: string | null,
+  readiness: VillaReadinessState,
+  villaId: string,
 ): CardAction | null {
+  if (flags.canAct && readiness === "DIRTY") {
+    return { kind: "begin-cleaning", label: "Bắt đầu dọn", tone: "moss", villaId };
+  }
+  if (flags.canAct && readiness === "CLEANING") {
+    return { kind: "complete-cleaning", label: "Dọn xong", tone: "moss", villaId };
+  }
   if (flags.canAct) {
     const ranked = stays
       .map((stay) => ({ stay, action: stayAction(stay, date) }))
@@ -143,7 +152,7 @@ function chooseAction(
         kind: "stay",
         id: winner.action.id,
         label: winner.action.label,
-        tone: winner.action.id === "prepare" ? "moss" : "lotus",
+        tone: "lotus",
         stayId: winner.stay.id,
       };
     }
@@ -154,12 +163,10 @@ function chooseAction(
   return null;
 }
 
-function housekeepingOf(blocked: boolean, arrivals: readonly Stay[]): Housekeeping {
+function housekeepingOf(blocked: boolean, readiness: VillaReadinessState): Housekeeping {
   if (blocked) return "blocked";
-  const waiting = arrivals.filter((stay) => stay.status === "SCHEDULED");
-  if (waiting.some((stay) => !stay.preparedAt)) return "needs-prep";
-  if (waiting.some((stay) => stay.preparedAt)) return "ready";
-  return "quiet";
+  if (readiness === "READY") return "ready";
+  return "needs-prep";
 }
 
 function markFor(stay: Stay, date: string): GuestMark {
@@ -210,8 +217,8 @@ export function dayLayout(
   for (const [villaId, bucket] of grouped) {
     const order = orderOf(villaId, villaIds);
     const attention = attentionFor(world, villaId, date, today);
-    const arrivals = bucket.stays.filter((stay) => markFor(stay, date) === "arrival");
-    const needsPrep = arrivals.some((stay) => !stay.preparedAt);
+    const readiness = readinessOf(world, villaId).state;
+    const needsPrep = readiness === "DIRTY" || readiness === "CLEANING";
     const rank = { departure: 0, arrival: 1, "in-house": 2 };
     const events = bucket.stays
       .map((stay) => ({ stayId: stay.id, mark: markFor(stay, date), guests: stay.guests }))
@@ -220,13 +227,14 @@ export function dayLayout(
       villaId,
       order,
       window: windowForOrder(order),
-      housekeeping: housekeepingOf(Boolean(attention.note), arrivals),
+      housekeeping: housekeepingOf(Boolean(attention.note), readiness),
       needsPrep,
       events,
       lateLabel: bucket.late,
       attentionNote: attention.note,
       holdOverdue: attention.overdue,
-      action: chooseAction(bucket.stays, date, flags, attention.hold?.id ?? null),
+      readiness,
+      action: chooseAction(bucket.stays, date, flags, attention.hold?.id ?? null, readiness, villaId),
     });
   }
 

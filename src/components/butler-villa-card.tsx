@@ -2,6 +2,7 @@ import { format, parseISO } from "date-fns";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Check,
   Flag,
   House,
   LogIn,
@@ -34,7 +35,8 @@ const MARK = {
 
 function ActionIcon({ action }: { action: CardAction }) {
   if (action.kind === "release-hold") return <Triangle className="size-4 fill-current" aria-hidden />;
-  if (action.id === "prepare") return <Sparkles className="size-4" aria-hidden />;
+  if (action.kind === "begin-cleaning") return <Sparkles className="size-4" aria-hidden />;
+  if (action.kind === "complete-cleaning") return <Check className="size-4" aria-hidden />;
   if (action.id === "check-in") return <LogIn className="size-4" aria-hidden />;
   if (action.id === "check-out" || action.id === "observe-departure") {
     return <LogOut className="size-4" aria-hidden />;
@@ -102,7 +104,8 @@ export function VillaDayCard({
   onReport: (stayId: string) => void;
 }) {
   const villa = getVilla(card.villaId);
-  const quiet = card.housekeeping === "quiet" && !card.action && !card.lateLabel && !card.attentionNote;
+  const quiet =
+    card.readiness === "READY" && !card.action && !card.lateLabel && !card.attentionNote;
   const openStay = card.action && card.action.kind === "stay" ? card.action.stayId : card.events[0]?.stayId;
   const when = windowLabel(card.window);
 
@@ -113,6 +116,7 @@ export function VillaDayCard({
       data-housekeeping={card.housekeeping}
       data-window={card.window}
       data-pinned={card.attentionNote ? "true" : "false"}
+      data-readiness={card.readiness}
       data-events={card.events.map((event) => event.mark).join(" ")}
       className={`rounded-2xl border-l-[6px] bg-paper shadow-[var(--shadow-border)] ${STRIPE[card.housekeeping]} ${
         quiet ? "px-3 py-2 opacity-70" : "p-4"
@@ -135,13 +139,23 @@ export function VillaDayCard({
                 Cần chú ý
               </span>
             ) : null}
-            {card.needsPrep ? (
+            {card.readiness === "CLEANING" ? (
+              <span
+                data-readiness-label="CLEANING"
+                className="inline-flex items-center gap-1 rounded-full bg-ink px-2 py-0.5 text-xs font-medium text-cream"
+              >
+                <Sparkles className="size-3" aria-hidden />
+                Đang dọn
+              </span>
+            ) : null}
+            {card.readiness === "DIRTY" ? (
               <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-medium text-ink">Cần dọn</span>
             ) : null}
             {card.housekeeping === "ready" ? (
               <span className="rounded-full bg-moss px-2 py-0.5 text-xs font-medium text-cream">Sẵn sàng</span>
             ) : null}
-            {card.housekeeping === "quiet" && !card.attentionNote ? (
+            {card.housekeeping === "quiet" ||
+            (card.readiness === "READY" && card.events.every((event) => event.mark === "in-house")) ? (
               <span className="rounded-full bg-sand px-2 py-0.5 text-xs text-muted">Đang ở</span>
             ) : null}
           </div>
@@ -177,7 +191,13 @@ export function VillaDayCard({
       {card.action ? (
         <button
           type="button"
-          data-next-action={card.action.kind === "stay" ? card.action.id : "release-hold"}
+          data-next-action={
+            card.action.kind === "stay"
+              ? card.action.id
+              : card.action.kind === "release-hold"
+                ? "release-hold"
+                : card.action.kind
+          }
           data-action-tone={card.action.tone}
           className={`mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-medium text-cream ${
             card.action.tone === "moss" ? "bg-moss" : "bg-lotus"

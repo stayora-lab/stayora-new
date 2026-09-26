@@ -101,16 +101,23 @@ describe("two-axis butler board", () => {
     assert.ok(order.indexOf("t03") < firstPlain);
   });
 
-  it("marking a villa prepared does not move it", () => {
+  it("marking a villa ready does not move it", () => {
     const before = dayLayout(world, today, scope, today, FLAGS);
     const prepared = structuredClone(world) as World;
-    const arrival = prepared.stays.find(
-      (stay) => stay.villaId === "t06" && stay.status === "SCHEDULED" && stay.checkIn === today,
-    );
-    assert.ok(arrival);
-    arrival.preparedAt = NOW;
+    prepared.villaReadiness = [
+      {
+        villaId: "t06",
+        state: "READY",
+        since: NOW,
+        actorPersona: "BUTLER",
+        actorId: "butler-chi",
+        cause: "COMPLETE_CLEANING",
+      },
+    ];
     const after = dayLayout(prepared, today, scope, today, FLAGS);
     assert.deepEqual(cardOrder(before), cardOrder(after));
+    assert.equal(findCard(before, "t06")?.readiness, "DIRTY");
+    assert.equal(findCard(after, "t06")?.readiness, "READY");
     assert.equal(findCard(before, "t06")?.housekeeping, "needs-prep");
     assert.equal(findCard(after, "t06")?.housekeeping, "ready");
     assert.equal(findCard(before, "t06")?.window, findCard(after, "t06")?.window);
@@ -137,9 +144,13 @@ describe("two-axis butler board", () => {
       onReport: () => undefined,
     });
     assert.match(html, /data-events="departure arrival"/);
+    assert.match(html, /data-readiness="DIRTY"/);
     assert.match(html, /data-action-tone="moss"/);
+    assert.match(html, /data-next-action="begin-cleaning"/);
     assert.match(html, /bg-moss/);
-    assert.match(html, /Đánh dấu đã chuẩn bị/);
+    assert.match(html, /Bắt đầu dọn/);
+    assert.match(html, /Cần dọn/);
+    assert.doesNotMatch(html, /Đang dọn/);
     assert.match(html, /<svg/);
     assert.match(html, /h-12/);
     assert.doesNotMatch(html, /#[0-9a-fA-F]{3,8}/);
@@ -164,5 +175,38 @@ describe("two-axis butler board", () => {
     assert.match(bql, /Khách chính · <\/span>Khách/);
     assert.doesNotMatch(bql, /Chị Hà/);
     assert.doesNotMatch(bql, /Anh Long/);
+  });
+
+  it("CLEANING is a different chip and verb from not-yet-started", async () => {
+    const cleaningWorld = structuredClone(world) as World;
+    cleaningWorld.villaReadiness = [
+      {
+        villaId: "t06",
+        state: "CLEANING",
+        since: NOW,
+        actorPersona: "BUTLER",
+        actorId: "butler-chi",
+        cause: "BEGIN_CLEANING",
+      },
+    ];
+    const card = findCard(dayLayout(cleaningWorld, today, scope, today, FLAGS), "t06");
+    assert.ok(card);
+    assert.equal(card.readiness, "CLEANING");
+    assert.equal(card.housekeeping, "needs-prep");
+    const html = await render("VillaDayCard", {
+      card,
+      stays: cleaningWorld.stays,
+      role: { persona: "BUTLER", butlerId: "butler-chi", villaIds: scope },
+      onOpen: () => undefined,
+      onAction: () => undefined,
+      onReport: () => undefined,
+    });
+    assert.match(html, /data-readiness="CLEANING"/);
+    assert.match(html, /data-readiness-label="CLEANING"/);
+    assert.match(html, /Đang dọn/);
+    assert.match(html, /Dọn xong/);
+    assert.match(html, /data-next-action="complete-cleaning"/);
+    assert.doesNotMatch(html, /Cần dọn/);
+    assert.doesNotMatch(html, /Bắt đầu dọn/);
   });
 });

@@ -23,6 +23,7 @@ import {
   NEAR_CHECK_IN_RESPONSE_MS,
   NON_OCCURRENCE_REASONS,
   PROTECTIVE_HOLD_REVIEW_MS,
+  VILLA_FRESHNESS_MS,
 } from "./config.ts";
 import type {
   AcceptanceHandling,
@@ -38,11 +39,13 @@ import type {
   PaymentAttempt,
   PaymentObligation,
   PaymentOutcome,
+  Persona,
   ProtectiveHold,
   RefundCase,
   RefundReason,
   Stay,
   StayRequest,
+  VillaReadiness,
   World,
 } from "./types.ts";
 import { DomainError } from "./types.ts";
@@ -273,7 +276,7 @@ export function expireHolds(world: World): World {
 
 export function advanceTime(world: World, ms: number): World {
   const now = new Date(parseISO(world.now).getTime() + ms).toISOString();
-  return expireHolds({ ...world, now });
+  return applyFreshnessDecay(expireHolds({ ...world, now }));
 }
 
 export function createEmptyWorld(now: string): World {
@@ -290,6 +293,7 @@ export function createEmptyWorld(now: string): World {
     refundCases: [],
     conflicts: [],
     protectiveHolds: [],
+    villaReadiness: [],
     auditLog: [],
     externalAccommodations: [],
     externalReports: [],
@@ -787,22 +791,134 @@ export function checkInStay(
   };
 }
 
-export function reportPrepared(
-  world: World,
-  input: { stayId: string; actor: Actor },
-): { world: World; stay: Stay } {
-  world = expireHolds(world);
-  const stay = requireStay(world, input.stayId);
-  assertButlerAssigned(world, input.actor, stay.villaId);
-  if (stay.preparedAt) return { world, stay };
-  if (stay.status !== "SCHEDULED") {
-    throw new DomainError("INVALID_TRANSITION", "Preparation is only recorded before check-in");
+function readinessRecords(world: World): VillaReadiness[] {
+  return world.villaReadiness ?? [];
+}
+
+function guestPresent(world: World, villaId: string): boolean {
+  return world.stays.some((stay) => stay.villaId === villaId && stay.status === "CHECKED_IN");
+}
+
+function decayRecord(world: World, record: VillaReadiness): VillaReadiness {
+  if (record.state !== "READY") return record;
+  if (guestPresent(world, record.villaId)) return record;
+  if (Date.parse(world.now) - Date.parse(record.since) < VILLA_FRESHNESS_MS) return record;
+  return { villaId: record.villaId, state: "DIRTY", since: world.now, cause: "FRESHNESS_DECAY" };
+}
+
+/** READY with nobody in the villa becomes DIRTY after the prototype freshness window. */
+export function applyFreshnessDecay(world: World): World {
+  const records = readinessRecords(world);
+  if (records.length === 0) return world;
+  let changed = false;
+  const next = records.map((record) => {
+    const decayed = decayRecord(world, record);
+    if (decayed !== record) changed = true;
+    return decayed;
+  });
+  return changed ? { ...world, villaReadiness: next } : world;
+}
+
+/** Missing record is DIRTY. A stored READY past freshness reads as DIRTY. */
+export function readinessOf(world: World, villaId: string): VillaReadiness {
+  const found = readinessRecords(world).find((item) => item.villaId === villaId);
+  if (!found) return { villaId, state: "DIRTY", since: world.now };
+  return decayRecord(world, found);
+}
+
+function withReadiness(world: World, next: VillaReadiness): World {
+  const records = readinessRecords(world).filter((item) => item.villaId !== next.villaId);
+  return { ...world, villaReadiness: [...records, next] };
+}
+
+function actorStamp(actor: Actor): { actorPersona: Persona; actorId?: string } {
+  if (actor.persona === "BUTLER") return { actorPersona: "BUTLER", actorId: actor.butlerId };
+  if (actor.persona === "SALE") return { actorPersona: "SALE", actorId: actor.saleId };
+  if (actor.persona === "HOST") return { actorPersona: "HOST", actorId: "HOST" };
+  return { actorPersona: actor.persona };
+}
+
+function assertCanRecordReadiness(world: World, actor: Actor, villaId: string): void {
+  if (actor.persona === "BUTLER") {
+    assertButlerAssigned(world, actor, villaId);
+    return;
   }
-  const updated: Stay = { ...stay, preparedAt: world.now };
-  return {
-    world: withAudit(replaceStay(world, updated), input.actor, "PREPARE", updated.id),
-    stay: updated,
+  if (actor.persona === "HOST") return;
+  throw new DomainError(
+    "FORBIDDEN",
+    "Only the assigned Butler or the villa Host can record villa readiness",
+  );
+}
+
+function requireReadinessVilla(villaId: string): void {
+  requireVilla(villaId);
+}
+
+export function beginCleaning(
+  world: World,
+  input: { villaId: string; actor: Actor },
+): { world: World; readiness: VillaReadiness } {
+  world = applyFreshnessDecay(expireHolds(world));
+  requireReadinessVilla(input.villaId);
+  assertCanRecordReadiness(world, input.actor, input.villaId);
+  const current = readinessOf(world, input.villaId);
+  if (current.state !== "DIRTY") {
+    throw new DomainError("INVALID_TRANSITION", "Cleaning can only begin from DIRTY");
+  }
+  const readiness: VillaReadiness = {
+    villaId: input.villaId,
+    state: "CLEANING",
+    since: world.now,
+    ...actorStamp(input.actor),
+    cause: "BEGIN_CLEANING",
   };
+  return {
+    world: withAudit(withReadiness(world, readiness), input.actor, "BEGIN_CLEANING", input.villaId),
+    readiness,
+  };
+}
+
+export function completeCleaning(
+  world: World,
+  input: { villaId: string; actor: Actor },
+): { world: World; readiness: VillaReadiness } {
+  world = applyFreshnessDecay(expireHolds(world));
+  requireReadinessVilla(input.villaId);
+  assertCanRecordReadiness(world, input.actor, input.villaId);
+  const current = readinessOf(world, input.villaId);
+  if (current.state !== "CLEANING") {
+    throw new DomainError(
+      "INVALID_TRANSITION",
+      "READY is only reached through CLEANING, never directly from DIRTY",
+    );
+  }
+  const readiness: VillaReadiness = {
+    villaId: input.villaId,
+    state: "READY",
+    since: world.now,
+    ...actorStamp(input.actor),
+    cause: "COMPLETE_CLEANING",
+  };
+  return {
+    world: withAudit(withReadiness(world, readiness), input.actor, "COMPLETE_CLEANING", input.villaId),
+    readiness,
+  };
+}
+
+/** Recorded departure dirties a stored READY villa. DIRTY and CLEANING stay as they are. */
+function dirtyAfterDeparture(world: World, villaId: string, actor: Actor): World {
+  const stored = readinessRecords(world).find((item) => item.villaId === villaId);
+  // Use the stored state. Checkout has already removed the guest, so a decay
+  // computed at read time would hide a departure that should be recorded.
+  if (!stored || stored.state !== "READY") return world;
+  const readiness: VillaReadiness = {
+    villaId,
+    state: "DIRTY",
+    since: world.now,
+    ...actorStamp(actor),
+    cause: "DEPARTURE",
+  };
+  return withReadiness(world, readiness);
 }
 
 export function observeArrival(
@@ -827,7 +943,7 @@ export function observeDeparture(
   world: World,
   input: { stayId: string; actor: Actor },
 ): { world: World; stay: Stay } {
-  world = expireHolds(world);
+  world = applyFreshnessDecay(expireHolds(world));
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.departureObservedAt) return { world, stay };
@@ -840,8 +956,14 @@ export function observeDeparture(
     throw new DomainError("INVALID_TRANSITION", "Departure can only be noted on a live stay");
   }
   const updated: Stay = { ...stay, departureObservedAt: world.now, status: stay.status };
+  const replaced = replaceStay(world, updated);
   return {
-    world: withAudit(replaceStay(world, updated), input.actor, "OBSERVE_DEPARTURE", updated.id),
+    world: withAudit(
+      dirtyAfterDeparture(replaced, stay.villaId, input.actor),
+      input.actor,
+      "OBSERVE_DEPARTURE",
+      updated.id,
+    ),
     stay: updated,
   };
 }
@@ -850,7 +972,7 @@ export function checkOutStay(
   world: World,
   input: { stayId: string; actor: Actor },
 ): { world: World; stay: Stay } {
-  world = expireHolds(world);
+  world = applyFreshnessDecay(expireHolds(world));
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status === "CANCELLED") {
@@ -864,8 +986,14 @@ export function checkOutStay(
     status: "CHECKED_OUT",
     checkedOutAt: world.now,
   };
+  const replaced = replaceStay(world, updated);
   return {
-    world: withAudit(replaceStay(world, updated), input.actor, "CHECK_OUT", updated.id),
+    world: withAudit(
+      dirtyAfterDeparture(replaced, stay.villaId, input.actor),
+      input.actor,
+      "CHECK_OUT",
+      updated.id,
+    ),
     stay: updated,
   };
 }
@@ -906,7 +1034,7 @@ export function markDidNotOccur(
   world: World,
   input: { stayId: string; actor: Actor; reason: string },
 ): { world: World; stay: Stay } {
-  world = expireHolds(world);
+  world = applyFreshnessDecay(expireHolds(world));
   const stay = requireStay(world, input.stayId);
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status === "CHECKED_IN") {
@@ -1659,7 +1787,10 @@ export function butlerFieldBoard(world: World, date: string, villaIds: readonly 
   const lists = opsLists(world, date);
   return {
     prepare: lists.arriving.filter(
-      (stay) => mine(stay) && stay.status === "SCHEDULED" && !stay.preparedAt,
+      (stay) =>
+        mine(stay) &&
+        stay.status === "SCHEDULED" &&
+        readinessOf(world, stay.villaId).state !== "READY",
     ),
     arriving: lists.arriving.filter(mine),
     departing: lists.departing.filter(mine),

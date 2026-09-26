@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { BUTLER_LINH, paymentPlan, SALE_MAI } from "./catalog.ts";
-import { ACCEPTANCE_RESPONSE_MS, HOLD_MS, HOST_RESPONSE_MS, NEAR_CHECK_IN_RESPONSE_MS } from "./config.ts";
+import { ACCEPTANCE_RESPONSE_MS, HOLD_MS, HOST_RESPONSE_MS, NEAR_CHECK_IN_RESPONSE_MS, VILLA_FRESHNESS_MS } from "./config.ts";
 import { overlappingActive } from "./availability.ts";
 import {
   acceptRequest,
@@ -15,7 +15,9 @@ import {
   placeProtectiveHold,
   recordMaintenanceFromHold,
   releaseProtectiveHold,
-  reportPrepared,
+  beginCleaning,
+  completeCleaning,
+  readinessOf,
   competingAccepted,
   createBlock,
   createEmptyWorld,
@@ -473,7 +475,7 @@ describe("assignment is not authority", () => {
         run,
         (error: unknown) => error instanceof DomainError && error.code === "NOT_ASSIGNED",
       );
-    refused(() => reportPrepared(world, { stayId: booked.stayId, actor: dung }));
+    refused(() => beginCleaning(world, { villaId: "t01", actor: dung }));
     refused(() => observeArrival(world, { stayId: booked.stayId, actor: dung }));
     refused(() => observeDeparture(world, { stayId: booked.stayId, actor: dung }));
     refused(() => checkInStay(world, { stayId: booked.stayId, actor: dung }));
@@ -517,8 +519,9 @@ describe("assignment is not authority", () => {
       assignedVillaIds: planned.map((item) => item.scopeRef!),
     };
     const first = bookedStay();
-    const prepared = reportPrepared(first.world, { stayId: first.stayId, actor });
-    assert.ok(prepared.world.stays.find((item) => item.id === first.stayId)?.preparedAt);
+    const started = beginCleaning(first.world, { villaId: "t01", actor });
+    assert.equal(readinessOf(started.world, "t01").state, "CLEANING");
+    assert.equal(readinessOf(started.world, "t01").actorId, "usr_lan");
 
     let second = createEmptyWorld(NOW);
     const created = createRequest(second, {
@@ -531,8 +534,8 @@ describe("assignment is not authority", () => {
     });
     second = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const paid = pay(second, created.request.id);
-    const onSecond = reportPrepared(paid.world, { stayId: paid.stay!.id, actor });
-    assert.ok(onSecond.world.stays.find((item) => item.id === paid.stay!.id)?.preparedAt);
+    const onSecond = beginCleaning(paid.world, { villaId: "t06", actor });
+    assert.equal(readinessOf(onSecond.world, "t06").state, "CLEANING");
 
     let other = createEmptyWorld(NOW);
     const otherRequest = createRequest(other, {
@@ -546,7 +549,7 @@ describe("assignment is not authority", () => {
     other = acceptRequest(otherRequest.world, { handling: "EXCLUSIVE", requestId: otherRequest.request.id, actor: HOST }).world;
     const otherPaid = pay(other, otherRequest.request.id);
     assert.throws(
-      () => reportPrepared(otherPaid.world, { stayId: otherPaid.stay!.id, actor }),
+      () => beginCleaning(otherPaid.world, { villaId: "t12", actor }),
       (error: unknown) => error instanceof DomainError && error.code === "NOT_ASSIGNED",
     );
   });
@@ -2249,5 +2252,185 @@ describe("Parallel acceptance and the two request clocks", () => {
       1,
     );
     assertNoOverlap(competed.world);
+  });
+});
+
+describe("Villa Readiness is independent of any Stay (ADR-P072)", () => {
+  function makeReady(world: World, villaId = "t01", actor: Actor = BUTLER) {
+    const started = beginCleaning(world, { villaId, actor });
+    return completeCleaning(started.world, { villaId, actor });
+  }
+
+  it("moves only DIRTY → CLEANING → READY", () => {
+    const world = createEmptyWorld(NOW);
+    assert.equal(readinessOf(world, "t01").state, "DIRTY");
+    assert.throws(
+      () => completeCleaning(world, { villaId: "t01", actor: BUTLER }),
+      (error: unknown) =>
+        error instanceof DomainError &&
+        error.code === "INVALID_TRANSITION" &&
+        /never directly from DIRTY/.test(error.message),
+    );
+    assert.throws(
+      () => completeCleaning(world, { villaId: "t01", actor: HOST }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
+    );
+    const started = beginCleaning(world, { villaId: "t01", actor: BUTLER });
+    assert.equal(started.readiness.state, "CLEANING");
+    assert.equal(started.readiness.cause, "BEGIN_CLEANING");
+    assert.equal(started.readiness.actorPersona, "BUTLER");
+    assert.equal(started.readiness.actorId, BUTLER.butlerId);
+    assert.throws(
+      () => beginCleaning(started.world, { villaId: "t01", actor: BUTLER }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
+    );
+    const done = completeCleaning(started.world, { villaId: "t01", actor: BUTLER });
+    assert.equal(done.readiness.state, "READY");
+    assert.equal(done.readiness.cause, "COMPLETE_CLEANING");
+    assert.equal(done.readiness.actorPersona, "BUTLER");
+    assert.throws(
+      () => beginCleaning(done.world, { villaId: "t01", actor: BUTLER }),
+      (error: unknown) => error instanceof DomainError && error.code === "INVALID_TRANSITION",
+    );
+  });
+
+  it("records the Host when the Host finishes a CLEANING the Butler began", () => {
+    const started = beginCleaning(createEmptyWorld(NOW), { villaId: "t01", actor: BUTLER });
+    const done = completeCleaning(started.world, { villaId: "t01", actor: HOST });
+    assert.equal(done.readiness.state, "READY");
+    assert.equal(done.readiness.actorPersona, "HOST");
+    assert.equal(done.readiness.actorId, "HOST");
+    assert.notEqual(done.readiness.actorId, BUTLER.butlerId);
+    const began = done.world.auditLog.find((entry) => entry.action === "BEGIN_CLEANING");
+    const finished = done.world.auditLog.find((entry) => entry.action === "COMPLETE_CLEANING");
+    assert.equal(began?.persona, "BUTLER");
+    assert.equal(began?.objectId, "t01");
+    assert.equal(finished?.persona, "HOST");
+    assert.equal(finished?.objectId, "t01");
+  });
+
+  it("refuses an unassigned Butler and anyone who is not the Host or the assigned Butler", () => {
+    const base = createEmptyWorld(NOW);
+    const world: World = {
+      ...base,
+      butlers: [...base.butlers, { id: "butler-dung", name: "Quản gia Dung", villaIds: ["t12"] }],
+    };
+    const dung: Actor = { persona: "BUTLER", butlerId: "butler-dung" };
+    const refused = (actor: Actor, code: "NOT_ASSIGNED" | "FORBIDDEN") => {
+      for (const run of [
+        () => beginCleaning(world, { villaId: "t01", actor }),
+        () => completeCleaning(world, { villaId: "t01", actor }),
+      ]) {
+        assert.throws(run, (error: unknown) => error instanceof DomainError && error.code === code);
+      }
+    };
+    refused(dung, "NOT_ASSIGNED");
+    refused(SALE, "FORBIDDEN");
+    refused(BQL, "FORBIDDEN");
+    refused(GUEST, "FORBIDDEN");
+    refused(ADMIN, "FORBIDDEN");
+  });
+
+  it("dirties a READY villa on observed departure and on checkout, and leaves CLEANING alone", () => {
+    const observed = bookedStay();
+    const ready = makeReady(observed.world);
+    const left = observeDeparture(ready.world, { stayId: observed.stayId, actor: BUTLER });
+    assert.equal(left.stay.status, "SCHEDULED");
+    assert.equal(left.stay.departureObservedAt, NOW);
+    const afterObservation = readinessOf(left.world, "t01");
+    assert.equal(afterObservation.state, "DIRTY");
+    assert.equal(afterObservation.cause, "DEPARTURE");
+    assert.equal(afterObservation.actorPersona, "BUTLER");
+
+    const staying = bookedStay();
+    const cleaned = makeReady(staying.world);
+    const inside = checkInStay(cleaned.world, { stayId: staying.stayId, actor: BUTLER });
+    assert.equal(readinessOf(inside.world, "t01").state, "READY");
+    const out = checkOutStay(inside.world, { stayId: staying.stayId, actor: BUTLER });
+    assert.equal(out.stay.status, "CHECKED_OUT");
+    const afterCheckout = readinessOf(out.world, "t01");
+    assert.equal(afterCheckout.state, "DIRTY");
+    assert.equal(afterCheckout.cause, "DEPARTURE");
+
+    const mid = bookedStay();
+    const cleaning = beginCleaning(mid.world, { villaId: "t01", actor: BUTLER });
+    const noted = observeDeparture(cleaning.world, { stayId: mid.stayId, actor: BUTLER });
+    assert.equal(readinessOf(noted.world, "t01").state, "CLEANING");
+    assert.equal(readinessOf(noted.world, "t01").cause, "BEGIN_CLEANING");
+  });
+
+  it("does not change readiness when a stay did not occur", () => {
+    const booked = bookedStay();
+    const ready = makeReady(booked.world);
+    const before = readinessOf(ready.world, "t01");
+    const marked = markDidNotOccur(ready.world, {
+      stayId: booked.stayId,
+      actor: BUTLER,
+      reason: "NO_SHOW",
+    });
+    assert.equal(marked.stay.status, "DID_NOT_OCCUR");
+    const after = readinessOf(marked.world, "t01");
+    assert.equal(after.state, "READY");
+    assert.equal(after.since, before.since);
+    assert.equal(after.cause, "COMPLETE_CLEANING");
+    const later = advanceTime(marked.world, VILLA_FRESHNESS_MS);
+    const decayed = later.villaReadiness?.find((item) => item.villaId === "t01");
+    assert.equal(decayed?.state, "DIRTY");
+    assert.equal(decayed?.cause, "FRESHNESS_DECAY");
+  });
+
+  it("decays a READY villa after the prototype freshness window only when no guest is present", () => {
+    const ready = makeReady(createEmptyWorld(NOW));
+    const early = advanceTime(ready.world, VILLA_FRESHNESS_MS - 1);
+    assert.equal(readinessOf(early, "t01").state, "READY");
+    const decayed = advanceTime(ready.world, VILLA_FRESHNESS_MS);
+    const record = decayed.villaReadiness?.find((item) => item.villaId === "t01");
+    assert.equal(record?.state, "DIRTY");
+    assert.equal(record?.cause, "FRESHNESS_DECAY");
+    assert.equal(record?.actorPersona, undefined);
+    assert.equal(record?.actorId, undefined);
+    assert.equal(readinessOf(decayed, "t01").state, "DIRTY");
+
+    const booked = bookedStay();
+    const cleaned = makeReady(booked.world);
+    const staying = checkInStay(cleaned.world, { stayId: booked.stayId, actor: BUTLER }).world;
+    const still = advanceTime(staying, VILLA_FRESHNESS_MS + 60_000);
+    assert.equal(still.villaReadiness?.find((item) => item.villaId === "t01")?.state, "READY");
+    assert.equal(readinessOf(still, "t01").state, "READY");
+    assert.equal(readinessOf(still, "t01").cause, "COMPLETE_CLEANING");
+  });
+
+  it("keeps a DIRTY or CLEANING villa bookable and completable", () => {
+    const empty = createEmptyWorld(NOW);
+    assert.equal(readinessOf(empty, "t02").state, "DIRTY");
+    assert.equal(isAvailable(empty, "t02", "2026-12-01", "2026-12-04"), true);
+    const cleaning = beginCleaning(empty, { villaId: "t02", actor: BUTLER }).world;
+    assert.equal(readinessOf(cleaning, "t02").state, "CLEANING");
+    assert.equal(isAvailable(cleaning, "t02", "2026-12-01", "2026-12-04"), true);
+
+    const dirtyStay = bookedStay();
+    assert.equal(readinessOf(dirtyStay.world, "t01").state, "DIRTY");
+    const dirtyOut = checkOutStay(
+      checkInStay(dirtyStay.world, { stayId: dirtyStay.stayId, actor: BUTLER }).world,
+      { stayId: dirtyStay.stayId, actor: BUTLER },
+    ).world;
+    const dirtyDone = evaluateStayCompletion(dirtyOut, { stayId: dirtyStay.stayId, actor: BUTLER });
+    assert.equal(dirtyDone.stay.status, "COMPLETED");
+    assert.equal(readinessOf(dirtyDone.world, "t01").state, "DIRTY");
+
+    const cleaningStay = bookedStay();
+    const started = beginCleaning(cleaningStay.world, { villaId: "t01", actor: BUTLER }).world;
+    const cleaningOut = checkOutStay(
+      checkInStay(started, { stayId: cleaningStay.stayId, actor: BUTLER }).world,
+      { stayId: cleaningStay.stayId, actor: BUTLER },
+    ).world;
+    assert.equal(readinessOf(cleaningOut, "t01").state, "CLEANING");
+    const cleaningDone = evaluateStayCompletion(cleaningOut, {
+      stayId: cleaningStay.stayId,
+      actor: BUTLER,
+    });
+    assert.equal(cleaningDone.stay.status, "COMPLETED");
+    assert.equal(readinessOf(cleaningDone.world, "t01").state, "CLEANING");
+    assert.equal(isAvailable(cleaningDone.world, "t01", "2027-01-01", "2027-01-04"), true);
   });
 });

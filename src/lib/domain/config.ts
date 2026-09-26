@@ -55,12 +55,13 @@ export const TIMEZONE = "Asia/Ho_Chi_Minh";
 export const COMPLETION_BLOCKERS_DECIDED = false;
 
 /**
- * PROTOTYPE ASSUMPTION (G-v2.1):
- * "Cần chuẩn bị" means an assigned stay whose arrival date is the board day
- * and that has not been marked prepared. The spec does not decide the
- * preparation window.
+ * PROTOTYPE ASSUMPTION (ADR-P072):
+ * Freshness decay — READY becomes DIRTY when no guest is present — is
+ * confirmed as a rule. The Oceanami duration is TBD in
+ * 13-destination-operations/oceanami/configuration.md. This prototype uses
+ * 7 days. Not policy.
  */
-export const PREPARE_WINDOW = "arrival-day-only";
+export const VILLA_FRESHNESS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * PROTOTYPE ASSUMPTION (G-v2.2, FD-16):

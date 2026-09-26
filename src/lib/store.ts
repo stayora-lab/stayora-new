@@ -126,7 +126,8 @@ type BookingState = {
   }) => Promise<void>;
   butlerCheckIn: (stayId: string) => Promise<void>;
   butlerCheckOut: (stayId: string) => Promise<void>;
-  butlerPrepare: (stayId: string) => Promise<void>;
+  beginCleaning: (villaId: string) => Promise<void>;
+  completeCleaning: (villaId: string) => Promise<void>;
   butlerObserveArrival: (stayId: string) => Promise<void>;
   butlerObserveDeparture: (stayId: string) => Promise<void>;
   butlerNoShow: (stayId: string, reason: string) => Promise<void>;
@@ -401,8 +402,11 @@ export const useBookingStore = create<BookingState>()(
       butlerCheckOut: async (stayId) => {
         await get().runAction({ type: "CHECK_OUT", stayId });
       },
-      butlerPrepare: async (stayId) => {
-        await get().runAction({ type: "PREPARE", stayId });
+      beginCleaning: async (villaId) => {
+        await get().runAction({ type: "BEGIN_CLEANING", villaId });
+      },
+      completeCleaning: async (villaId) => {
+        await get().runAction({ type: "COMPLETE_CLEANING", villaId });
       },
       butlerObserveArrival: async (stayId) => {
         await get().runAction({ type: "OBSERVE_ARRIVAL", stayId });

@@ -122,8 +122,8 @@ describe("butler today cards", () => {
     assert.match(prepareHtml, /4 khách/);
     assert.match(prepareHtml, /Ngày đến/);
     assert.match(prepareHtml, /Chị Mai/);
-    assert.match(prepareHtml, /data-next-action="prepare"/);
-    assert.match(prepareHtml, /Đánh dấu đã chuẩn bị/);
+    assert.doesNotMatch(prepareHtml, /data-next-action="prepare"/);
+    assert.doesNotMatch(prepareHtml, /Đánh dấu đã chuẩn bị/);
     assert.doesNotMatch(prepareHtml, /<a /);
 
     assert.match(arriveHtml, /data-next-action="observe-arrival"/);

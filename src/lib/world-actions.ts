@@ -7,7 +7,8 @@ import {
   extendAcceptanceDeadline,
   observeArrival,
   observeDeparture,
-  reportPrepared,
+  beginCleaning,
+  completeCleaning,
   createBlock,
   createRequest,
   DomainError,
@@ -101,7 +102,8 @@ export type WorldAction =
     }
   | { type: "CHECK_IN"; stayId: string }
   | { type: "CHECK_OUT"; stayId: string }
-  | { type: "PREPARE"; stayId: string }
+  | { type: "BEGIN_CLEANING"; villaId: string }
+  | { type: "COMPLETE_CLEANING"; villaId: string }
   | { type: "OBSERVE_ARRIVAL"; stayId: string }
   | { type: "OBSERVE_DEPARTURE"; stayId: string }
   | { type: "DID_NOT_OCCUR"; stayId: string; reason: string }
@@ -149,7 +151,6 @@ function villaIdFor(world: World, action: WorldAction): string | undefined {
   if (
     action.type === "CHECK_IN" ||
     action.type === "CHECK_OUT" ||
-    action.type === "PREPARE" ||
     action.type === "OBSERVE_ARRIVAL" ||
     action.type === "OBSERVE_DEPARTURE" ||
     action.type === "DID_NOT_OCCUR" ||
@@ -307,8 +308,12 @@ export function applyWorldAction(
       });
       return { world: completed.world };
     }
-    case "PREPARE": {
-      const result = reportPrepared(world, { stayId: action.stayId, actor });
+    case "BEGIN_CLEANING": {
+      const result = beginCleaning(world, { villaId: action.villaId, actor });
+      return { world: result.world };
+    }
+    case "COMPLETE_CLEANING": {
+      const result = completeCleaning(world, { villaId: action.villaId, actor });
       return { world: result.world };
     }
     case "OBSERVE_ARRIVAL": {

@@ -117,7 +117,6 @@ export type Stay = {
   status: StayStatus;
   assignedButlerId?: string;
   didNotOccurReason?: NonOccurrenceReason;
-  preparedAt?: string;
   arrivalObservedAt?: string;
   departureObservedAt?: string;
   checkedInAt?: string;
@@ -253,6 +252,24 @@ export type ProtectiveHold = {
   endedAs?: "RELEASED" | "MAINTENANCE";
 };
 
+export type VillaReadinessState = "DIRTY" | "CLEANING" | "READY";
+
+export type VillaReadinessCause =
+  | "BEGIN_CLEANING"
+  | "COMPLETE_CLEANING"
+  | "DEPARTURE"
+  | "FRESHNESS_DECAY";
+
+/** Physical state of one villa. Persists across Stays. ADR-P072. */
+export type VillaReadiness = {
+  villaId: string;
+  state: VillaReadinessState;
+  since: string;
+  actorPersona?: Persona;
+  actorId?: string;
+  cause?: VillaReadinessCause;
+};
+
 export type Commission = {
   id: string;
   bookingId: string;
@@ -281,6 +298,8 @@ export type World = {
   refundCases: RefundCase[];
   conflicts: InventoryConflict[];
   protectiveHolds: ProtectiveHold[];
+  /** Absent on worlds saved before ADR-P072. Readers treat that as every villa DIRTY. */
+  villaReadiness?: VillaReadiness[];
   auditLog: AuditEntry[];
   externalAccommodations: ExternalAccommodation[];
   externalReports: ExternalReport[];

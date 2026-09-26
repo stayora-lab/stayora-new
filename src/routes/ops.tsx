@@ -23,6 +23,7 @@ import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import type { NextCardAction } from "@/lib/butler-card";
 import { cardOrder, dayLayout, weekDays, type CardAction } from "@/lib/butler-board-view";
+import { readinessOf, type VillaReadinessState } from "@/lib/domain";
 import {
   emptyDayMessage,
   nextUpcoming,
@@ -51,7 +52,8 @@ function OpsPage() {
   const butlerId = useBookingStore((state) => state.butlerId);
   const grants = useBookingStore((state) => state.grants);
   const world = useBookingStore((state) => state.world);
-  const butlerPrepare = useBookingStore((state) => state.butlerPrepare);
+  const beginCleaning = useBookingStore((state) => state.beginCleaning);
+  const completeCleaning = useBookingStore((state) => state.completeCleaning);
   const butlerObserveArrival = useBookingStore((state) => state.butlerObserveArrival);
   const butlerObserveDeparture = useBookingStore((state) => state.butlerObserveDeparture);
   const butlerCheckIn = useBookingStore((state) => state.butlerCheckIn);
@@ -135,11 +137,12 @@ function OpsPage() {
 
   function runCard(action: CardAction) {
     if (action.kind === "release-hold") return run(() => releaseProtectiveHold(action.holdId));
+    if (action.kind === "begin-cleaning") return run(() => beginCleaning(action.villaId));
+    if (action.kind === "complete-cleaning") return run(() => completeCleaning(action.villaId));
     return runStay(action.stayId, action.id);
   }
 
   function runStay(stayId: string, actionId: NextCardAction["id"]) {
-    if (actionId === "prepare") return run(() => butlerPrepare(stayId));
     if (actionId === "observe-arrival") return run(() => butlerObserveArrival(stayId));
     if (actionId === "check-in") return run(() => butlerCheckIn(stayId));
     if (actionId === "observe-departure") return run(() => butlerObserveDeparture(stayId));
@@ -247,7 +250,9 @@ function OpsPage() {
                       }),
                     )
                   }
-                  onPrepare={() => run(() => butlerPrepare(openStay.id))}
+                  readiness={readinessOf(world, openStay.villaId).state}
+                  onBeginCleaning={() => run(() => beginCleaning(openStay.villaId))}
+                  onCompleteCleaning={() => run(() => completeCleaning(openStay.villaId))}
                   onArrival={() => run(() => butlerObserveArrival(openStay.id))}
                   onCheckIn={() => run(() => butlerCheckIn(openStay.id))}
                   onDeparture={() => run(() => butlerObserveDeparture(openStay.id))}
@@ -368,11 +373,13 @@ function factLine(label: string, at: string | undefined) {
 
 function StayWork({
   stay,
+  readiness,
   role,
   canAct,
   canHold,
   onPlaceHold,
-  onPrepare,
+  onBeginCleaning,
+  onCompleteCleaning,
   onArrival,
   onCheckIn,
   onDeparture,
@@ -381,11 +388,13 @@ function StayWork({
   onIncident,
 }: {
   stay: Stay;
+  readiness: VillaReadinessState;
   role: RoleSession;
   canAct: boolean;
   canHold: boolean;
   onPlaceHold: () => void;
-  onPrepare: () => void;
+  onBeginCleaning: () => void;
+  onCompleteCleaning: () => void;
   onArrival: () => void;
   onCheckIn: () => void;
   onDeparture: () => void;
@@ -408,7 +417,10 @@ function StayWork({
         {stay.guests} khách · {viDateRange(stay.checkIn, stay.checkOut)}
       </p>
       <div className="mt-4 space-y-1">
-        {factLine("Villa đã chuẩn bị", stay.preparedAt)}
+        <p className="text-sm text-ink">
+          Villa{" "}
+          {readiness === "CLEANING" ? "đang dọn" : readiness === "READY" ? "sẵn sàng" : "cần dọn"}
+        </p>
         {factLine("Đã thấy khách tới", stay.arrivalObservedAt)}
         {factLine("Đã nhận phòng", stay.checkedInAt)}
         {factLine("Đã thấy khách rời", stay.departureObservedAt)}
@@ -420,9 +432,14 @@ function StayWork({
       </div>
       {canAct ? (
         <div className="mt-5 grid grid-cols-1 gap-2">
-          {scheduled && !stay.preparedAt ? (
-            <Button className="h-12" onClick={onPrepare}>
-              Đã chuẩn bị xong
+          {readiness === "DIRTY" ? (
+            <Button className="h-12" onClick={onBeginCleaning}>
+              Bắt đầu dọn
+            </Button>
+          ) : null}
+          {readiness === "CLEANING" ? (
+            <Button className="h-12" onClick={onCompleteCleaning}>
+              Dọn xong
             </Button>
           ) : null}
           {canNoteArrival && !stay.arrivalObservedAt ? (
