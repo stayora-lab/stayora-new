@@ -94,7 +94,7 @@ export function visibleSessionUser<T extends { email: string }>(
   return user;
 }
 
-const GRANTABLE_ROLES = new Set(["HOST", "SALE", "BUTLER", "BQL"]);
+const GRANTABLE_ROLES = new Set(["HOST", "HOST_DAMAGE", "SALE", "BUTLER", "BQL"]);
 
 /**
  * The fictional-account list is optional. When test sign-in is off, the roles

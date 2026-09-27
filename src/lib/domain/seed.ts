@@ -318,7 +318,7 @@ export function seedWorld(now = PILOT_NOW): World {
     }),
   ];
 
-  return {
+  return backfillKnownReady({
     ...world,
     requests: [...pending, ...bundles.flatMap((item) => (item.request ? [item.request] : []))],
     bookings: bundles.map((item) => item.booking),
@@ -326,5 +326,24 @@ export function seedWorld(now = PILOT_NOW): World {
     commitments: [...bundles.map((item) => item.commitment), externalCommitment, ...blocks],
     commissions: bundles.flatMap((item) => (item.commission ? [item.commission] : [])),
     externalAccommodations: [external],
-  };
+  });
+}
+
+/**
+ * PROTOTYPE ASSUMPTION: stays seeded as CHECKED_IN, or already COMPLETED, were
+ * written before villa readiness existed. Backfill READY at seed time so an
+ * in-house guest is not treated as an unknown DIRTY villa. Not a completion rule.
+ */
+export function backfillKnownReady(world: World): World {
+  const known = new Set(
+    world.stays
+      .filter((stay) => stay.status === "CHECKED_IN" || stay.status === "COMPLETED")
+      .map((stay) => stay.villaId),
+  );
+  const have = new Set((world.villaReadiness ?? []).map((item) => item.villaId));
+  const added = [...known]
+    .filter((villaId) => !have.has(villaId))
+    .map((villaId) => ({ villaId, state: "READY" as const, since: world.now }));
+  if (added.length === 0) return world;
+  return { ...world, villaReadiness: [...(world.villaReadiness ?? []), ...added] };
 }

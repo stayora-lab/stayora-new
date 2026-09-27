@@ -35,8 +35,7 @@ export function ButlerStayCard({
           {when.label} {format(parseISO(when.iso), "d/M/yyyy")}
         </p>
         <p className="mt-2 text-sm">
-          <span className="text-muted">Khách chính · </span>
-          {guest}
+          {guest} · {stay.guests} khách
         </p>
       </button>
       {action ? (

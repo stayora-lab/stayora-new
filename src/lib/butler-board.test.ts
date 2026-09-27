@@ -136,7 +136,8 @@ describe("butler today cards", () => {
     assert.match(leaveHtml, /Ghi nhận khách đi/);
     assert.doesNotMatch(leaveHtml, /<a /);
 
-    assert.match(bqlHtml, /Khách chính · <\/span>Khách/);
+    assert.match(bqlHtml, /Khách · \d+ khách/);
+    assert.doesNotMatch(bqlHtml, /Khách chính/);
     assert.doesNotMatch(bqlHtml, /Chị Mai/);
     assert.doesNotMatch(bqlHtml, /data-next-action/);
   });

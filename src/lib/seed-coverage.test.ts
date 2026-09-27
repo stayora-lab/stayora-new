@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { seedFromPilot } from "./seed-pilot.ts";
-import { butlerFieldBoard } from "./domain/engine.ts";
+import { butlerFieldBoard, readinessOf } from "./domain/engine.ts";
 import { PILOT_SEED } from "./pilot-data.ts";
 
 const NOW = "2026-09-24T02:00:00.000Z";
@@ -93,8 +93,9 @@ describe("fictional test dataset", () => {
     const board = butlerFieldBoard(world, today, chi?.villaIds ?? []);
     assert.deepEqual(
       board.prepare.map((stay) => stay.villaId).sort(),
-      ["t01", "t06"],
+      ["t01"],
     );
+    assert.equal(readinessOf(world, "t06").state, "READY");
     assert.equal(board.arriving.find((stay) => stay.villaId === "t01")?.guestName, "Chị Mai");
     assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.guestName, "Anh Long");
     assert.equal(board.departing.find((stay) => stay.villaId === "t06")?.status, "CHECKED_IN");

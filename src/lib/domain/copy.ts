@@ -205,8 +205,10 @@ export function domainMessageVi(error: unknown): string {
         return "Đặt chỗ hiện có vẫn giữ. Chưa ghi bảo trì.";
       case "TOO_MANY_GUESTS":
         return "Vượt sức chứa của villa";
-      case "FORBIDDEN":
-        return "Không có quyền thực hiện";
+      case "COMPLETION_BLOCKED":
+        return "Còn sự cố hư hại chưa xử lý. Lưu trú chưa hoàn tất";
+      case "ASSESSMENT_REQUIRED":
+        return "Cần ghi đánh giá khi trả phòng trước";
       case "INVALID_TRANSITION":
         return "Không thể chuyển trạng thái này";
       case "MISSING_REASON":

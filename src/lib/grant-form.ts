@@ -6,6 +6,7 @@
 
 export const GRANT_ROLES = [
   { id: "HOST", label: "Chủ nhà" },
+  { id: "HOST_DAMAGE", label: "Chủ nhà — gỡ chặn hư hại" },
   { id: "SALE", label: "Sale" },
   { id: "BUTLER", label: "Quản gia" },
   { id: "BQL", label: "BQL" },
@@ -18,7 +19,7 @@ export function grantRoleLabel(role: GrantRoleId): string {
 }
 
 export function grantRoleNeedsVillas(role: GrantRoleId | null): boolean {
-  return role === "HOST" || role === "BUTLER";
+  return role === "HOST" || role === "HOST_DAMAGE" || role === "BUTLER";
 }
 
 export type GrantReview =

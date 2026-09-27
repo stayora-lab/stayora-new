@@ -5,6 +5,7 @@ import {
   DomainError,
   PILOT_NOW,
   type BlockKind,
+  type CheckoutAssessmentOutcome,
   type ExternalSource,
   type PaymentOutcome,
   type Persona,
@@ -23,7 +24,7 @@ import {
   type DevSessionPayload,
 } from "./dev-identity-api.ts";
 import type { WorldAction } from "./world-actions.ts";
-import { parseVai, ROLE_STORAGE_KEY, workingRoleFromGrants, vaiFor, type RoleSession } from "./role.ts";
+import { parseVai, ROLE_STORAGE_KEY, workingRoleFromGrants, vaiFor, isCapabilityGrant, type RoleSession } from "./role.ts";
 
 export type SearchState = {
   checkIn: string;
@@ -126,6 +127,14 @@ type BookingState = {
   }) => Promise<void>;
   butlerCheckIn: (stayId: string) => Promise<void>;
   butlerCheckOut: (stayId: string) => Promise<void>;
+  recordCheckoutAssessment: (
+    stayId: string,
+    outcome: CheckoutAssessmentOutcome,
+    note?: string,
+    hasPhoto?: boolean,
+  ) => Promise<void>;
+  completeStay: (stayId: string) => Promise<void>;
+  resolveCheckoutDamage: (incidentId: string) => Promise<void>;
   beginCleaning: (villaId: string) => Promise<void>;
   completeCleaning: (villaId: string) => Promise<void>;
   butlerObserveArrival: (stayId: string) => Promise<void>;
@@ -145,11 +154,17 @@ type BookingState = {
 };
 
 function roleOf(state: BookingState): RoleSession {
+  const damageResolutionVillaIds = state.grants
+    .filter(
+      (grant) => grant.status === "active" && isCapabilityGrant(grant.role) && grant.scopeRef,
+    )
+    .map((grant) => grant.scopeRef as string);
   return {
     persona: state.persona,
     saleId: state.saleId,
     hostId: state.hostId,
     butlerId: state.butlerId,
+    ...(damageResolutionVillaIds.length > 0 ? { damageResolutionVillaIds } : {}),
   };
 }
 
@@ -215,8 +230,9 @@ export const useBookingStore = create<BookingState>()(
             return;
           }
           const active = session.grants.filter((grant) => grant.status === "active");
+          const personas = active.filter((grant) => !isCapabilityGrant(grant.role));
           const current = get().grantId;
-          const chosen = active.find((grant) => grant.id === current) ?? active[0];
+          const chosen = personas.find((grant) => grant.id === current) ?? personas[0];
           if (!chosen) {
             set({
               identity: session.user,
@@ -247,7 +263,7 @@ export const useBookingStore = create<BookingState>()(
       },
       selectGrant: (grantId) => {
         const grant = get().grants.find((item) => item.id === grantId && item.status === "active");
-        if (!grant) return;
+        if (!grant || isCapabilityGrant(grant.role)) return;
         const role = workingRoleFromGrants(
           get().grants.filter((item) => item.status === "active"),
           grant.role,
@@ -401,6 +417,21 @@ export const useBookingStore = create<BookingState>()(
       },
       butlerCheckOut: async (stayId) => {
         await get().runAction({ type: "CHECK_OUT", stayId });
+      },
+      recordCheckoutAssessment: async (stayId, outcome, note, hasPhoto) => {
+        await get().runAction({
+          type: "CHECKOUT_ASSESSMENT",
+          stayId,
+          outcome,
+          note,
+          hasPhoto,
+        });
+      },
+      completeStay: async (stayId) => {
+        await get().runAction({ type: "COMPLETE_STAY", stayId });
+      },
+      resolveCheckoutDamage: async (incidentId) => {
+        await get().runAction({ type: "RESOLVE_CHECKOUT_DAMAGE", incidentId });
       },
       beginCleaning: async (villaId) => {
         await get().runAction({ type: "BEGIN_CLEANING", villaId });

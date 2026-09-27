@@ -6,6 +6,7 @@ import {
   checkInStay,
   checkOutStay,
   evaluateStayCompletion,
+  recordCheckoutAssessment,
   createBlock,
   createEmptyWorld,
   createRequest,
@@ -19,6 +20,7 @@ import {
   type World,
 } from "./domain/index.ts";
 import { PILOT_SEED, type PilotBlock, type PilotStay } from "./pilot-data.ts";
+import { backfillKnownReady } from "./domain/seed.ts";
 
 const HOST = { persona: "HOST" as const };
 const ADMIN = { persona: "ADMIN" as const };
@@ -102,7 +104,7 @@ export function seedFromPilot(now = new Date().toISOString()): World {
   }
 
   world = seedStayoraScenarios(world, today);
-  return world;
+  return backfillKnownReady(world);
 }
 
 function seedStayoraScenarios(world: World, today: string): World {
@@ -186,6 +188,11 @@ function seedStayoraScenarios(world: World, today: string): World {
     if (stay) {
       world = checkInStay(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
       world = checkOutStay(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
+      world = recordCheckoutAssessment(world, {
+        stayId: stay.id,
+        actor: BUTLER_CHI,
+        outcome: "NORMAL",
+      }).world;
       world = evaluateStayCompletion(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
     }
   }

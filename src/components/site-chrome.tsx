@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { Persona } from "@/lib/domain";
 import { DESTINATION_COPY, LOCATION_LABEL } from "@/lib/destination";
 import { PILOT_SEED } from "@/lib/pilot-data";
-import { workspaceFor } from "@/lib/role";
+import { isCapabilityGrant, workspaceFor } from "@/lib/role";
 import { showDemoPersonaSwitch } from "@/lib/site-header";
 import { useBookingStore } from "@/lib/store";
 
@@ -43,7 +43,7 @@ export function ContextSwitch() {
   const grantId = useBookingStore((state) => state.grantId);
   const selectGrant = useBookingStore((state) => state.selectGrant);
   const navigate = useNavigate();
-  const active = grants.filter((grant) => grant.status === "active");
+  const active = grants.filter((grant) => grant.status === "active" && !isCapabilityGrant(grant.role));
   if (!identity || active.length < 2) return null;
   return (
     <label className="flex items-center gap-2 text-xs text-muted">
@@ -72,7 +72,7 @@ export function AccountChip() {
   const identity = useBookingStore((state) => state.identity);
   const grants = useBookingStore((state) => state.grants);
   const signOutIdentity = useBookingStore((state) => state.signOutIdentity);
-  const active = grants.filter((grant) => grant.status === "active");
+  const active = grants.filter((grant) => grant.status === "active" && !isCapabilityGrant(grant.role));
   if (!identity) {
     return (
       <Link
@@ -106,7 +106,7 @@ export function AccountMenu() {
   const grants = useBookingStore((state) => state.grants);
   const signOutIdentity = useBookingStore((state) => state.signOutIdentity);
   const [open, setOpen] = useState(false);
-  const active = grants.filter((grant) => grant.status === "active");
+  const active = grants.filter((grant) => grant.status === "active" && !isCapabilityGrant(grant.role));
 
   return (
     <div className="relative md:hidden">
@@ -437,7 +437,7 @@ export function RoleGate({ allow, children }: { allow: Persona[]; children: Reac
       <main className="mx-auto max-w-lg px-4 py-24 text-center text-muted">Đang mở dữ liệu…</main>
     );
   }
-  const active = grants.filter((grant) => grant.status === "active");
+  const active = grants.filter((grant) => grant.status === "active" && !isCapabilityGrant(grant.role));
   if (identity && active.length === 0) {
     return (
       <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">

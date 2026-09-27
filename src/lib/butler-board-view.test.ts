@@ -101,10 +101,22 @@ describe("two-axis butler board", () => {
     assert.ok(order.indexOf("t03") < firstPlain);
   });
 
+  it("an in-house villa is not the unknown-dirty default", () => {
+    const card = findCard(dayLayout(world, today, scope, today, FLAGS), "t06");
+    assert.equal(card?.readiness, "READY");
+    assert.notEqual(card?.housekeeping, "needs-prep");
+  });
+
   it("marking a villa ready does not move it", () => {
-    const before = dayLayout(world, today, scope, today, FLAGS);
-    const prepared = structuredClone(world) as World;
+    const dirty = structuredClone(world) as World;
+    dirty.villaReadiness = [
+      ...(dirty.villaReadiness ?? []).filter((item) => item.villaId !== "t06"),
+      { villaId: "t06", state: "DIRTY", since: NOW, cause: "DEPARTURE" },
+    ];
+    const before = dayLayout(dirty, today, scope, today, FLAGS);
+    const prepared = structuredClone(dirty) as World;
     prepared.villaReadiness = [
+      ...(prepared.villaReadiness ?? []).filter((item) => item.villaId !== "t06"),
       {
         villaId: "t06",
         state: "READY",
@@ -133,11 +145,16 @@ describe("two-axis butler board", () => {
   });
 
   it("the primary button has an icon and a token color, never color alone", async () => {
-    const card = findCard(dayLayout(world, today, scope, today, FLAGS), "t06");
+    const dirty = structuredClone(world) as World;
+    dirty.villaReadiness = [
+      ...(dirty.villaReadiness ?? []).filter((item) => item.villaId !== "t06"),
+      { villaId: "t06", state: "DIRTY", since: NOW, cause: "DEPARTURE" },
+    ];
+    const card = findCard(dayLayout(dirty, today, scope, today, FLAGS), "t06");
     assert.ok(card);
     const html = await render("VillaDayCard", {
       card,
-      stays: world.stays,
+      stays: dirty.stays,
       role: { persona: "BUTLER", butlerId: "butler-chi", villaIds: scope },
       onOpen: () => undefined,
       onAction: () => undefined,
@@ -154,6 +171,24 @@ describe("two-axis butler board", () => {
     assert.match(html, /<svg/);
     assert.match(html, /h-12/);
     assert.doesNotMatch(html, /#[0-9a-fA-F]{3,8}/);
+    assert.doesNotMatch(html, /Sáng|Chiều|Tối/);
+    assert.match(html, /size-11/);
+    assert.match(html, /aria-label="Chưa có số điện thoại"/);
+    assert.doesNotMatch(html, /disabled/);
+
+    const seeded = findCard(dayLayout(world, today, scope, today, FLAGS), "t06");
+    assert.ok(seeded);
+    const inHouse = await render("VillaDayCard", {
+      card: seeded,
+      stays: world.stays,
+      role: { persona: "BUTLER", butlerId: "butler-chi", villaIds: scope },
+      onOpen: () => undefined,
+      onAction: () => undefined,
+      onReport: () => undefined,
+    });
+    assert.match(inHouse, /data-readiness="READY"/);
+    assert.doesNotMatch(inHouse, /Cần dọn/);
+    assert.doesNotMatch(inHouse, /Sáng|Chiều|Tối/);
 
     const days = weekDays(world, today, scope, FLAGS);
     const strip = await render("WeekStrip", {
@@ -172,7 +207,8 @@ describe("two-axis butler board", () => {
       onAction: () => undefined,
       onReport: () => undefined,
     });
-    assert.match(bql, /Khách chính · <\/span>Khách/);
+    assert.match(bql, /Khách · \d+ khách/);
+    assert.doesNotMatch(bql, /Khách chính/);
     assert.doesNotMatch(bql, /Chị Hà/);
     assert.doesNotMatch(bql, /Anh Long/);
   });

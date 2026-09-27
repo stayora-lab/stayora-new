@@ -1,6 +1,6 @@
 import type { Persona } from "./domain/types.ts";
 import { authorizeRole } from "./authorize.ts";
-import { roleFromGrant, workingRoleFromGrants, type RoleSession } from "./role.ts";
+import { roleFromGrant, workingRoleFromGrants, isCapabilityGrant, type RoleSession } from "./role.ts";
 
 export type AccessGrant = {
   id: string;
@@ -29,9 +29,10 @@ export function resolveWorkingRole(input: {
     const active = input.grants.filter(
       (grant) => grant.status === "active" && grant.role !== "ADMIN",
     );
+    const personas = active.filter((grant) => !isCapabilityGrant(grant.role));
     const chosen = input.grantId
-      ? active.find((grant) => grant.id === input.grantId)
-      : active[0];
+      ? personas.find((grant) => grant.id === input.grantId)
+      : personas[0];
     return chosen ? workingRoleFromGrants(active, chosen.role) : { persona: "GUEST" };
   }
   if (input.demo) return authorizeRole(input.vai, input.key);

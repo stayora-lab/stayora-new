@@ -7,7 +7,7 @@ export type Persona = "GUEST" | "SALE" | "HOST" | "BUTLER" | "BQL" | "ADMIN";
 export type Actor =
   | { persona: "GUEST" }
   | { persona: "SALE"; saleId: string }
-  | { persona: "HOST" }
+  | { persona: "HOST"; damageResolutionVillaIds?: readonly string[] }
   | { persona: "BUTLER"; butlerId: string; assignedVillaIds?: readonly string[] }
   | { persona: "BQL" }
   | { persona: "ADMIN" };
@@ -226,6 +226,8 @@ export type AuditEntry = {
   reason?: string;
 };
 
+export type IncidentStatus = "OPEN" | "RESOLVED";
+
 export type Incident = {
   id: string;
   stayId: string;
@@ -234,6 +236,38 @@ export type Incident = {
   hasPhoto: boolean;
   createdAt: string;
   createdBy: Persona;
+  /**
+   * Only an unresolved checkout damage/compensation incident blocks Completion.
+   * A general incident does not. Absent means it is not a blocker.
+   */
+  completionBlocker?: boolean;
+  status?: IncidentStatus;
+  resolvedAt?: string;
+  resolvedBy?: Persona;
+};
+
+export type CheckoutAssessmentOutcome = "NORMAL" | "DAMAGE_COMPENSATION" | "ENHANCED_CLEANING";
+
+export type CheckoutAssessment = {
+  id: string;
+  stayId: string;
+  villaId: string;
+  outcome: CheckoutAssessmentOutcome;
+  note?: string;
+  incidentId?: string;
+  recordedAt: string;
+  recordedBy: Persona;
+};
+
+/** Operational note for Villa Readiness. Not a fourth readiness state. */
+export type ReadinessNote = {
+  id: string;
+  villaId: string;
+  stayId: string;
+  kind: "ENHANCED_CLEANING";
+  note: string;
+  recordedAt: string;
+  recordedBy: Persona;
 };
 
 /** Availability block that is not an inventory commitment. ADR-P067. */
@@ -292,6 +326,10 @@ export type World = {
   stays: Stay[];
   commitments: Commitment[];
   incidents: Incident[];
+  /** Absent until the first Checkout Assessment. */
+  checkoutAssessments?: CheckoutAssessment[];
+  /** Enhanced-cleaning notes. Does not change DIRTY / CLEANING / READY. */
+  readinessNotes?: ReadinessNote[];
   commissions: Commission[];
   obligations: PaymentObligation[];
   attempts: PaymentAttempt[];

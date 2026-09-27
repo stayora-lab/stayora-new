@@ -35,6 +35,7 @@ import type {
   ExternalAccommodation,
   ExternalReport,
   ExternalSource,
+  Incident,
   InventoryConflict,
   PaymentAttempt,
   PaymentObligation,
@@ -45,6 +46,9 @@ import type {
   RefundReason,
   Stay,
   StayRequest,
+  CheckoutAssessment,
+  CheckoutAssessmentOutcome,
+  ReadinessNote,
   VillaReadiness,
   World,
 } from "./types.ts";
@@ -998,7 +1002,7 @@ export function checkOutStay(
   };
 }
 
-/** Separate from checkout. Completes only when no Stay-lifecycle blocker is recorded. */
+/** Separate from checkout. Completes only after Checkout Assessment, and only when no qualifying blocker remains. */
 export function evaluateStayCompletion(
   world: World,
   input: { stayId: string; actor: Actor },
@@ -1008,6 +1012,19 @@ export function evaluateStayCompletion(
   assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status !== "CHECKED_OUT") {
     throw new DomainError("INVALID_TRANSITION", "Completion is only evaluated after checkout");
+  }
+  const assessment = (world.checkoutAssessments ?? []).find((item) => item.stayId === stay.id);
+  if (!assessment) {
+    throw new DomainError(
+      "ASSESSMENT_REQUIRED",
+      "Checkout Assessment is required before completion",
+    );
+  }
+  if (openCompletionBlocker(world, stay.id)) {
+    throw new DomainError(
+      "COMPLETION_BLOCKED",
+      "An unresolved checkout damage incident blocks completion",
+    );
   }
   const completed: Stay = {
     ...stay,
@@ -1027,6 +1044,155 @@ export function evaluateStayCompletion(
       completed.id,
     ),
     stay: completed,
+  };
+}
+
+function openCompletionBlocker(world: World, stayId: string): Incident | undefined {
+  return world.incidents.find(
+    (item) =>
+      item.stayId === stayId && item.completionBlocker === true && item.status !== "RESOLVED",
+  );
+}
+
+function makeIncident(
+  world: World,
+  stay: Stay,
+  actor: Actor,
+  note: string,
+  hasPhoto: boolean,
+  completionBlocker: boolean,
+): Incident {
+  return {
+    id: nid("inc"),
+    stayId: stay.id,
+    villaId: stay.villaId,
+    note,
+    hasPhoto,
+    createdAt: world.now,
+    createdBy: actor.persona,
+    ...(completionBlocker ? { completionBlocker: true, status: "OPEN" as const } : {}),
+  };
+}
+
+/**
+ * Records the V0 Checkout Assessment. Does not complete the Stay and does not
+ * move money. NORMAL and enhanced cleaning are not blockers. Damage opens a
+ * qualifying Incident on the existing incident list.
+ */
+export function recordCheckoutAssessment(
+  world: World,
+  input: {
+    stayId: string;
+    actor: Actor;
+    outcome: CheckoutAssessmentOutcome;
+    note?: string;
+    hasPhoto?: boolean;
+  },
+): { world: World; assessment: CheckoutAssessment } {
+  world = expireHolds(world);
+  const stay = requireStay(world, input.stayId);
+  assertButlerAssigned(world, input.actor, stay.villaId);
+  if (stay.status !== "CHECKED_OUT") {
+    throw new DomainError("INVALID_TRANSITION", "Assessment is recorded after checkout");
+  }
+  if ((world.checkoutAssessments ?? []).some((item) => item.stayId === stay.id)) {
+    throw new DomainError("INVALID_TRANSITION", "Checkout Assessment is already recorded");
+  }
+  const note = input.note?.trim() ?? "";
+  if (input.outcome !== "NORMAL" && !note) {
+    throw new DomainError("MISSING_REASON", "A note is required");
+  }
+  let next = world;
+  let incidentId: string | undefined;
+  if (input.outcome === "DAMAGE_COMPENSATION") {
+    const incident = makeIncident(next, stay, input.actor, note, Boolean(input.hasPhoto), true);
+    incidentId = incident.id;
+    next = {
+      ...next,
+      incidents: [incident, ...next.incidents],
+    };
+    next = withAudit(next, input.actor, "REPORT_INCIDENT", incident.id);
+  }
+  if (input.outcome === "ENHANCED_CLEANING") {
+    const readinessNote: ReadinessNote = {
+      id: nid("rdn"),
+      villaId: stay.villaId,
+      stayId: stay.id,
+      kind: "ENHANCED_CLEANING",
+      note,
+      recordedAt: next.now,
+      recordedBy: input.actor.persona,
+    };
+    next = {
+      ...next,
+      readinessNotes: [readinessNote, ...(next.readinessNotes ?? [])],
+    };
+  }
+  const assessment: CheckoutAssessment = {
+    id: nid("coa"),
+    stayId: stay.id,
+    villaId: stay.villaId,
+    outcome: input.outcome,
+    note: note || undefined,
+    incidentId,
+    recordedAt: next.now,
+    recordedBy: input.actor.persona,
+  };
+  next = {
+    ...next,
+    checkoutAssessments: [assessment, ...(next.checkoutAssessments ?? [])],
+  };
+  return {
+    world: withAudit(next, input.actor, "CHECKOUT_ASSESSMENT", assessment.id, input.outcome),
+    assessment,
+  };
+}
+
+function assertDamageResolution(actor: Actor, villaId: string): void {
+  if (actor.persona !== "HOST") {
+    throw new DomainError(
+      "FORBIDDEN",
+      "Clearing a checkout damage blocker requires an explicit Host grant",
+    );
+  }
+  const granted = actor.damageResolutionVillaIds ?? [];
+  if (!granted.includes(villaId)) {
+    throw new DomainError(
+      "FORBIDDEN",
+      "The Host label does not include villa-scoped damage resolution",
+    );
+  }
+}
+
+/** Clears the qualifying blocker. Does not complete the Stay and does not move money. */
+export function resolveCheckoutDamage(
+  world: World,
+  input: { incidentId: string; actor: Actor },
+): { world: World; incident: Incident } {
+  world = expireHolds(world);
+  const incident = world.incidents.find((item) => item.id === input.incidentId);
+  if (!incident || !incident.completionBlocker) {
+    throw new DomainError("NOT_FOUND", "No checkout damage incident to resolve");
+  }
+  assertDamageResolution(input.actor, incident.villaId);
+  if (incident.status === "RESOLVED") return { world, incident };
+  const resolved: Incident = {
+    ...incident,
+    status: "RESOLVED",
+    resolvedAt: world.now,
+    resolvedBy: input.actor.persona,
+  };
+  return {
+    world: withAudit(
+      {
+        ...world,
+        incidents: world.incidents.map((item) => (item.id === resolved.id ? resolved : item)),
+      },
+      input.actor,
+      "RESOLVE_CHECKOUT_DAMAGE",
+      resolved.id,
+    ),
+    incident: resolved,
   };
 }
 
@@ -1083,15 +1249,7 @@ export function reportIncident(
     throw new DomainError("FORBIDDEN", "Only Host, Butler, or BQL can report an incident");
   }
   if (!input.note.trim()) throw new DomainError("MISSING_REASON", "A note is required");
-  const incident = {
-    id: nid("inc"),
-    stayId: stay.id,
-    villaId: stay.villaId,
-    note: input.note.trim(),
-    hasPhoto: input.hasPhoto,
-    createdAt: world.now,
-    createdBy: input.actor.persona,
-  };
+  const incident = makeIncident(world, stay, input.actor, input.note.trim(), input.hasPhoto, false);
   return {
     world: withAudit(
       { ...world, incidents: [incident, ...world.incidents] },

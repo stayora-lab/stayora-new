@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fetchDevSignInGate, signInDevAccount } from "@/lib/dev-identity-api";
 import { PILOT_SEED } from "@/lib/pilot-data";
-import { workspaceFor } from "@/lib/role";
+import { isCapabilityGrant, workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
 
 export const Route = createFileRoute("/dev/accounts")({
@@ -37,7 +37,9 @@ function DevAccountsPage() {
     try {
       const session = await signInDevAccount({ data: { email, password } });
       await refreshIdentity();
-      const grant = session.grants.find((item) => item.status === "active");
+      const grant = session.grants.find(
+        (item) => item.status === "active" && !isCapabilityGrant(item.role),
+      );
       void navigate({ to: grant ? workspaceFor(grant.role) : "/" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không đăng nhập được");

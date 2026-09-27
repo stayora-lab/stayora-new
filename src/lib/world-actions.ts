@@ -4,6 +4,8 @@ import {
   checkInStay,
   checkOutStay,
   evaluateStayCompletion,
+  recordCheckoutAssessment,
+  resolveCheckoutDamage,
   extendAcceptanceDeadline,
   observeArrival,
   observeDeparture,
@@ -29,6 +31,7 @@ import {
   resolveConflict,
   resolveUnknown,
   type AcceptanceHandling,
+  type CheckoutAssessmentOutcome,
   type Actor,
   type BlockKind,
   type ExternalSource,
@@ -102,6 +105,15 @@ export type WorldAction =
     }
   | { type: "CHECK_IN"; stayId: string }
   | { type: "CHECK_OUT"; stayId: string }
+  | {
+      type: "CHECKOUT_ASSESSMENT";
+      stayId: string;
+      outcome: CheckoutAssessmentOutcome;
+      note?: string;
+      hasPhoto?: boolean;
+    }
+  | { type: "COMPLETE_STAY"; stayId: string }
+  | { type: "RESOLVE_CHECKOUT_DAMAGE"; incidentId: string }
   | { type: "BEGIN_CLEANING"; villaId: string }
   | { type: "COMPLETE_CLEANING"; villaId: string }
   | { type: "OBSERVE_ARRIVAL"; stayId: string }
@@ -154,7 +166,9 @@ function villaIdFor(world: World, action: WorldAction): string | undefined {
     action.type === "OBSERVE_ARRIVAL" ||
     action.type === "OBSERVE_DEPARTURE" ||
     action.type === "DID_NOT_OCCUR" ||
-    action.type === "REPORT_INCIDENT"
+    action.type === "REPORT_INCIDENT" ||
+    action.type === "CHECKOUT_ASSESSMENT" ||
+    action.type === "COMPLETE_STAY"
   ) {
     return world.stays.find((item) => item.id === action.stayId)?.villaId;
   }
@@ -175,7 +189,13 @@ export function applyWorldAction(
 
   const actor: Actor = actorFromRole(role);
   const villaId = villaIdFor(world, action);
-  if (role.persona === "HOST" && villaId) assertHostVilla(role, villaId);
+  if (
+    role.persona === "HOST" &&
+    villaId &&
+    action.type !== "RESOLVE_CHECKOUT_DAMAGE"
+  ) {
+    assertHostVilla(role, villaId);
+  }
 
   switch (action.type) {
     case "CREATE_REQUEST": {
@@ -302,11 +322,25 @@ export function applyWorldAction(
     }
     case "CHECK_OUT": {
       const checked = checkOutStay(world, { stayId: action.stayId, actor });
-      const completed = evaluateStayCompletion(checked.world, {
+      return { world: checked.world };
+    }
+    case "CHECKOUT_ASSESSMENT": {
+      const assessed = recordCheckoutAssessment(world, {
         stayId: action.stayId,
         actor,
+        outcome: action.outcome,
+        note: action.note,
+        hasPhoto: action.hasPhoto,
       });
+      return { world: assessed.world };
+    }
+    case "COMPLETE_STAY": {
+      const completed = evaluateStayCompletion(world, { stayId: action.stayId, actor });
       return { world: completed.world };
+    }
+    case "RESOLVE_CHECKOUT_DAMAGE": {
+      const resolved = resolveCheckoutDamage(world, { incidentId: action.incidentId, actor });
+      return { world: resolved.world };
     }
     case "BEGIN_CLEANING": {
       const result = beginCleaning(world, { villaId: action.villaId, actor });

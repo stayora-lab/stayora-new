@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { fetchDevSignInGate, signInAccount, signInDevAccount, signUpAccount } from "@/lib/dev-identity-api";
 import { isFictionalPilotEmail } from "@/lib/identity-path";
 import { PILOT_SEED } from "@/lib/pilot-data";
-import { workspaceFor } from "@/lib/role";
+import { isCapabilityGrant, workspaceFor } from "@/lib/role";
 import { useBookingStore } from "@/lib/store";
 
 export const Route = createFileRoute("/login")({
@@ -39,7 +39,9 @@ function LoginPage() {
             ? await signInDevAccount({ data: { email, password } })
             : await signInAccount({ data: { email, password } });
       await refreshIdentity();
-      const grant = session.grants.find((item) => item.status === "active");
+      const grant = session.grants.find(
+        (item) => item.status === "active" && !isCapabilityGrant(item.role),
+      );
       if (!grant) {
         void navigate({ to: "/" });
         return;

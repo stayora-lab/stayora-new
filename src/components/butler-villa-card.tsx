@@ -1,4 +1,5 @@
 import { format, parseISO } from "date-fns";
+import { useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -12,7 +13,6 @@ import {
   Triangle,
 } from "lucide-react";
 import type { CardAction, VillaCardModel, WindowId } from "../lib/butler-board-view.ts";
-import { windowLabel } from "../lib/butler-board-view.ts";
 import type { Stay } from "../lib/domain/types.ts";
 import { visibleGuestName } from "../lib/privacy.ts";
 import type { RoleSession } from "../lib/role.ts";
@@ -107,7 +107,7 @@ export function VillaDayCard({
   const quiet =
     card.readiness === "READY" && !card.action && !card.lateLabel && !card.attentionNote;
   const openStay = card.action && card.action.kind === "stay" ? card.action.stayId : card.events[0]?.stayId;
-  const when = windowLabel(card.window);
+  const [phoneNote, setPhoneNote] = useState<string | null>(null);
 
   return (
     <article
@@ -174,14 +174,10 @@ export function VillaDayCard({
               <div key={`${event.mark}-${event.stayId}`}>
                 <p className="flex items-center gap-2 text-sm text-ink">
                   <Icon className="size-4 shrink-0" aria-hidden />
-                  <span>
-                    {MARK[event.mark].label} · {when}
-                  </span>
+                  <span>{MARK[event.mark].label}</span>
                 </p>
                 <p className="pl-6 text-sm text-ink-soft">
-                  {event.guests} khách
-                  <span className="text-muted"> · Khách chính · </span>
-                  {guest}
+                  {guest} · {event.guests} khách
                 </p>
               </div>
             );
@@ -209,26 +205,33 @@ export function VillaDayCard({
         </button>
       ) : null}
       {!quiet && card.events.length > 0 ? (
-        <div className="mt-2 flex justify-end gap-1">
-          <button
-            type="button"
-            disabled
-            aria-label="Chưa có số điện thoại"
-            className="inline-flex size-10 items-center justify-center rounded-full text-muted"
-          >
-            <Phone className="size-4" aria-hidden />
-          </button>
-          {openStay ? (
+        <>
+          <div className="mt-2 flex justify-end gap-4">
             <button
               type="button"
-              aria-label="Báo sự cố"
-              className="inline-flex size-10 items-center justify-center rounded-full text-ink"
-              onClick={() => onReport(openStay)}
+              aria-label="Chưa có số điện thoại"
+              className="inline-flex size-11 items-center justify-center rounded-full text-muted"
+              onClick={() => setPhoneNote("Chưa có số điện thoại")}
             >
-              <Flag className="size-4" aria-hidden />
+              <Phone className="size-4" aria-hidden />
             </button>
+            {openStay ? (
+              <button
+                type="button"
+                aria-label="Báo sự cố"
+                className="inline-flex size-11 items-center justify-center rounded-full text-ink"
+                onClick={() => onReport(openStay)}
+              >
+                <Flag className="size-4" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+          {phoneNote ? (
+            <p role="status" className="mt-1 text-right text-xs text-muted">
+              {phoneNote}
+            </p>
           ) : null}
-        </div>
+        </>
       ) : null}
     </article>
   );

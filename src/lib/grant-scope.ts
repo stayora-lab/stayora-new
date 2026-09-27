@@ -33,7 +33,7 @@ export function planRoleGrants(input: {
   }
   if (input.role === "BQL") return [{ scopeRef: null }];
   if (input.role === "SALE") return [{ scopeRef: input.accountId }];
-  if (input.role === "HOST" || input.role === "BUTLER") {
+  if (input.role === "HOST" || input.role === "HOST_DAMAGE" || input.role === "BUTLER") {
     return assertVillaSelection(input.villaIds, input.knownVillaIds).map((id) => ({
       scopeRef: id,
     }));

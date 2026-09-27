@@ -8,7 +8,14 @@ export type RoleSession = {
   butlerId?: string;
   /** Villas granted to this role, one grant each. Legacy person ids stay on hostId/butlerId. */
   villaIds?: string[];
+  /** Villas where this Host may clear a checkout damage blocker. Not implied by HOST. */
+  damageResolutionVillaIds?: string[];
 };
+
+/** Villa-scoped capability stored beside a role. Not a workspace persona. */
+export function isCapabilityGrant(role: string): boolean {
+  return role === "HOST_DAMAGE";
+}
 
 export const ROLE_STORAGE_KEY = "stayora-role";
 
@@ -34,7 +41,7 @@ const VILLA_IDS = new Set(PILOT_SEED.villas.map((villa) => villa.id));
 
 /** Every active grant of the chosen role. Villa scopes accumulate; they are not truncated. */
 export function workingRoleFromGrants(
-  grants: { role: Persona; scopeRef: string | null; status: "active" | "revoked" }[],
+  grants: { role: string; scopeRef: string | null; status: "active" | "revoked" }[],
   role: Persona,
 ): RoleSession {
   const scopes = grants
@@ -42,7 +49,23 @@ export function workingRoleFromGrants(
     .map((grant) => grant.scopeRef);
   const villaIds = scopes.filter((id): id is string => Boolean(id && VILLA_IDS.has(id)));
   const legacy = scopes.find((id) => id && !VILLA_IDS.has(id)) ?? undefined;
-  if (role === "HOST") return { persona: "HOST", hostId: legacy, villaIds };
+  if (role === "HOST") {
+    const damageResolutionVillaIds = grants
+      .filter(
+        (grant) =>
+          grant.status === "active" &&
+          grant.role === "HOST_DAMAGE" &&
+          grant.scopeRef &&
+          VILLA_IDS.has(grant.scopeRef),
+      )
+      .map((grant) => grant.scopeRef as string);
+    return {
+      persona: "HOST",
+      hostId: legacy,
+      villaIds,
+      ...(damageResolutionVillaIds.length > 0 ? { damageResolutionVillaIds } : {}),
+    };
+  }
   if (role === "BUTLER") {
     return { persona: "BUTLER", butlerId: legacy ?? (villaIds.length ? "granted" : undefined), villaIds };
   }
@@ -88,7 +111,11 @@ export function actorFromRole(role: RoleSession): Actor {
       assignedVillaIds: role.villaIds,
     };
   }
-  if (role.persona === "HOST") return { persona: "HOST" };
+  if (role.persona === "HOST") {
+    return role.damageResolutionVillaIds?.length
+      ? { persona: "HOST", damageResolutionVillaIds: role.damageResolutionVillaIds }
+      : { persona: "HOST" };
+  }
   if (role.persona === "BQL") return { persona: "BQL" };
   if (role.persona === "ADMIN") return { persona: "ADMIN" };
   return { persona: "GUEST" };
