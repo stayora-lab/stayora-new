@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type ReactNode } from "react";
 import { RoleGate } from "@/components/site-chrome";
 import { OtherRoleHint } from "@/components/role-hint";
 import { HostCalendar } from "@/components/host-calendar";
+import { HostStayCard } from "@/components/host-stay-card";
 import { Button } from "@/components/ui/button";
 import {
   balanceLine,
@@ -12,8 +13,7 @@ import {
   hostPaymentStatus,
   hostToday,
   paymentPlanLabel,
-  requestStatusVi,
-  stayGuestLabel,
+  requestBadgeVi,
   viDateRange,
   competingAccepted,
 } from "@/lib/domain";
@@ -36,6 +36,20 @@ const TABS: { id: HostTab; label: string }[] = [
   { id: "stays", label: "Đặt chỗ & lưu trú" },
 ];
 
+function useHeaderHeight() {
+  const [height, setHeight] = useState(89);
+  useLayoutEffect(() => {
+    const node = document.querySelector("header");
+    if (!node) return;
+    const write = () => setHeight(Math.ceil(node.getBoundingClientRect().height));
+    write();
+    const observer = new ResizeObserver(write);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return height;
+}
+
 function HostPage() {
   const hostId = useBookingStore((state) => state.hostId);
   const grants = useBookingStore((state) => state.grants);
@@ -52,8 +66,8 @@ function HostPage() {
   const releaseProtectiveHold = useBookingStore((state) => state.releaseProtectiveHold);
   const recordMaintenanceFromHold = useBookingStore((state) => state.recordMaintenanceFromHold);
   const [tab, setTab] = useState<HostTab>("today");
-  const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState("");
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const headerHeight = useHeaderHeight();
   const clock = parseISO(world.now);
   const today = world.now.slice(0, 10);
   const summary = hostToday(world, today);
@@ -96,12 +110,17 @@ function HostPage() {
     (item) => !item.commitmentId && mineIds.has(item.villaId),
   );
 
-  async function run(action: () => Promise<void>) {
-    setError(null);
+  function villaName(id: string) {
+    return getVilla(id)?.name ?? id;
+  }
+
+  async function run(action: () => Promise<void>, success?: string) {
+    setNotice(null);
     try {
       await action();
+      if (success) setNotice({ text: success, error: false });
     } catch (err) {
-      setError(domainMessageVi(err));
+      setNotice({ text: domainMessageVi(err), error: true });
     }
   }
 
@@ -116,10 +135,13 @@ function HostPage() {
             Chỉ Host chấp nhận. Thanh toán do Stayora vận hành ghi nhận.
           </p>
           <OtherRoleHint current="HOST" />
-          {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
         </div>
-        <div className="sticky top-16 z-20 border-t border-border bg-cream/95 backdrop-blur-md">
-          <div className="mx-auto grid max-w-lg grid-cols-4 px-1">
+      </div>
+      <div
+        className="sticky z-20 border-b border-border bg-cream/95 backdrop-blur-md"
+        style={{ top: headerHeight }}
+      >
+        <div className="mx-auto grid max-w-lg grid-cols-4 px-1">
             {TABS.map((item) => (
               <button
                 key={item.id}
@@ -135,7 +157,14 @@ function HostPage() {
               </button>
             ))}
           </div>
-        </div>
+          {notice ? (
+            <p
+              role="status"
+              className={`mx-auto max-w-lg px-4 py-2 text-sm ${notice.error ? "text-lotus-deep" : "font-medium text-ink"}`}
+            >
+              {notice.text}
+            </p>
+          ) : null}
       </div>
 
       {tab === "today" ? (
@@ -228,10 +257,18 @@ function HostPage() {
                   </p>
                   <p className="mt-1 text-sm text-[#6a4310]">{hold.note}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button variant="outline" onClick={() => run(() => releaseProtectiveHold(hold.id))}>
+                    <Button variant="outline" onClick={() => run(() => releaseProtectiveHold(hold.id), `Đã gỡ giữ bảo vệ: ${villaName(hold.villaId)}`)}>
                       Gỡ giữ
                     </Button>
-                    <Button variant="ink" onClick={() => run(() => recordMaintenanceFromHold(hold.id))}>
+                    <Button
+                      variant="ink"
+                      onClick={() =>
+                        run(
+                          () => recordMaintenanceFromHold(hold.id),
+                          `Đã chuyển thành bảo trì: ${villaName(hold.villaId)}, ${viDateRange(hold.start, hold.end)}`,
+                        )
+                      }
+                    >
                       Ghi bảo trì
                     </Button>
                   </div>
@@ -239,14 +276,6 @@ function HostPage() {
               ))}
             </div>
           ) : null}
-          <label className="block text-sm">
-            Ghi chú khi báo việc
-            <input
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              className="mt-1 h-11 w-full rounded-xl bg-paper px-3 shadow-[var(--shadow-border)]"
-            />
-          </label>
         </section>
       ) : null}
 
@@ -255,12 +284,33 @@ function HostPage() {
           <HostCalendar
             world={world}
             villas={mine}
-            onExternal={(input) => run(() => hostExternal(input))}
+            onExternal={(input) =>
+              run(
+                () => hostExternal(input),
+                `Đã ghi đặt ngoài: ${villaName(input.villaId)}, ${viDateRange(input.checkIn, input.checkOut)}`,
+              )
+            }
             onRecordFact={(input) => run(() => hostRecordFact(input))}
-            onBlock={(input) => run(() => hostCreateBlock(input))}
+            onBlock={(input) =>
+              run(
+                () => hostCreateBlock(input),
+                `Đã chặn lịch: ${villaName(input.villaId)}, ${viDateRange(input.start, input.end)}`,
+              )
+            }
             onRelease={(id) => run(() => hostReleaseBlock(id))}
-            onPlaceHold={(input) => run(() => placeProtectiveHold(input))}
-            onReleaseHold={(id) => run(() => releaseProtectiveHold(id))}
+            onPlaceHold={(input) =>
+              run(
+                () => placeProtectiveHold(input),
+                `Đã giữ bảo vệ: ${villaName(input.villaId)}, ${viDateRange(input.start, input.end)}`,
+              )
+            }
+            onReleaseHold={(id) => {
+              const hold = (world.protectiveHolds ?? []).find((item) => item.id === id);
+              return run(
+                () => releaseProtectiveHold(id),
+                `Đã gỡ giữ bảo vệ: ${hold ? villaName(hold.villaId) : ""}`.trim(),
+              );
+            }}
           />
         </section>
       ) : null}
@@ -310,7 +360,16 @@ function HostPage() {
                     ...hostPaymentStatus(world, request.id),
                   ]}
                   action={
-                    <Button variant="outline" className="w-full" onClick={() => run(() => hostExtendAcceptance(request.id))}>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() =>
+                        run(
+                          () => hostExtendAcceptance(request.id),
+                          `Đã gia hạn: ${villaName(request.villaId)}`,
+                        )
+                      }
+                    >
                       Gia hạn
                     </Button>
                   }
@@ -345,55 +404,20 @@ function HostPage() {
             myStays.map((stay) => {
               const booking = world.bookings.find((item) => item.stayId === stay.id);
               return (
-                <article
+                <HostStayCard
                   key={stay.id}
-                  className="rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{getVilla(stay.villaId)?.name ?? stay.villaId}</p>
-                      <p className="mt-1 text-sm text-ink-soft">{visibleGuestName(stay, hostRole)}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
-                      {stayGuestLabel(stay.status)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm text-muted">
-                    {viDateRange(stay.checkIn, stay.checkOut)} · {stay.guests} khách
-                  </p>
-                  <p className="mt-1 text-sm text-muted">{stay.originLabel}</p>
-                  {booking ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Mã <span className="font-medium text-ink">{booking.reference}</span>
-                      {booking.status === "CANCELLED" ? " · đã huỷ" : ""}
-                    </p>
-                  ) : null}
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        run(() => reportIncident(stay.id, note.trim() || "Cần xem villa", false))
-                      }
-                    >
-                      Báo việc
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        run(() =>
-                          placeProtectiveHold({
-                            villaId: stay.villaId,
-                            start: stay.checkIn,
-                            end: stay.checkOut,
-                            note: note.trim() || "Cần xem villa",
-                          }),
-                        )
-                      }
-                    >
-                      Giữ bảo vệ
-                    </Button>
-                  </div>
-                </article>
+                  stay={stay}
+                  guestLabel={visibleGuestName(stay, hostRole)}
+                  reference={booking?.reference}
+                  bookingCancelled={booking?.status === "CANCELLED"}
+                  onReport={(stayId) => run(() => reportIncident(stayId, "Cần xem villa", false))}
+                  onHold={(input) =>
+                    run(
+                      () => placeProtectiveHold(input),
+                      `Đã giữ bảo vệ: ${villaName(input.villaId)}, ${viDateRange(input.start, input.end)}`,
+                    )
+                  }
+                />
               );
             })
           )}
@@ -494,7 +518,7 @@ function RequestCard({
           <p className="mt-1 text-sm text-ink-soft">{guestLabel}</p>
         </div>
         <span className="shrink-0 rounded-full bg-lotus-soft px-2.5 py-1 text-xs font-medium text-lotus-deep">
-          {booked ? "Đã xác nhận" : requestStatusVi(request.status)}
+          {requestBadgeVi(request.status, request.handling, Boolean(booked))}
         </span>
       </div>
       <p className="mt-3 text-sm text-muted">
@@ -512,7 +536,7 @@ function RequestCard({
       ) : null}
       {!booked && request.status === "ACCEPTED" && request.handling === "COMPETITIVE" && request.confirmDueAt ? (
         <p className="mt-3 text-sm text-ink-soft">
-          Hạn phản hồi còn {holdCountdown(request.confirmDueAt, clock)}. Hạn này không giữ villa.
+          Khách còn {holdCountdown(request.confirmDueAt, clock)} để thanh toán. Hạn này không giữ villa.
         </p>
       ) : null}
       {worldLines.map((line) => (

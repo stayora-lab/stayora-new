@@ -5,6 +5,7 @@ import { TIMEZONE } from "./config.ts";
 import { obligationSucceeded } from "./engine.ts";
 import { DomainError } from "./types.ts";
 import type {
+  AcceptanceHandling,
   Commitment,
   CommissionStatus,
   PaymentObligation,
@@ -70,10 +71,14 @@ export function hostPaymentStatus(world: World, requestId: string): string[] {
   );
   if (unknown) return ["Đang xác minh thanh toán"];
   const lines: string[] = [];
-  if (initial && obligationSucceeded(world, initial.id)) {
+  const initialPaid = Boolean(initial && obligationSucceeded(world, initial.id));
+  if (initial && !initialPaid) {
+    return [`Chưa nhận ${formatVnd(initial.amount)} (cọc) — hạn ${formatDueAt(initial.dueAt)}`];
+  }
+  if (initialPaid) {
     lines.push(balance ? "Đã nhận 50%" : "Đã nhận 100%");
   }
-  if (balance) {
+  if (balance && (initialPaid || !initial)) {
     lines.push(balanceLine(balance, obligationSucceeded(world, balance.id)));
   }
   return lines;
@@ -152,18 +157,22 @@ export function paymentLinkText(request: StayRequest, origin: string): string {
 
 export function holdCountdown(holdExpiresAt: string, now: Date): string {
   const ms = parseISO(holdExpiresAt).getTime() - now.getTime();
-  if (ms <= 0) return "Đã hết hạn giữ chỗ";
-  const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  if (ms <= 0) return "đã hết hạn";
+  const totalMinutes = Math.floor(ms / 60_000);
+  if (totalMinutes < 1) return "dưới 1 phút";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} phút`;
+  if (minutes === 0) return `${hours} giờ`;
   return `${hours} giờ ${minutes} phút`;
 }
 
-export function requestStatusVi(status: RequestStatus): string {
+export function requestStatusVi(status: RequestStatus, handling?: AcceptanceHandling): string {
   switch (status) {
     case "PENDING":
       return "Chờ Host";
     case "ACCEPTED":
-      return "Đang giữ chỗ";
+      return handling === "COMPETITIVE" ? "Đã đồng ý, chờ thanh toán" : "Đang giữ chỗ";
     case "DECLINED":
       return "Từ chối";
     case "EXPIRED":
@@ -171,6 +180,15 @@ export function requestStatusVi(status: RequestStatus): string {
     case "CONFLICTED":
       return "Trùng lịch";
   }
+}
+
+export function requestBadgeVi(
+  status: RequestStatus,
+  handling: AcceptanceHandling | undefined,
+  booked: boolean,
+): string {
+  if (booked) return "Đã xác nhận";
+  return requestStatusVi(status, handling);
 }
 
 export function commissionStatusVi(status: CommissionStatus): string {

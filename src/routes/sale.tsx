@@ -15,7 +15,7 @@ import {
   paymentLinkText,
   paymentPlanLabel,
   quoteText,
-  requestStatusVi,
+  requestBadgeVi,
   commissionStatusVi,
   SALE_MAI,
   viDateRange,
@@ -261,7 +261,7 @@ function SalePage() {
                       </p>
                     </div>
                     <StatusPill>
-                      {booking ? "Đã xác nhận" : requestStatusVi(request.status)}
+                      {requestBadgeVi(request.status, request.handling, Boolean(booking))}
                     </StatusPill>
                   </div>
                   <p className="mt-3 text-sm">
@@ -275,7 +275,7 @@ function SalePage() {
                     <div className="mt-4 rounded-xl bg-lotus-soft p-3">
                       <p className="text-sm font-medium text-lotus-deep">
                         {request.handling === "COMPETITIVE"
-                          ? `Hạn phản hồi còn ${request.confirmDueAt ? holdCountdown(request.confirmDueAt, clock) : ""}. Hạn này không giữ villa.`
+                          ? `Khách còn ${request.confirmDueAt ? holdCountdown(request.confirmDueAt, clock) : ""} để thanh toán. Hạn này không giữ villa.`
                           : `Giữ chỗ còn ${request.holdExpiresAt ? holdCountdown(request.holdExpiresAt, clock) : ""}`}
                       </p>
                       <Button

@@ -14,6 +14,7 @@ import {
 } from "@/lib/domain";
 import type { BlockKind, Commitment, ExternalSource, ProtectiveHold, World } from "@/lib/domain";
 import { getVilla, villas as allVillas, type Villa } from "@/lib/villas";
+import { protectiveHoldNote } from "@/lib/host-surface";
 import { visibleGuestName } from "@/lib/privacy";
 import { useBookingStore } from "@/lib/store";
 
@@ -277,11 +278,13 @@ export function HostCalendar({
                     onPlaceHold
                       ? () => {
                           if (!sheet || sheet.kind !== "cell") return;
+                          const reason = protectiveHoldNote({ confirmed: true, reason: note });
+                          if (!reason) return;
                           onPlaceHold({
                             villaId: sheet.villaId,
                             start: sheet.date,
                             end: checkOut || addIso(sheet.date, 1),
-                            note: note.trim() || "Đang xem villa",
+                            note: reason,
                           });
                           setSheet(null);
                         }
@@ -561,19 +564,19 @@ function EmptyCell({
 
       {mode === "protect" && onPlaceHold ? (
         <>
+          <p className="mt-3 text-sm text-ink">
+            Giữ bảo vệ {villa?.name}, {viDateRange(date, checkOut || addIso(date, 1))}. Chỗ mới sẽ bị chặn cho đến khi gỡ giữ.
+          </p>
           <label className="mt-3 block text-sm">
-            Việc đang xem
+            Lý do
             <input
               value={note}
               onChange={(event) => setNote(event.target.value)}
               className="mt-1 h-12 w-full rounded-xl bg-cream px-4"
             />
           </label>
-          <p className="mt-2 text-xs text-muted">
-            Tạm giữ ngày này để xem villa. Đặt chỗ đang có không bị xoá. Không phải bảo trì.
-          </p>
-          <Button className="mt-5 w-full" onClick={onPlaceHold}>
-            Giữ bảo vệ
+          <Button className="mt-5 w-full" disabled={!note.trim()} onClick={onPlaceHold}>
+            Xác nhận giữ
           </Button>
         </>
       ) : mode === "external" ? (
