@@ -82,13 +82,10 @@ export function roleItemCount(
     (hold) => hold.status === "ACTIVE" && mine.has(hold.villaId),
   ).length;
   const incidents = world.incidents.filter((item) => mine.has(item.villaId)).length;
-  const reports = (world.externalReports ?? []).filter(
-    (item) => !item.factId && mine.has(item.villaId),
-  ).length;
   const facts = (world.externalAccommodations ?? []).filter(
     (item) => !item.commitmentId && mine.has(item.villaId),
   ).length;
-  return stays + pending + conflicts + holds + incidents + reports + facts;
+  return stays + pending + conflicts + holds + incidents + facts;
 }
 
 /**

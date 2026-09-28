@@ -20,7 +20,6 @@ import {
   recordExternalBooking,
   recordExternalFact,
   establishExternalCommitment,
-  submitExternalReport,
   recordPayment,
   rejectRequest,
   placeProtectiveHold,
@@ -64,16 +63,6 @@ export type WorldAction =
       guestName?: string;
     }
   | {
-      type: "SUBMIT_EXTERNAL_REPORT";
-      villaId: string;
-      checkIn: string;
-      checkOut: string;
-      guests: number;
-      source: ExternalSource;
-      guestName?: string;
-      note?: string;
-    }
-  | {
       type: "RECORD_EXTERNAL_FACT";
       villaId: string;
       checkIn: string;
@@ -81,7 +70,6 @@ export type WorldAction =
       guests: number;
       source: ExternalSource;
       guestName?: string;
-      reportId?: string;
     }
   | { type: "ESTABLISH_EXTERNAL"; factId: string }
   | {
@@ -237,19 +225,6 @@ export function applyWorldAction(
       });
       return { world: result.world };
     }
-    case "SUBMIT_EXTERNAL_REPORT": {
-      const result = submitExternalReport(world, {
-        villaId: action.villaId,
-        checkIn: action.checkIn,
-        checkOut: action.checkOut,
-        guests: action.guests,
-        source: action.source,
-        guestName: action.guestName,
-        note: action.note,
-        actor,
-      });
-      return { world: result.world };
-    }
     case "RECORD_EXTERNAL_FACT": {
       const result = recordExternalFact(world, {
         villaId: action.villaId,
@@ -258,7 +233,6 @@ export function applyWorldAction(
         guests: action.guests,
         source: action.source,
         guestName: action.guestName,
-        reportId: action.reportId,
         actor,
       });
       return { world: result.world };

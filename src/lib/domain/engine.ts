@@ -33,7 +33,6 @@ import type {
   Commission,
   Commitment,
   ExternalAccommodation,
-  ExternalReport,
   ExternalSource,
   Incident,
   InventoryConflict,
@@ -300,7 +299,6 @@ export function createEmptyWorld(now: string): World {
     villaReadiness: [],
     auditLog: [],
     externalAccommodations: [],
-    externalReports: [],
     sales: [{ id: SALE_MAI, name: "Chủ nhà An" }],
     butlers: [
       { id: BUTLER_LINH, name: "Quản gia Chi", villaIds: ["t01", "t02", "t03", "t04", "t05", "t06"] },
@@ -1401,57 +1399,6 @@ export function recordMaintenanceFromHold(
   };
 }
 
-function reportsOf(world: World): ExternalReport[] {
-  return world.externalReports ?? [];
-}
-
-export function submitExternalReport(
-  world: World,
-  input: {
-    villaId: string;
-    checkIn: string;
-    checkOut: string;
-    guests: number;
-    source: ExternalSource;
-    guestName?: string;
-    note?: string;
-    actor: Actor;
-  },
-): { world: World; report: ExternalReport } {
-  world = expireHolds(world);
-  requireVilla(input.villaId);
-  if (input.actor.persona === "BUTLER") {
-    assertButlerAssigned(world, input.actor, input.villaId);
-  } else if (input.actor.persona !== "SALE") {
-    throw new DomainError("FORBIDDEN", "Only Sale or an assigned Butler can submit a report");
-  }
-  if (nightsBetween(input.checkIn, input.checkOut) < 1) {
-    throw new DomainError("INVALID", "Check-out must be after check-in");
-  }
-  const report: ExternalReport = {
-    id: nid("rpt"),
-    villaId: input.villaId,
-    checkIn: input.checkIn,
-    checkOut: input.checkOut,
-    guests: input.guests,
-    guestName: input.guestName?.trim() || undefined,
-    source: input.source,
-    note: input.note?.trim() || undefined,
-    reportedBy: input.actor.persona,
-    reporterId: input.actor.persona === "SALE" ? input.actor.saleId : input.actor.butlerId,
-    createdAt: world.now,
-  };
-  return {
-    world: withAudit(
-      { ...world, externalReports: [report, ...reportsOf(world)] },
-      input.actor,
-      "SUBMIT_EXTERNAL_REPORT",
-      report.id,
-    ),
-    report,
-  };
-}
-
 function writeExternalFact(
   world: World,
   input: {
@@ -1461,7 +1408,6 @@ function writeExternalFact(
     guests: number;
     source: ExternalSource;
     guestName?: string;
-    reportId?: string;
   },
 ): { world: World; fact: ExternalAccommodation } {
   const fact: ExternalAccommodation = {
@@ -1472,20 +1418,12 @@ function writeExternalFact(
     guests: input.guests,
     guestName: input.guestName?.trim() || undefined,
     source: input.source,
-    reportId: input.reportId,
     recordedAt: world.now,
   };
-  let reports = reportsOf(world);
-  if (input.reportId) {
-    reports = reports.map((item) =>
-      item.id === input.reportId ? { ...item, factId: fact.id } : item,
-    );
-  }
   return {
     world: {
       ...world,
       externalAccommodations: [fact, ...(world.externalAccommodations ?? [])],
-      externalReports: reports,
     },
     fact,
   };
@@ -1501,25 +1439,16 @@ export function recordExternalFact(
     guests: number;
     source: ExternalSource;
     guestName?: string;
-    reportId?: string;
     actor: Actor;
   },
 ): { world: World; fact: ExternalAccommodation } {
   world = expireHolds(world);
   assertHost(input.actor);
   requireVilla(input.villaId);
-  let fields = input;
-  if (input.reportId) {
-    const report = reportsOf(world).find((item) => item.id === input.reportId);
-    if (!report) throw new DomainError("NOT_FOUND", "Report not found");
-    if (report.factId) {
-      throw new DomainError("INVALID_TRANSITION", "This report is already recorded");
-    }
-    fields = { ...input, ...report, reportId: report.id };
-  } else if (nightsBetween(input.checkIn, input.checkOut) < 1) {
+  if (nightsBetween(input.checkIn, input.checkOut) < 1) {
     throw new DomainError("INVALID", "Check-out must be after check-in");
   }
-  const written = writeExternalFact(world, fields);
+  const written = writeExternalFact(world, input);
   return {
     world: withAudit(written.world, input.actor, "RECORD_EXTERNAL_FACT", written.fact.id),
     fact: written.fact,

@@ -32,7 +32,6 @@ import {
   recordExternalBooking,
   recordExternalFact,
   establishExternalCommitment,
-  submitExternalReport,
   recordPayment,
   rejectRequest,
   releaseBlock,
@@ -44,6 +43,7 @@ import {
 } from "./engine.ts";
 import { seedWorld } from "./seed.ts";
 import { planRoleGrants } from "../grant-scope.ts";
+import { applyWorldAction } from "../world-actions.ts";
 import type { Actor, PaymentOutcome, World } from "./types.ts";
 
 const HOST: Actor = { persona: "HOST" };
@@ -1864,72 +1864,18 @@ describe("emergency protective hold is not an inventory commitment", () => {
   });
 });
 
-describe("External report, fact, and commitment", () => {
-  it("a Sale or Butler report is not a Fact and does not hold the calendar", () => {
-    let world = createEmptyWorld(NOW);
-    const reported = submitExternalReport(world, {
-      villaId: "t04",
-      checkIn: "2026-12-10",
-      checkOut: "2026-12-13",
-      guests: 2,
-      source: "Zalo",
-      guestName: "Hoa",
-      note: "Khách quen của sale",
-      actor: SALE,
-    });
-    world = reported.world;
-    assert.equal(reported.report.factId, undefined);
-    assert.equal(world.externalAccommodations.length, 0);
-    assert.equal(world.stays.length, 0);
-    assert.equal(world.commitments.length, 0);
-    assert.equal(world.bookings.length, 0);
-    assert.equal(isAvailable(world, "t04", "2026-12-10", "2026-12-13"), true);
-    const fromButler = submitExternalReport(world, {
-      villaId: "t01",
-      checkIn: "2026-12-10",
-      checkOut: "2026-12-12",
-      guests: 2,
-      source: "Airbnb",
-      actor: BUTLER,
-    });
-    assert.equal(fromButler.world.externalAccommodations.length, 0);
-    assert.throws(
-      () =>
-        submitExternalReport(world, {
-          villaId: "t04",
-          checkIn: "2026-12-10",
-          checkOut: "2026-12-12",
-          guests: 2,
-          source: "Zalo",
-          actor: HOST,
-        }),
-      (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
-    );
-    assertNoOverlap(fromButler.world);
-  });
-
+describe("External fact and commitment", () => {
   it("a Host can record a Fact while no External-backed Commitment exists", () => {
     const world = createEmptyWorld(NOW);
-    const reported = submitExternalReport(world, {
+    const recorded = recordExternalFact(world, {
       villaId: "t04",
       checkIn: "2026-12-10",
       checkOut: "2026-12-13",
       guests: 2,
       source: "Zalo",
-      actor: SALE,
-    });
-    const recorded = recordExternalFact(reported.world, {
-      villaId: "t04",
-      checkIn: "2026-12-10",
-      checkOut: "2026-12-13",
-      guests: 2,
-      source: "Zalo",
-      reportId: reported.report.id,
       actor: HOST,
     });
-    assert.equal(recorded.fact.reportId, reported.report.id);
     assert.equal(recorded.fact.commitmentId, undefined);
-    assert.equal(recorded.world.externalReports[0]?.factId, recorded.fact.id);
     assert.equal(recorded.world.stays.length, 0);
     assert.equal(recorded.world.commitments.length, 0);
     assert.equal(recorded.world.bookings.length, 0);
@@ -1942,7 +1888,6 @@ describe("External report, fact, and commitment", () => {
       source: "Khách quen",
       actor: HOST,
     });
-    assert.equal(direct.fact.reportId, undefined);
     assert.equal(direct.fact.commitmentId, undefined);
     assert.equal(direct.world.bookings.length, 0);
     assert.throws(
@@ -2001,6 +1946,134 @@ describe("External report, fact, and commitment", () => {
     assert.equal(together.world.obligations.length, 0);
     assertNoOverlap(held.world);
     assertNoOverlap(together.world);
+  });
+
+  it("Sale, Butler, BQL and Guest cannot record a fact, establish a commitment, or record a booking", () => {
+    const world = createEmptyWorld(NOW);
+    const fact = recordExternalFact(world, {
+      villaId: "t04",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-13",
+      guests: 2,
+      source: "Zalo",
+      actor: HOST,
+    });
+    const refused = (run: () => unknown) =>
+      assert.throws(
+        run,
+        (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+      );
+    for (const actor of [SALE, BUTLER, BQL, GUEST]) {
+      refused(() =>
+        recordExternalFact(world, {
+          villaId: "t05",
+          checkIn: "2026-12-15",
+          checkOut: "2026-12-17",
+          guests: 2,
+          source: "Airbnb",
+          actor,
+        }),
+      );
+      refused(() => establishExternalCommitment(fact.world, { factId: fact.fact.id, actor }));
+      refused(() =>
+        recordExternalBooking(world, {
+          villaId: "t06",
+          checkIn: "2026-12-10",
+          checkOut: "2026-12-12",
+          guests: 2,
+          source: "Booking.com",
+          actor,
+        }),
+      );
+    }
+  });
+
+  it("a Host cannot record an external fact or booking for a villa owned by another Host", () => {
+    const world = createEmptyWorld(NOW);
+    const hostA = { persona: "HOST" as const, hostId: "host-an" };
+    const refused = (run: () => unknown) =>
+      assert.throws(
+        run,
+        (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
+      );
+    refused(() =>
+      applyWorldAction(
+        world,
+        {
+          type: "RECORD_EXTERNAL_FACT",
+          villaId: "t06",
+          checkIn: "2026-12-10",
+          checkOut: "2026-12-13",
+          guests: 2,
+          source: "Zalo",
+        },
+        hostA,
+      ),
+    );
+    refused(() =>
+      applyWorldAction(
+        world,
+        {
+          type: "RECORD_EXTERNAL",
+          villaId: "t06",
+          checkIn: "2026-12-10",
+          checkOut: "2026-12-13",
+          guests: 2,
+          source: "Zalo",
+        },
+        hostA,
+      ),
+    );
+    const ownFact = applyWorldAction(
+      world,
+      {
+        type: "RECORD_EXTERNAL_FACT",
+        villaId: "t01",
+        checkIn: "2026-12-10",
+        checkOut: "2026-12-13",
+        guests: 2,
+        source: "Zalo",
+      },
+      hostA,
+    );
+    assert.equal(
+      ownFact.world.externalAccommodations.some((item) => item.villaId === "t01" && !item.commitmentId),
+      true,
+    );
+    const ownBooking = applyWorldAction(
+      world,
+      {
+        type: "RECORD_EXTERNAL",
+        villaId: "t02",
+        checkIn: "2026-12-20",
+        checkOut: "2026-12-22",
+        guests: 2,
+        source: "Airbnb",
+      },
+      hostA,
+    );
+    assert.equal(
+      ownBooking.world.commitments.some((item) => item.villaId === "t02" && item.basis === "EXTERNAL"),
+      true,
+    );
+  });
+
+  it("no external report action is reachable", () => {
+    const actions = readFileSync(new URL("../world-actions.ts", import.meta.url), "utf8");
+    const engine = readFileSync(new URL("./engine.ts", import.meta.url), "utf8");
+    const host = readFileSync(new URL("../../routes/host.tsx", import.meta.url), "utf8");
+    const sale = readFileSync(new URL("../../routes/sale.tsx", import.meta.url), "utf8");
+    const ops = readFileSync(new URL("../../routes/ops.tsx", import.meta.url), "utf8");
+    assert.equal(actions.includes("SUBMIT_EXTERNAL_REPORT"), false);
+    assert.equal(actions.includes("submitExternalReport"), false);
+    assert.equal(engine.includes("submitExternalReport"), false);
+    assert.equal(engine.includes("externalReports"), false);
+    assert.equal(host.includes("Tin báo"), false);
+    assert.equal(host.includes("Ghi nhận tin này"), false);
+    assert.equal(sale.includes("Báo đặt ngoài"), false);
+    assert.equal(sale.includes("Gửi tin báo"), false);
+    assert.equal(ops.includes("Báo đặt ngoài"), false);
+    assert.equal(ops.includes("SUBMIT_EXTERNAL_REPORT"), false);
   });
 
   it("refuses a prose reason and accepts only a non-occurrence reason", () => {

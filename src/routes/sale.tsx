@@ -21,7 +21,6 @@ import {
   viDateRange,
   domainMessageVi,
 } from "@/lib/domain";
-import type { ExternalSource } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd, isIsoDate, nightsBetween } from "@/lib/stay";
 import { villas, type Villa } from "@/lib/villas";
@@ -46,10 +45,6 @@ function SalePage() {
   const search = useBookingStore((state) => state.saleSearch);
   const setSaleSearch = useBookingStore((state) => state.setSaleSearch);
   const saleCreateRequest = useBookingStore((state) => state.saleCreateRequest);
-  const submitExternalReport = useBookingStore((state) => state.submitExternalReport);
-  const [reportVilla, setReportVilla] = useState(villas[0]?.id ?? "t01");
-  const [reportSource, setReportSource] = useState<ExternalSource>("Zalo");
-  const [reportNote, setReportNote] = useState("");
   const [tab, setTab] = useState<SaleTab>("search");
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,25 +121,6 @@ function SalePage() {
     }
   }
 
-  async function sendReport() {
-    if (!ready) return;
-    setError(null);
-    try {
-      await submitExternalReport({
-        villaId: reportVilla,
-        checkIn: search.checkIn,
-        checkOut: search.checkOut,
-        guests: search.guests,
-        source: reportSource,
-        guestName: guestName.trim() || undefined,
-        note: reportNote.trim() || undefined,
-      });
-      setReportNote("");
-    } catch (err) {
-      setError(domainMessageVi(err));
-    }
-  }
-
   return (
     <RoleGate allow={["SALE"]}>
     <main lang="vi" className="pb-24">
@@ -208,56 +184,6 @@ function SalePage() {
               ? `${nights} đêm · ${search.guests} khách · giá công khai, cùng giá khách thấy.`
               : "Chọn ngày đến và đi."}
           </p>
-          <form
-            className="mt-4 space-y-3 rounded-2xl bg-paper p-4 shadow-[var(--shadow-border)]"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void sendReport();
-            }}
-          >
-            <p className="font-medium">Báo đặt ngoài</p>
-            <p className="text-sm text-muted">
-              Đây là tin báo. Chưa phải ghi nhận của chủ nhà, và chưa giữ lịch.
-            </p>
-            <label className="block text-sm">
-              Villa
-              <select
-                value={reportVilla}
-                onChange={(event) => setReportVilla(event.target.value)}
-                className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
-              >
-                {villas.map((villa) => (
-                  <option key={villa.id} value={villa.id}>
-                    {villa.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              Nguồn
-              <select
-                value={reportSource}
-                onChange={(event) => setReportSource(event.target.value as ExternalSource)}
-                className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
-              >
-                {["Airbnb", "Booking.com", "Agoda", "Zalo", "Khách quen", "Khác"].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              Ghi chú
-              <input
-                value={reportNote}
-                onChange={(event) => setReportNote(event.target.value)}
-                className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
-              />
-            </label>
-            <Button type="submit" variant="outline" className="w-full" disabled={!ready}>
-              Gửi tin báo
-            </Button>
-          </form>
-
           <Group
             title="Trống"
             count={grouped.open.length}
