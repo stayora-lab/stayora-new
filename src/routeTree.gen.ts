@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as HostRouteImport } from './routes/host'
 import { Route as HostRequestRouteImport } from './routes/host-request'
+import { Route as HostTransferRouteImport } from './routes/host-transfer'
 import { Route as HostingRequestsRouteImport } from './routes/hosting-requests'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OpsRouteImport } from './routes/ops'
@@ -21,6 +22,7 @@ import { Route as AdminHostingRouteImport } from './routes/admin_.hosting'
 import { Route as AdminImagesRouteImport } from './routes/admin_.images'
 import { Route as AdminLinksRouteImport } from './routes/admin_.links'
 import { Route as AdminRolesRouteImport } from './routes/admin_.roles'
+import { Route as AdminTransferRouteImport } from './routes/admin_.transfer'
 import { Route as DevAccountsRouteImport } from './routes/dev.accounts'
 import { Route as RequestsRequestIdRouteImport } from './routes/requests.$requestId'
 import { Route as VillasVillaIdRouteImport } from './routes/villas.$villaId'
@@ -44,6 +46,11 @@ const HostRoute = HostRouteImport.update({
 const HostRequestRoute = HostRequestRouteImport.update({
   id: '/host-request',
   path: '/host-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HostTransferRoute = HostTransferRouteImport.update({
+  id: '/host-transfer',
+  path: '/host-transfer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HostingRequestsRoute = HostingRequestsRouteImport.update({
@@ -86,6 +93,11 @@ const AdminRolesRoute = AdminRolesRouteImport.update({
   path: '/admin/roles',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminTransferRoute = AdminTransferRouteImport.update({
+  id: '/admin_/transfer',
+  path: '/admin/transfer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DevAccountsRoute = DevAccountsRouteImport.update({
   id: '/dev/accounts',
   path: '/dev/accounts',
@@ -112,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
   '/host-request': typeof HostRequestRoute
+  '/host-transfer': typeof HostTransferRoute
   '/hosting-requests': typeof HostingRequestsRoute
   '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
@@ -120,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
   '/admin/roles': typeof AdminRolesRoute
+  '/admin/transfer': typeof AdminTransferRoute
   '/dev/accounts': typeof DevAccountsRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
@@ -130,6 +144,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
   '/host-request': typeof HostRequestRoute
+  '/host-transfer': typeof HostTransferRoute
   '/hosting-requests': typeof HostingRequestsRoute
   '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
@@ -138,6 +153,7 @@ export interface FileRoutesByTo {
   '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
   '/admin/roles': typeof AdminRolesRoute
+  '/admin/transfer': typeof AdminTransferRoute
   '/dev/accounts': typeof DevAccountsRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
@@ -149,6 +165,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
   '/host-request': typeof HostRequestRoute
+  '/host-transfer': typeof HostTransferRoute
   '/hosting-requests': typeof HostingRequestsRoute
   '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
@@ -157,6 +174,7 @@ export interface FileRoutesById {
   '/admin_/images': typeof AdminImagesRoute
   '/admin_/links': typeof AdminLinksRoute
   '/admin_/roles': typeof AdminRolesRoute
+  '/admin_/transfer': typeof AdminTransferRoute
   '/dev/accounts': typeof DevAccountsRoute
   '/requests/$requestId': typeof RequestsRequestIdRoute
   '/villas/$villaId': typeof VillasVillaIdRoute
@@ -169,6 +187,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/host'
     | '/host-request'
+    | '/host-transfer'
     | '/hosting-requests'
     | '/login'
     | '/ops'
@@ -177,6 +196,7 @@ export interface FileRouteTypes {
     | '/admin/images'
     | '/admin/links'
     | '/admin/roles'
+    | '/admin/transfer'
     | '/dev/accounts'
     | '/requests/$requestId'
     | '/villas/$villaId'
@@ -187,6 +207,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/host'
     | '/host-request'
+    | '/host-transfer'
     | '/hosting-requests'
     | '/login'
     | '/ops'
@@ -195,6 +216,7 @@ export interface FileRouteTypes {
     | '/admin/images'
     | '/admin/links'
     | '/admin/roles'
+    | '/admin/transfer'
     | '/dev/accounts'
     | '/requests/$requestId'
     | '/villas/$villaId'
@@ -205,6 +227,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/host'
     | '/host-request'
+    | '/host-transfer'
     | '/hosting-requests'
     | '/login'
     | '/ops'
@@ -213,6 +236,7 @@ export interface FileRouteTypes {
     | '/admin_/images'
     | '/admin_/links'
     | '/admin_/roles'
+    | '/admin_/transfer'
     | '/dev/accounts'
     | '/requests/$requestId'
     | '/villas/$villaId'
@@ -224,6 +248,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   HostRoute: typeof HostRoute
   HostRequestRoute: typeof HostRequestRoute
+  HostTransferRoute: typeof HostTransferRoute
   HostingRequestsRoute: typeof HostingRequestsRoute
   LoginRoute: typeof LoginRoute
   OpsRoute: typeof OpsRoute
@@ -232,6 +257,7 @@ export interface RootRouteChildren {
   AdminImagesRoute: typeof AdminImagesRoute
   AdminLinksRoute: typeof AdminLinksRoute
   AdminRolesRoute: typeof AdminRolesRoute
+  AdminTransferRoute: typeof AdminTransferRoute
   DevAccountsRoute: typeof DevAccountsRoute
   RequestsRequestIdRoute: typeof RequestsRequestIdRoute
   VillasVillaIdRoute: typeof VillasVillaIdRoute
@@ -266,6 +292,13 @@ declare module '@tanstack/react-router' {
       path: '/host-request'
       fullPath: '/host-request'
       preLoaderRoute: typeof HostRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/host-transfer': {
+      id: '/host-transfer'
+      path: '/host-transfer'
+      fullPath: '/host-transfer'
+      preLoaderRoute: typeof HostTransferRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hosting-requests': {
@@ -324,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRolesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/transfer': {
+      id: '/admin_/transfer'
+      path: '/admin/transfer'
+      fullPath: '/admin/transfer'
+      preLoaderRoute: typeof AdminTransferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dev/accounts': {
       id: '/dev/accounts'
       path: '/dev/accounts'
@@ -360,6 +400,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   HostRoute: HostRoute,
   HostRequestRoute: HostRequestRoute,
+  HostTransferRoute: HostTransferRoute,
   HostingRequestsRoute: HostingRequestsRoute,
   LoginRoute: LoginRoute,
   OpsRoute: OpsRoute,
@@ -368,6 +409,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminImagesRoute: AdminImagesRoute,
   AdminLinksRoute: AdminLinksRoute,
   AdminRolesRoute: AdminRolesRoute,
+  AdminTransferRoute: AdminTransferRoute,
   DevAccountsRoute: DevAccountsRoute,
   RequestsRequestIdRoute: RequestsRequestIdRoute,
   VillasVillaIdRoute: VillasVillaIdRoute,

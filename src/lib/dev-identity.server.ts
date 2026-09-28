@@ -311,10 +311,39 @@ export async function accountGrantsForOperator(
   };
 }
 
+export async function findIdentityByEmail(email: string): Promise<DevUser | null> {
+  const user = await userByEmail(email);
+  return user ? { id: user.id, email: user.email, name: user.name } : null;
+}
+
+/**
+ * Live search of dev_identity. Same predicate as the roles page.
+ * Callers enforce who may search. Does not read the fictional roster.
+ */
+export async function searchIdentityDirectory(
+  query: string,
+): Promise<{ status: "short" | "empty" | "ready"; accounts: AccountSearchHit[] }> {
+  const decision = accountSearchQuery(query);
+  if (!decision.ready) return { status: "short", accounts: [] };
+  const sql = await getSql();
+  const rows = await sql<{ id: string; email: string; name: string }>`
+    select id, email, name
+    from dev_identity
+    where strpos(lower(email), ${decision.needle}) > 0
+       or strpos(lower(name), ${decision.needle}) > 0
+    order by email
+    limit ${ACCOUNT_SEARCH_LIMIT}
+  `;
+  const accounts = rows.map((row) => ({ id: row.id, email: row.email, name: row.name }));
+  return { status: accounts.length > 0 ? "ready" : "empty", accounts };
+}
+
 /**
  * Live search of dev_identity. Admin key only — same gate as granting a role.
  * Does not read the fictional roster and does not require DEV_SIGN_IN.
  * Predicate matches matchAccounts: substring of lower(email) or lower(name).
+ * The gate stays in this function, ahead of the table read, so the operator
+ * path cannot be searched without the admin key.
  */
 export async function searchAccountsForOperator(
   query: string,

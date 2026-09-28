@@ -73,7 +73,12 @@ function HostPage() {
   const summary = hostToday(world, today);
   const grantedIds = new Set(
     grants
-      .filter((grant) => grant.status === "active" && grant.role === "HOST" && grant.scopeRef)
+      .filter(
+        (grant) =>
+          grant.status === "active" &&
+          (grant.role === "HOST" || (grant.role as string) === "COHOST") &&
+          grant.scopeRef,
+      )
       .map((grant) => grant.scopeRef as string)
       .filter((id) => villas.some((villa) => villa.id === id)),
   );
@@ -144,6 +149,11 @@ function HostPage() {
               ))}
             </ul>
           ) : null}
+          <p className="mt-4">
+            <Link to="/host-transfer" data-host-transfer-link className="text-sm font-medium text-ink underline">
+              Chuyển giao và co-host
+            </Link>
+          </p>
           <OtherRoleHint current="HOST" />
         </div>
       </div>

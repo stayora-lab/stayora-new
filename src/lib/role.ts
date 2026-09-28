@@ -42,14 +42,18 @@ const VILLA_IDS = new Set(PILOT_SEED.villas.map((villa) => villa.id));
 /** Every active grant of the chosen role. Villa scopes accumulate; they are not truncated. */
 export function workingRoleFromGrants(
   grants: { role: string; scopeRef: string | null; status: "active" | "revoked" }[],
-  role: Persona,
+  role: string,
 ): RoleSession {
-  const scopes = grants
-    .filter((grant) => grant.status === "active" && grant.role === role)
-    .map((grant) => grant.scopeRef);
-  const villaIds = scopes.filter((id): id is string => Boolean(id && VILLA_IDS.has(id)));
-  const legacy = scopes.find((id) => id && !VILLA_IDS.has(id)) ?? undefined;
-  if (role === "HOST") {
+  if (role === "HOST" || role === "COHOST") {
+    const operational = grants.filter(
+      (grant) => grant.status === "active" && (grant.role === "HOST" || grant.role === "COHOST"),
+    );
+    const villaIds = operational
+      .map((grant) => grant.scopeRef)
+      .filter((id): id is string => Boolean(id && VILLA_IDS.has(id)));
+    const legacy = operational.find(
+      (grant) => grant.role === "HOST" && grant.scopeRef && !VILLA_IDS.has(grant.scopeRef),
+    )?.scopeRef;
     const damageResolutionVillaIds = grants
       .filter(
         (grant) =>
@@ -64,11 +68,16 @@ export function workingRoleFromGrants(
       .map((grant) => grant.scopeRef as string);
     return {
       persona: "HOST",
-      hostId: legacy,
+      hostId: legacy ?? undefined,
       villaIds,
       ...(damageResolutionVillaIds.length > 0 ? { damageResolutionVillaIds } : {}),
     };
   }
+  const scopes = grants
+    .filter((grant) => grant.status === "active" && grant.role === role)
+    .map((grant) => grant.scopeRef);
+  const villaIds = scopes.filter((id): id is string => Boolean(id && VILLA_IDS.has(id)));
+  const legacy = scopes.find((id) => id && !VILLA_IDS.has(id)) ?? undefined;
   if (role === "BUTLER") {
     return { persona: "BUTLER", butlerId: legacy ?? (villaIds.length ? "granted" : undefined), villaIds };
   }

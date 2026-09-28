@@ -30,6 +30,7 @@ export function TrialBanner() {
 
 function grantLabel(role: string, scopeRef: string | null): string {
   if (role === "HOST") return `Host · ${scopeRef ?? ""}`;
+  if (role === "COHOST") return `Co-host · ${scopeRef ?? ""}`;
   if (role === "SALE") return `Sale · ${scopeRef ?? ""}`;
   if (role === "BUTLER") return `Butler · ${scopeRef ?? ""}`;
   if (role === "BQL") return "BQL";
@@ -54,7 +55,8 @@ export function ContextSwitch() {
           const next = active.find((grant) => grant.id === event.target.value);
           if (!next) return;
           selectGrant(next.id);
-          void navigate({ to: workspaceFor(next.role) });
+          const role = next.role as string;
+          void navigate({ to: role === "COHOST" ? "/host" : workspaceFor(next.role) });
         }}
         className="h-9 max-w-44 rounded-full bg-paper px-3 text-sm font-medium text-ink shadow-[var(--shadow-border)]"
       >
@@ -146,6 +148,15 @@ export function AccountMenu() {
                 onClick={() => setOpen(false)}
               >
                 Yêu cầu của tôi
+              </Link>
+              <Link
+                to="/host-transfer"
+                role="menuitem"
+                data-host-transfer-link
+                className="flex h-11 items-center rounded-xl px-3 text-sm font-medium"
+                onClick={() => setOpen(false)}
+              >
+                Chuyển giao
               </Link>
               <button
                 type="button"
