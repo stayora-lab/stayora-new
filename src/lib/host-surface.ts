@@ -1,5 +1,7 @@
 import type { StayStatus } from "./domain/types.ts";
 
+export { HOST_ACTIONS_BEYOND_STANDARD_SET } from "./host-capability-config.ts";
+
 /** Follow-up actions belong on a stay that is still ahead or in house. */
 export function stayOffersHostFollowUp(status: StayStatus): boolean {
   return status === "SCHEDULED" || status === "CHECKED_IN";

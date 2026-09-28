@@ -39,6 +39,7 @@ import {
 import {
   AMENITY_LABELS,
   getVilla,
+  isPublishedVilla,
   type AmenityId,
   type Villa,
 } from "@/lib/villas";
@@ -66,7 +67,7 @@ function VillaPage() {
   const { villaId } = Route.useParams();
   const villa = getVilla(villaId);
 
-  if (!villa) {
+  if (!isPublishedVilla(villa)) {
     return (
       <main lang="vi" className="mx-auto max-w-xl px-4 py-24 text-center">
         <h1 className="font-serif text-title">Villa này không còn được niêm yết</h1>

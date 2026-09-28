@@ -352,6 +352,22 @@ export async function grantRole(input: {
     knownVillaIds: PILOT_SEED.villas.map((villa) => villa.id),
     accountId: target.id,
   });
+  if (input.role === "HOST") {
+    const { withTransaction } = await import("./db.ts");
+    const { ensureCataloguePrimaries, grantVillaScopedHost } = await import("./hosting.ts");
+    await withTransaction((sql) => ensureCataloguePrimaries(sql));
+    await withTransaction(async (sql) => {
+      for (const item of planned) {
+        if (!item.scopeRef) continue;
+        await grantVillaScopedHost(sql, {
+          unitId: item.scopeRef,
+          identityId: target.id,
+          grantedBy: "ADMIN_KEY",
+        });
+      }
+    });
+    return;
+  }
   const sql = await getSql();
   for (const item of planned) {
     await applyRoleGrant(
@@ -406,6 +422,38 @@ export async function grantRole(input: {
 export async function revokeRole(grantId: string, key?: string | null): Promise<void> {
   assertOperator(key);
   const sql = await getSql();
+  const rows = await sql<{
+    id: string;
+    user_id: string;
+    role: string;
+    scope_ref: string | null;
+  }>`
+    select id, user_id, role, scope_ref from role_grants where id = ${grantId}
+  `;
+  const grant = rows[0];
+  if (!grant) return;
+  const villaScopedHost =
+    grant.role === "HOST" && Boolean(grant.scope_ref) && PILOT_SEED.villas.some((villa) => villa.id === grant.scope_ref);
+  if (villaScopedHost && grant.scope_ref) {
+    const { withTransaction } = await import("./db.ts");
+    const { activePrimaryFor, endHostingRelationship } = await import("./hosting.ts");
+    await withTransaction(async (tx) => {
+      const primary = await activePrimaryFor(tx, grant.scope_ref as string);
+      if (primary && primary.identityId === grant.user_id) {
+        await endHostingRelationship(tx, {
+          relationshipId: primary.id,
+          endedBy: "ADMIN_KEY",
+        });
+        return;
+      }
+      await tx`
+        update role_grants
+        set status = 'revoked', granted_by = 'ADMIN_KEY', granted_at = now()
+        where id = ${grantId}
+      `;
+    });
+    return;
+  }
   await sql`
     update role_grants
     set status = 'revoked', granted_by = 'ADMIN_KEY', granted_at = now()

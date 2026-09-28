@@ -6,6 +6,8 @@
 
 export const GRANT_ROLES = [
   { id: "HOST", label: "Chủ nhà" },
+  // HOST_DAMAGE is the prototype grant for the spec phrase
+  // "villa-scoped Host damage-resolution authority (ADR-P073)". Do not rename it.
   { id: "HOST_DAMAGE", label: "Chủ nhà — gỡ chặn hư hại" },
   { id: "SALE", label: "Sale" },
   { id: "BUTLER", label: "Quản gia" },

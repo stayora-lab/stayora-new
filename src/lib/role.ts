@@ -54,6 +54,9 @@ export function workingRoleFromGrants(
       .filter(
         (grant) =>
           grant.status === "active" &&
+          // HOST_DAMAGE is the prototype grant for the spec phrase
+          // "villa-scoped Host damage-resolution authority (ADR-P073)".
+          // Do not rename this grant. It is not part of the standard HOST set.
           grant.role === "HOST_DAMAGE" &&
           grant.scopeRef &&
           VILLA_IDS.has(grant.scopeRef),

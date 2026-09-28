@@ -56,6 +56,7 @@ export interface Sql {
  */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
+  __pgPool__?: import("pg").Pool;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
 };
@@ -109,6 +110,7 @@ function createNeonSql(): Promise<Sql> {
       );
     }
     const pool = new Pool({ connectionString: databaseUrl });
+    globalRef.__pgPool__ = pool;
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
@@ -207,6 +209,46 @@ export function getSql(): Promise<Sql> {
     throw err;
   });
   return sqlPromise;
+}
+
+/**
+ * One database transaction on the active backend.
+ * PGLite uses its transaction helper. Neon checks out a single pooled client.
+ */
+export async function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
+  await getSql();
+  if (dbSource === "pglite") {
+    const pg = await getPglite();
+    return pg.transaction(async (tx) => {
+      const sql = toSql(async <TRow>(text: string, params: unknown[]) => {
+        const result = await tx.query<TRow>(text, params);
+        return result.rows;
+      });
+      return fn(sql);
+    });
+  }
+  const pool = globalRef.__pgPool__;
+  if (!pool) throw new Error("DATABASE_URL is set but the Postgres pool is not ready");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const sql = toSql(async <TRow>(text: string, params: unknown[]) => {
+      const res = await client.query(text, params);
+      return res.rows as TRow[];
+    });
+    const result = await fn(sql);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Keep the original error when the connection is already dead.
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

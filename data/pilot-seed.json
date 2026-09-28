@@ -278,6 +278,45 @@
       "nightlyPrice": 5800000,
       "setting": "garden",
       "photos": []
+    },
+    {
+      "id": "t13",
+      "code": "T13",
+      "name": "Villa T13",
+      "hostId": "",
+      "published": false,
+      "bedrooms": 2,
+      "sleeps": 4,
+      "nightlyPrice": 6100000,
+      "setting": "garden",
+      "photos": [],
+      "note": "Catalogue unit with no host. Not published."
+    },
+    {
+      "id": "t14",
+      "code": "T14",
+      "name": "Villa T14",
+      "hostId": "",
+      "published": false,
+      "bedrooms": 3,
+      "sleeps": 6,
+      "nightlyPrice": 8700000,
+      "setting": "hillside",
+      "photos": [],
+      "note": "Catalogue unit with no host. Not published."
+    },
+    {
+      "id": "t15",
+      "code": "T15",
+      "name": "Villa T15",
+      "hostId": "",
+      "published": false,
+      "bedrooms": 2,
+      "sleeps": 4,
+      "nightlyPrice": 5400000,
+      "setting": "beachfront",
+      "photos": [],
+      "note": "Catalogue unit with no host. Not published."
     }
   ],
   "existingStays": [

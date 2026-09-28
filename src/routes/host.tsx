@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { RoleGate } from "@/components/site-chrome";
@@ -125,7 +125,7 @@ function HostPage() {
   }
 
   return (
-    <RoleGate allow={["HOST"]}>
+    <RoleGate allow={["HOST"]} denied={<HostRequestCta />}>
     <main lang="vi" className="pb-20">
       <div className="border-b border-border bg-cream">
         <div className="mx-auto max-w-lg px-4 pt-6 pb-4 sm:px-6">
@@ -134,6 +134,16 @@ function HostPage() {
           <p className="mt-2 text-sm text-muted">
             Chỉ Host chấp nhận. Thanh toán do Stayora vận hành ghi nhận.
           </p>
+          {mine.length > 0 ? (
+            <ul data-host-villas className="mt-4 space-y-1 text-sm text-ink-soft">
+              {mine.map((villa) => (
+                <li key={villa.id}>
+                  {villa.name}
+                  {villa.published ? "" : " · chưa niêm yết"}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <OtherRoleHint current="HOST" />
         </div>
       </div>
@@ -425,6 +435,20 @@ function HostPage() {
       ) : null}
     </main>
     </RoleGate>
+  );
+}
+
+function HostRequestCta() {
+  return (
+    <p className="mt-6">
+      <Link
+        to="/host-request"
+        data-host-cta
+        className="inline-flex h-11 items-center rounded-full bg-ink px-5 text-sm font-medium text-cream"
+      >
+        Trở thành chủ nhà
+      </Link>
+    </p>
   );
 }
 

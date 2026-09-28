@@ -84,6 +84,12 @@ export function AccountChip() {
   return (
     <div className="hidden items-center gap-2 md:flex">
       <span className="max-w-28 truncate text-sm text-ink-soft">{identity.name}</span>
+      <Link
+        to="/host-request"
+        className="inline-flex h-9 items-center rounded-full px-3 text-sm font-medium text-ink hover:bg-cream-deep"
+      >
+        Trở thành chủ nhà
+      </Link>
       <button
         type="button"
         onClick={() => void signOutIdentity()}
@@ -124,6 +130,23 @@ export function AccountMenu() {
             <>
               <p className="px-3 pt-2 text-sm font-medium">{identity.name}</p>
               <p className="px-3 pb-2 text-xs text-muted">{identity.email}</p>
+              <Link
+                to="/host-request"
+                role="menuitem"
+                data-host-request-link
+                className="flex h-11 items-center rounded-xl px-3 text-sm font-medium"
+                onClick={() => setOpen(false)}
+              >
+                Trở thành chủ nhà
+              </Link>
+              <Link
+                to="/hosting-requests"
+                role="menuitem"
+                className="flex h-11 items-center rounded-xl px-3 text-sm font-medium"
+                onClick={() => setOpen(false)}
+              >
+                Yêu cầu của tôi
+              </Link>
               <button
                 type="button"
                 role="menuitem"
@@ -407,7 +430,15 @@ export function AdminAccess({
   return children;
 }
 
-export function RoleGate({ allow, children }: { allow: Persona[]; children: ReactNode }) {
+export function RoleGate({
+  allow,
+  children,
+  denied,
+}: {
+  allow: Persona[];
+  children: ReactNode;
+  denied?: ReactNode;
+}) {
   const hydrated = useBookingStore((state) => state.hydrated);
   const sessionReady = useBookingStore((state) => state.sessionReady);
   const persona = useBookingStore((state) => state.persona);
@@ -426,6 +457,7 @@ export function RoleGate({ allow, children }: { allow: Persona[]; children: Reac
         <p className="mt-3 text-ink-soft">
           Quyền vào không gian này hiện do Stayora cấp.
         </p>
+        {denied}
       </main>
     );
   }
@@ -436,6 +468,7 @@ export function RoleGate({ allow, children }: { allow: Persona[]; children: Reac
         <p className="mt-3 text-ink-soft">
           Trang này không mở bằng vai đang lưu trên thiết bị. Dùng link được gửi cho bạn.
         </p>
+        {denied}
       </main>
     );
   }

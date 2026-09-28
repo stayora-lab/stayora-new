@@ -41,6 +41,8 @@ export type Villa = {
   amenities: AmenityId[];
   sleeping: { title: string; detail: string }[];
   images: StayImage[];
+  /** False: in the catalogue, absent from guest discovery until published. */
+  published: boolean;
 };
 
 export { DESTINATION, DESTINATION_NAME };
@@ -57,7 +59,7 @@ function villaFromSeed(row: PilotVilla): Villa {
     id: row.id,
     name: row.name,
     hostId: row.hostId,
-    ownerIds: row.ownerIds?.length ? row.ownerIds : [row.hostId],
+    ownerIds: row.ownerIds?.length ? row.ownerIds : row.hostId ? [row.hostId] : [],
     relationship: row.relationship ?? "own",
     tagline: `${row.bedrooms} phòng ngủ · ngủ ${row.sleeps}`,
     summary: `${row.name} · ${row.bedrooms} phòng ngủ, ${row.sleeps} khách.`,
@@ -75,10 +77,25 @@ function villaFromSeed(row: PilotVilla): Villa {
       detail: "Giường lớn",
     })),
     images: photosForVilla(row.id, row.name),
+    published: row.published !== false,
   };
 }
 
 export const villas: Villa[] = PILOT_SEED.villas.map(villaFromSeed);
+
+/**
+ * Guest discovery, the home filters, Sale search and the direct villa URL
+ * use this list. A unit with no host stays in `villas` but is not published.
+ * PROTOTYPE ASSUMPTION: `published: false` on the seed row is the representation.
+ * Approval does not publish, and publication is out of scope.
+ */
+export function isPublishedVilla(villa: Villa | undefined): villa is Villa {
+  return Boolean(villa?.published);
+}
+
+export function publishedVillas(list: readonly Villa[] = villas): Villa[] {
+  return list.filter((villa) => villa.published);
+}
 export const hosts = PILOT_SEED.hosts;
 export const salesPeople = PILOT_SEED.sales;
 export const butlerPeople = PILOT_SEED.butlers;

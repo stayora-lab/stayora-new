@@ -26,6 +26,8 @@ export type PilotVilla = {
   hostId: string;
   ownerIds?: string[];
   relationship?: "own" | "Thuê lại";
+  /** Absent means published. False: represented in the catalogue, not listed. */
+  published?: boolean;
   bedrooms: number;
   sleeps: number;
   nightlyPrice: number;
@@ -99,11 +101,17 @@ export function assertPilotSeed(seed: PilotSeed, destinationName = DESTINATION_N
   }
   const hostIds = new Set(seed.hosts.map((person) => person.id));
   for (const villa of seed.villas) {
-    if (!hostIds.has(villa.hostId)) {
-      throw new Error(`Villa ${villa.id} references unknown host ${villa.hostId}`);
-    }
     if (!/^t\d{2}$/i.test(villa.id) && !/^T\d{2}$/.test(villa.code ?? "")) {
       throw new Error(`Villa ${villa.id} must use test code T01…T12`);
+    }
+    if (villa.published === false) {
+      if (villa.hostId.trim()) {
+        throw new Error(`Villa ${villa.id} is unpublished and must not name a host`);
+      }
+      continue;
+    }
+    if (!hostIds.has(villa.hostId)) {
+      throw new Error(`Villa ${villa.id} references unknown host ${villa.hostId}`);
     }
   }
   for (const value of identityStrings(seed)) {

@@ -20,7 +20,7 @@ import {
   DEFAULT_GUESTS,
   parseStaySearch,
 } from "@/lib/stay";
-import { type VillaSetting, villas } from "@/lib/villas";
+import { type VillaSetting, publishedVillas } from "@/lib/villas";
 
 export const Route = createFileRoute("/")({
   validateSearch: parseStaySearch,
@@ -55,7 +55,7 @@ function MarketplacePage() {
   }
 
   const visible = useMemo(() => {
-    return villas.filter((villa) => {
+    return publishedVillas().filter((villa) => {
       if (filter === "family") return villa.sleeps >= 6;
       if (filter === "all") return true;
       return villa.setting === filter;

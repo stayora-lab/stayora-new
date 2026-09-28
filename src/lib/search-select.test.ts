@@ -225,7 +225,8 @@ describe("searchable picker", () => {
 
   it("omits a destination heading when the seed has only Oceanami", () => {
     const live = villaPickerItems(villas, DESTINATION_NAME);
-    assert.equal(live.length, 12);
+    assert.equal(live.length, villas.length);
+    assert.equal(villas.filter((villa) => villa.published).length, 12);
     assert.equal(DESTINATION_NAME, "Oceanami");
     assert.equal(
       live.every((item) => item.group === "Oceanami"),

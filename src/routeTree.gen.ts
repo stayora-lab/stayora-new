@@ -12,9 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as HostRouteImport } from './routes/host'
+import { Route as HostRequestRouteImport } from './routes/host-request'
+import { Route as HostingRequestsRouteImport } from './routes/hosting-requests'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OpsRouteImport } from './routes/ops'
 import { Route as SaleRouteImport } from './routes/sale'
+import { Route as AdminHostingRouteImport } from './routes/admin_.hosting'
 import { Route as AdminImagesRouteImport } from './routes/admin_.images'
 import { Route as AdminLinksRouteImport } from './routes/admin_.links'
 import { Route as AdminRolesRouteImport } from './routes/admin_.roles'
@@ -38,6 +41,16 @@ const HostRoute = HostRouteImport.update({
   path: '/host',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HostRequestRoute = HostRequestRouteImport.update({
+  id: '/host-request',
+  path: '/host-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HostingRequestsRoute = HostingRequestsRouteImport.update({
+  id: '/hosting-requests',
+  path: '/hosting-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -51,6 +64,11 @@ const OpsRoute = OpsRouteImport.update({
 const SaleRoute = SaleRouteImport.update({
   id: '/sale',
   path: '/sale',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminHostingRoute = AdminHostingRouteImport.update({
+  id: '/admin_/hosting',
+  path: '/admin/hosting',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminImagesRoute = AdminImagesRouteImport.update({
@@ -93,9 +111,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
+  '/host-request': typeof HostRequestRoute
+  '/hosting-requests': typeof HostingRequestsRoute
   '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
+  '/admin/hosting': typeof AdminHostingRoute
   '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -108,9 +129,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
+  '/host-request': typeof HostRequestRoute
+  '/hosting-requests': typeof HostingRequestsRoute
   '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
+  '/admin/hosting': typeof AdminHostingRoute
   '/admin/images': typeof AdminImagesRoute
   '/admin/links': typeof AdminLinksRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -124,9 +148,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/host': typeof HostRoute
+  '/host-request': typeof HostRequestRoute
+  '/hosting-requests': typeof HostingRequestsRoute
   '/login': typeof LoginRoute
   '/ops': typeof OpsRoute
   '/sale': typeof SaleRoute
+  '/admin_/hosting': typeof AdminHostingRoute
   '/admin_/images': typeof AdminImagesRoute
   '/admin_/links': typeof AdminLinksRoute
   '/admin_/roles': typeof AdminRolesRoute
@@ -141,9 +168,12 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/host'
+    | '/host-request'
+    | '/hosting-requests'
     | '/login'
     | '/ops'
     | '/sale'
+    | '/admin/hosting'
     | '/admin/images'
     | '/admin/links'
     | '/admin/roles'
@@ -156,9 +186,12 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/host'
+    | '/host-request'
+    | '/hosting-requests'
     | '/login'
     | '/ops'
     | '/sale'
+    | '/admin/hosting'
     | '/admin/images'
     | '/admin/links'
     | '/admin/roles'
@@ -171,9 +204,12 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/host'
+    | '/host-request'
+    | '/hosting-requests'
     | '/login'
     | '/ops'
     | '/sale'
+    | '/admin_/hosting'
     | '/admin_/images'
     | '/admin_/links'
     | '/admin_/roles'
@@ -187,9 +223,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   HostRoute: typeof HostRoute
+  HostRequestRoute: typeof HostRequestRoute
+  HostingRequestsRoute: typeof HostingRequestsRoute
   LoginRoute: typeof LoginRoute
   OpsRoute: typeof OpsRoute
   SaleRoute: typeof SaleRoute
+  AdminHostingRoute: typeof AdminHostingRoute
   AdminImagesRoute: typeof AdminImagesRoute
   AdminLinksRoute: typeof AdminLinksRoute
   AdminRolesRoute: typeof AdminRolesRoute
@@ -222,6 +261,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/host-request': {
+      id: '/host-request'
+      path: '/host-request'
+      fullPath: '/host-request'
+      preLoaderRoute: typeof HostRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hosting-requests': {
+      id: '/hosting-requests'
+      path: '/hosting-requests'
+      fullPath: '/hosting-requests'
+      preLoaderRoute: typeof HostingRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -241,6 +294,13 @@ declare module '@tanstack/react-router' {
       path: '/sale'
       fullPath: '/sale'
       preLoaderRoute: typeof SaleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/hosting': {
+      id: '/admin_/hosting'
+      path: '/admin/hosting'
+      fullPath: '/admin/hosting'
+      preLoaderRoute: typeof AdminHostingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin_/images': {
@@ -299,9 +359,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   HostRoute: HostRoute,
+  HostRequestRoute: HostRequestRoute,
+  HostingRequestsRoute: HostingRequestsRoute,
   LoginRoute: LoginRoute,
   OpsRoute: OpsRoute,
   SaleRoute: SaleRoute,
+  AdminHostingRoute: AdminHostingRoute,
   AdminImagesRoute: AdminImagesRoute,
   AdminLinksRoute: AdminLinksRoute,
   AdminRolesRoute: AdminRolesRoute,

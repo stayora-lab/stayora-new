@@ -132,6 +132,10 @@ describe("image provenance", () => {
       "gym-04.jpg",
     );
     for (const villa of villas) {
+      if (!villa.published) {
+        assert.equal(villa.images.length, 0, villa.id);
+        continue;
+      }
       assert.ok(villa.images.length >= 1, villa.id);
       assert.equal(villa.images[0]?.illustration, true);
     }

@@ -23,7 +23,7 @@ import {
 } from "@/lib/domain";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd, isIsoDate, nightsBetween } from "@/lib/stay";
-import { villas, type Villa } from "@/lib/villas";
+import { publishedVillas, villas, type Villa } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 
 export const Route = createFileRoute("/sale")({
@@ -59,18 +59,19 @@ function SalePage() {
   const nights = ready ? nightsBetween(search.checkIn, search.checkOut) : 0;
   const evaluatedAt = world.now;
 
+  const catalogue = publishedVillas();
   const grouped = useMemo(() => {
     if (!ready) {
-      return { open: [] as Villa[], closed: villas };
+      return { open: [] as Villa[], closed: catalogue };
     }
     const open: Villa[] = [];
     const closed: Villa[] = [];
-    for (const villa of villas) {
+    for (const villa of catalogue) {
       if (isAvailable(world, villa.id, search.checkIn, search.checkOut)) open.push(villa);
       else closed.push(villa);
     }
     return { open, closed };
-  }, [world, search.checkIn, search.checkOut, ready]);
+  }, [catalogue, world, search.checkIn, search.checkOut, ready]);
 
   const myRequests = world.requests.filter((item) => item.saleId === saleId);
   const myCommissions = world.commissions.filter((item) => item.saleId === saleId);

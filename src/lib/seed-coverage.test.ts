@@ -21,7 +21,8 @@ describe("fictional test dataset", () => {
     const today = todayIct(NOW);
     const status = (id: string) => world.requests.find((item) => item.id === id)?.status;
 
-    assert.equal(PILOT_SEED.villas.length, 12);
+    assert.equal(PILOT_SEED.villas.filter((villa) => villa.published !== false).length, 12);
+    assert.equal(PILOT_SEED.villas.filter((villa) => villa.published === false).length, 3);
     assert.ok(PILOT_SEED.people?.some((person) => person.id === "an"));
     assert.ok(
       PILOT_SEED.grants?.filter((grant) => grant.personId === "an").map((grant) => grant.role),

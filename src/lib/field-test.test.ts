@@ -109,7 +109,11 @@ describe("pilot seed hygiene", () => {
     assert.ok(PILOT_SEED.hosts.some((person) => person.id === "host-co"));
     assert.ok(PILOT_SEED.sales.some((person) => person.id === "sale-an"));
     assert.ok(PILOT_SEED.sales.some((person) => person.id === "sale-binh"));
-    assert.equal(PILOT_SEED.villas.length, 12);
+    assert.equal(PILOT_SEED.villas.filter((villa) => villa.published !== false).length, 12);
+    assert.deepEqual(
+      PILOT_SEED.villas.filter((villa) => villa.published === false).map((villa) => villa.id),
+      ["t13", "t14", "t15"],
+    );
     assert.ok(PILOT_SEED.villas.every((villa) => /^t\d{2}$/.test(villa.id)));
     const an = PILOT_SEED.villas.filter((villa) => villa.hostId === "host-an");
     assert.ok(an.length >= 2);
