@@ -398,7 +398,8 @@ describe("account lookup is not a suggestion", () => {
     assert.match(page, /void showAccount\(hit\.email\)/);
     assert.match(page, /lookupAccountGrants/);
     assert.match(page, /Xem vai trò/);
-    assert.match(page, /Đang chờ Stayora cấp vai trò/);
+    assert.match(page, /Tài khoản chưa có vai trò/);
+    assert.equal(page.includes("Đang chờ Stayora cấp vai trò"), false);
     assert.match(page, /Đang giữ vai trò/);
     assert.equal(page.includes("Gợi ý từ danh sách thử"), false);
     assert.equal(page.includes("accountPickerItems"), false);

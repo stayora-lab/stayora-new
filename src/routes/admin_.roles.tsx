@@ -336,7 +336,8 @@ function RolesPage() {
           {devDirectory ? (
             <>
               <Roster
-                title="Đang chờ Stayora cấp vai trò"
+                title="Tài khoản chưa có vai trò"
+                tone="waiting"
                 rows={waiting}
                 highlightedId={highlightedId}
                 onRevoke={(grantId) => {
@@ -349,6 +350,7 @@ function RolesPage() {
               />
               <Roster
                 title="Đang giữ vai trò"
+                tone="holding"
                 rows={holding}
                 highlightedId={highlightedId}
                 onRevoke={(grantId) => {
@@ -376,14 +378,15 @@ function Roster({
   rows,
   highlightedId,
   onRevoke,
+  tone,
 }: {
   title: string;
   rows: DirectoryRow[];
   highlightedId: string | null;
   onRevoke: (grantId: string) => void;
+  tone: "waiting" | "holding";
 }) {
   if (rows.length === 0) return null;
-  const waiting = title.startsWith("Đang chờ");
   return (
     <section className="mt-8">
       <h2 className="text-xs font-semibold tracking-wider text-muted uppercase">{title}</h2>
@@ -393,7 +396,7 @@ function Roster({
             <AccountGrants
               user={row.user}
               grants={row.grants}
-              tone={waiting ? "waiting" : "holding"}
+              tone={tone}
               highlighted={row.user.id === highlightedId}
               onRevoke={onRevoke}
             />

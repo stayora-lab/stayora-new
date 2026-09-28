@@ -39,4 +39,20 @@ describe("mobile header", () => {
     assert.match(stampBlock, /hidden min-w-0 md:block/);
     assert.match(page, /Bản thử nghiệm — không có giao dịch thật\./);
   });
+
+  it("treats a signed-in account with no role as a guest", () => {
+    const page = source();
+    const roles = readFileSync(new URL("../routes/admin_.roles.tsx", import.meta.url), "utf8");
+    assert.equal(page.includes("Đang chờ"), false);
+    assert.equal(page.includes("chờ vai"), false);
+    assert.equal(page.includes("Đăng ký làm chủ nhà"), false);
+    assert.match(page, /\{identity\.name\}/);
+    assert.match(page, /\{identity\.email\}/);
+    assert.match(page, />\s*Đăng xuất\s*</);
+    assert.match(page, /Bạn chưa có không gian này\./);
+    assert.match(page, /Quyền vào không gian này hiện do Stayora cấp\./);
+    assert.match(roles, /Tài khoản chưa có vai trò/);
+    assert.equal(roles.includes("Đang chờ Stayora cấp vai trò"), false);
+    assert.equal(roles.includes("Đăng ký làm chủ nhà"), false);
+  });
 });

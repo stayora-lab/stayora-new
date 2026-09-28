@@ -70,9 +70,7 @@ export function ContextSwitch() {
 
 export function AccountChip() {
   const identity = useBookingStore((state) => state.identity);
-  const grants = useBookingStore((state) => state.grants);
   const signOutIdentity = useBookingStore((state) => state.signOutIdentity);
-  const active = grants.filter((grant) => grant.status === "active" && !isCapabilityGrant(grant.role));
   if (!identity) {
     return (
       <Link
@@ -85,16 +83,13 @@ export function AccountChip() {
   }
   return (
     <div className="hidden items-center gap-2 md:flex">
-      {active.length === 0 ? (
-        <span className="text-xs text-muted">Đang chờ vai trò</span>
-      ) : null}
       <span className="max-w-28 truncate text-sm text-ink-soft">{identity.name}</span>
       <button
         type="button"
         onClick={() => void signOutIdentity()}
         className="inline-flex h-9 items-center rounded-full px-3 text-sm font-medium text-ink hover:bg-cream-deep"
       >
-        Thoát
+        Đăng xuất
       </button>
     </div>
   );
@@ -103,10 +98,8 @@ export function AccountChip() {
 /** One icon on the mobile row. The words live in the menu, not in the bar. */
 export function AccountMenu() {
   const identity = useBookingStore((state) => state.identity);
-  const grants = useBookingStore((state) => state.grants);
   const signOutIdentity = useBookingStore((state) => state.signOutIdentity);
   const [open, setOpen] = useState(false);
-  const active = grants.filter((grant) => grant.status === "active" && !isCapabilityGrant(grant.role));
 
   return (
     <div className="relative md:hidden">
@@ -125,21 +118,19 @@ export function AccountMenu() {
         <div
           role="menu"
           data-account-panel
-          className="absolute right-0 z-40 mt-2 w-52 rounded-2xl bg-paper p-2 shadow-[var(--shadow-lift)]"
+          className="absolute right-0 z-40 mt-2 w-56 rounded-2xl bg-paper p-2 shadow-[var(--shadow-lift)]"
         >
           {identity ? (
             <>
-              <p className="px-3 py-2 text-sm font-medium">{identity.name}</p>
-              {active.length === 0 ? (
-                <p className="px-3 pb-2 text-xs text-muted">Đang chờ vai trò</p>
-              ) : null}
+              <p className="px-3 pt-2 text-sm font-medium">{identity.name}</p>
+              <p className="px-3 pb-2 text-xs text-muted">{identity.email}</p>
               <button
                 type="button"
                 role="menuitem"
                 className="flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-medium"
                 onClick={() => void signOutIdentity()}
               >
-                Thoát
+                Đăng xuất
               </button>
             </>
           ) : (
@@ -209,10 +200,7 @@ function DestinationChip() {
 
 export function SiteHeader() {
   const hydrated = useBookingStore((state) => state.hydrated);
-  const sessionReady = useBookingStore((state) => state.sessionReady);
   const persona = useBookingStore((state) => state.persona);
-  const identity = useBookingStore((state) => state.identity);
-  const grants = useBookingStore((state) => state.grants);
   const world = useBookingStore((state) => state.world);
   const fetchedAt = useBookingStore((state) => state.fetchedAt);
   const latest = world.requests.find((item) => item.source === "GUEST");
@@ -226,17 +214,10 @@ export function SiteHeader() {
     path.startsWith("/host") ||
     path.startsWith("/admin");
   const stamp = fetchedAt ? format(parseISO(fetchedAt), "HH:mm:ss") : null;
-  const waiting =
-    sessionReady && identity && !grants.some((grant) => grant.status === "active");
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-cream/90 backdrop-blur-md">
       <TrialBanner />
-      {waiting ? (
-        <p className="bg-cream-deep px-3 py-2 text-center text-sm text-ink">
-          Đang chờ Stayora cấp vai trò
-        </p>
-      ) : null}
       <div
         data-header-row
         className="mx-auto flex h-14 max-w-6xl flex-nowrap items-center justify-between gap-2 px-4 md:h-16 md:gap-3 md:px-6"
@@ -441,9 +422,9 @@ export function RoleGate({ allow, children }: { allow: Persona[]; children: Reac
   if (identity && active.length === 0) {
     return (
       <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">Đang chờ Stayora cấp vai trò</h1>
+        <h1 className="font-serif text-title">Bạn chưa có không gian này.</h1>
         <p className="mt-3 text-ink-soft">
-          Tài khoản đã được tạo. Stayora vận hành sẽ cấp vai trò — bạn không tự nhận vai.
+          Quyền vào không gian này hiện do Stayora cấp.
         </p>
       </main>
     );
