@@ -35,7 +35,13 @@ async function database(): Promise<PGlite> {
   const pg = new PGlite();
   await pg.waitReady;
   const root = new URL("../../migrations/", import.meta.url);
-  for (const name of ["0003_role_grants.sql", "0005_hosting_relationship.sql", "0006_primary_transfer.sql"]) {
+  for (const name of [
+    "0003_role_grants.sql",
+    "0004_dev_identity.sql",
+    "0005_hosting_relationship.sql",
+    "0006_primary_transfer.sql",
+    "0007_payout_recipient_instruction.sql",
+  ]) {
     await pg.exec(readFileSync(new URL(name, root), "utf8"));
   }
   return pg;

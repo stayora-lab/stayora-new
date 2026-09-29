@@ -17,12 +17,15 @@ import {
   submitCohostRemove,
   submitDeclineDesignation,
   submitDesignation,
+  submitPayoutChoice,
 } from "@/lib/hosting-transfer-api";
+import { PAYOUT_MANUAL_NOTE, type PayoutChoice } from "@/lib/hosting-payout-model";
 import {
   cohostRemovalMatters,
   type DeskCohost,
   type DeskUnit,
   type IncomingDesignation,
+  type PayoutDeskView,
 } from "@/lib/hosting-transfer-model";
 import { useBookingStore } from "@/lib/store";
 import { getVilla } from "@/lib/villas";
@@ -97,6 +100,7 @@ function TransferPage() {
             <IncomingCard
               key={item.id}
               item={item}
+              bookings={world.bookings}
               matters={cohostRemovalMatters({
                 unitId: item.unitId,
                 today,
@@ -121,6 +125,12 @@ function TransferPage() {
               today={today}
               requests={world.requests}
               stays={world.stays}
+              bookings={world.bookings}
+              onChoose={(choice) => {
+                const designationId = unit.pending?.id;
+                if (!designationId) return;
+                void run(() => submitPayoutChoice({ data: { designationId, choice } }));
+              }}
               onDesignate={(person) =>
                 void run(() =>
                   submitDesignation({
@@ -162,11 +172,13 @@ function TransferPage() {
 function IncomingCard({
   item,
   matters,
+  bookings,
   onAccept,
   onDecline,
 }: {
   item: IncomingDesignation;
   matters: { text: string }[];
+  bookings: readonly { id: string; guestName: string; reference: string; checkIn: string }[];
   onAccept: (removeIds: string[]) => void;
   onDecline: () => void;
 }) {
@@ -179,6 +191,7 @@ function IncomingCard({
       <p className="mt-2 text-sm text-ink-soft">
         Chấp nhận một lần. Stayora không duyệt lại. Không chọn thì mọi co-host được giữ.
       </p>
+      <PayoutReadOnly payout={item.payout} bookings={bookings} />
       {item.cohosts.length > 0 ? (
         <ul className="mt-3 space-y-2">
           {item.cohosts.map((cohost) => {
@@ -240,10 +253,12 @@ function PrimaryUnit({
   today,
   requests,
   stays,
+  bookings,
   onDesignate,
   onCancel,
   onInvite,
   onRemove,
+  onChoose,
 }: {
   unit: DeskUnit;
   today: string;
@@ -256,10 +271,12 @@ function PrimaryUnit({
     checkOut: string;
     assignedButlerId?: string | null;
   }[];
+  bookings: readonly { id: string; guestName: string; reference: string; checkIn: string }[];
   onDesignate: (person: Person) => void;
   onCancel: (designationId: string) => void;
   onInvite: (person: Person) => void;
   onRemove: (identityId: string) => void;
+  onChoose: (choice: PayoutChoice) => void;
 }) {
   const villa = getVilla(unit.unitId);
   const [warningFor, setWarningFor] = useState<string | null>(null);
@@ -280,14 +297,18 @@ function PrimaryUnit({
           >
             Hủy đề cử
           </Button>
+          <PayoutChoicePanel payout={unit.payout} onChoose={onChoose} />
         </div>
       ) : (
-        <PersonForm
-          legend="Người kế nhiệm"
-          action="Đề cử người kế nhiệm"
-          marker="data-designate-form"
-          onSubmit={onDesignate}
-        />
+        <>
+          <PayoutRecorded payout={unit.payout} bookings={bookings} />
+          <PersonForm
+            legend="Người kế nhiệm"
+            action="Đề cử người kế nhiệm"
+            marker="data-designate-form"
+            onSubmit={onDesignate}
+          />
+        </>
       )}
       <h3 className="mt-6 text-sm font-medium">Co-host</h3>
       {unit.cohosts.length === 0 ? <p className="mt-2 text-sm text-muted">Chưa có co-host.</p> : null}
@@ -305,6 +326,163 @@ function PrimaryUnit({
       </ul>
       <PersonForm legend="Mời co-host" action="Mời co-host" marker="data-cohost-invite" onSubmit={onInvite} />
     </article>
+  );
+}
+
+function bookingLabel(
+  bookingId: string,
+  bookings: readonly { id: string; guestName: string; reference: string; checkIn: string }[],
+): string {
+  const found = bookings.find((item) => item.id === bookingId);
+  if (!found) return bookingId;
+  return `${found.guestName} · ${found.reference} · nhận ${found.checkIn}`;
+}
+
+function choiceSentence(choice: PayoutChoice | null): string {
+  if (choice === "RETAIN") return "Người chuyển chọn giữ cả nhóm cho họ. Bạn không sửa được.";
+  if (choice === "FOLLOW_INCOMING") {
+    return "Người chuyển chọn theo chủ nhà tại lúc nhận phòng. Không khóa vào tên bạn.";
+  }
+  return "Người chuyển chưa chọn. Mặc định theo chủ nhà tại lúc nhận phòng.";
+}
+
+function PayoutReadOnly({
+  payout,
+  bookings,
+}: {
+  payout: PayoutDeskView;
+  bookings: readonly { id: string; guestName: string; reference: string; checkIn: string }[];
+}) {
+  const attributable = payout.lines.filter((line) => line.kind === "attributable");
+  return (
+    <section data-payout-readonly className="mt-4 rounded-xl bg-cream p-3 text-sm">
+      <p data-payout-manual>{PAYOUT_MANUAL_NOTE}</p>
+      <p className="mt-2">{choiceSentence(payout.pendingChoice)}</p>
+      {payout.recorded.length > 0 ? (
+        <ul className="mt-2 space-y-1" data-payout-locked>
+          {payout.recorded.map((row) => (
+            <li key={row.bookingId}>
+              {bookingLabel(row.bookingId, bookings)} — đã giữ cho {row.retainedName || row.retainedIdentityId}. Không
+              sửa được.
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-muted">Chưa có đặt phòng nào được giữ từ lần chuyển trước.</p>
+      )}
+      {payout.pendingChoice === "RETAIN" && attributable.length > 0 ? (
+        <ul className="mt-2 space-y-1" data-payout-attributable>
+          {attributable.map((line) => (
+            <li key={line.bookingId}>
+              Sẽ giữ cho người chuyển: {line.guestName} · {line.reference} · nhận {line.checkIn}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function PayoutRecorded({
+  payout,
+  bookings,
+}: {
+  payout: PayoutDeskView;
+  bookings: readonly { id: string; guestName: string; reference: string; checkIn: string }[];
+}) {
+  if (payout.recorded.length === 0) return null;
+  return (
+    <section data-payout-readonly className="mt-4 rounded-xl bg-cream p-3 text-sm">
+      <p data-payout-manual>{PAYOUT_MANUAL_NOTE}</p>
+      <p className="mt-2">Đã giữ từ lần chuyển trước. Bạn không đổi được.</p>
+      <ul className="mt-2 space-y-1" data-payout-locked>
+        {payout.recorded.map((row) => (
+          <li key={row.bookingId}>
+            {bookingLabel(row.bookingId, bookings)} — giữ cho {row.retainedName || row.retainedIdentityId}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PayoutChoicePanel({
+  payout,
+  onChoose,
+}: {
+  payout: PayoutDeskView;
+  onChoose: (choice: PayoutChoice) => void;
+}) {
+  const attributable = payout.lines.filter((line) => line.kind === "attributable");
+  const locked = payout.lines.filter((line) => line.kind === "retained-locked");
+  const excluded = payout.lines.filter((line) => line.kind === "excluded");
+  return (
+    <section data-payout-choice className="mt-4 rounded-xl bg-cream p-3 text-sm">
+      <h3 className="font-medium">Người nhận payout của cả nhóm</h3>
+      <p className="mt-2 text-ink-soft">
+        Một lựa chọn cho mọi đặt phòng trong nhóm. Không có ô chọn từng đặt phòng. {PAYOUT_MANUAL_NOTE}
+      </p>
+      <p className="mt-2 text-ink-soft">
+        Danh sách tính đến lúc mở trang. Đặt phòng xác nhận trước khi người kia chấp nhận vẫn vào nhóm nếu chưa nhận
+        phòng. Yêu cầu chưa thành đặt phòng không nằm trong nhóm.
+      </p>
+      <h4 className="mt-3 font-medium">Trong nhóm</h4>
+      {attributable.length === 0 ? (
+        <p className="mt-1 text-muted">Không có đặt phòng nào bạn được chọn lần này.</p>
+      ) : (
+        <ul className="mt-1 space-y-1" data-payout-attributable>
+          {attributable.map((line) => (
+            <li key={line.bookingId}>
+              {line.guestName} · {line.reference} · nhận {line.checkIn}
+            </li>
+          ))}
+        </ul>
+      )}
+      {locked.length > 0 ? (
+        <>
+          <h4 className="mt-3 font-medium">Đã giữ, không sửa</h4>
+          <ul className="mt-1 space-y-1" data-payout-locked>
+            {locked.map((line) => (
+              <li key={line.bookingId}>
+              {line.guestName} · {line.reference} — {line.reason}
+            </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {excluded.length > 0 ? (
+        <>
+          <h4 className="mt-3 font-medium">Ngoài nhóm</h4>
+          <ul className="mt-1 space-y-1" data-payout-excluded>
+            {excluded.map((line) => (
+              <li key={line.bookingId}>
+                {line.guestName} · {line.reference} — {line.reason}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <div className="mt-3 grid gap-2">
+        <Button
+          type="button"
+          data-payout-retain
+          aria-pressed={payout.pendingChoice === "RETAIN"}
+          variant={payout.pendingChoice === "RETAIN" ? "primary" : "outline"}
+          onClick={() => onChoose("RETAIN")}
+        >
+          Giữ cả nhóm cho tôi
+        </Button>
+        <Button
+          type="button"
+          data-payout-follow
+          aria-pressed={payout.pendingChoice === "FOLLOW_INCOMING"}
+          variant={payout.pendingChoice === "FOLLOW_INCOMING" ? "primary" : "outline"}
+          onClick={() => onChoose("FOLLOW_INCOMING")}
+        >
+          Theo chủ nhà tại lúc nhận phòng
+        </Button>
+      </div>
+    </section>
   );
 }
 

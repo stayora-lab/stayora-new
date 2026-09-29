@@ -5,8 +5,11 @@
  * PROTOTYPE ASSUMPTION: requests and stays are not tied to a Co-host identity.
  * The warning lists that unit's accepted requests, upcoming stays, and stays
  * with an assigned Butler. It omits money. It never blocks removal.
- * Unsettled financial matters are H-3 (ADR-P076) and are not shown here.
+ * Unsettled payout instructions are not listed here. ADR-P076 is a separate
+ * record. This warning still omits money and never blocks removal.
  */
+
+import type { PayoutChoice, PayoutLine, RetainedPayout } from "./hosting-payout-model.ts";
 
 export const COHOST_ROLE = "COHOST";
 
@@ -76,14 +79,22 @@ export function cohostRemovalMatters(input: {
   return matters;
 }
 
+export type PayoutDeskView = {
+  pendingChoice: PayoutChoice | null;
+  lines: PayoutLine[];
+  recorded: RetainedPayout[];
+};
+
 export type DeskCohost = { identityId: string; name: string; email: string };
 export type DeskUnit = {
   unitId: string;
   pending: { id: string; recipientName: string; recipientEmail: string } | null;
   cohosts: DeskCohost[];
+  payout: PayoutDeskView;
 };
 export type IncomingDesignation = {
   id: string;
   unitId: string;
   cohosts: DeskCohost[];
+  payout: PayoutDeskView;
 };

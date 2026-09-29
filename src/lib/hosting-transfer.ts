@@ -15,7 +15,9 @@ import {
   type DeskCohost,
   type DeskUnit,
   type IncomingDesignation,
+  type PayoutDeskView,
 } from "./hosting-transfer-model.ts";
+import { bindPayoutChoice, payoutDeskForUnit, readPayoutChoice, type CohortBooking, type CohortStay, type PayoutChoice } from "./hosting-payout.ts";
 
 export {
   BASIS_ADMIN_EXCEPTION,
@@ -25,7 +27,7 @@ export {
   COHOST_ROLE,
   cohostRemovalMatters,
 } from "./hosting-transfer-model.ts";
-export type { DeskCohost, DeskUnit, IncomingDesignation, RemovalMatter } from "./hosting-transfer-model.ts";
+export type { DeskCohost, DeskUnit, IncomingDesignation, PayoutDeskView, RemovalMatter } from "./hosting-transfer-model.ts";
 
 /**
  * Co-host is not a second Primary and not a villa-scoped HOST grant.
@@ -54,7 +56,9 @@ export type { DeskCohost, DeskUnit, IncomingDesignation, RemovalMatter } from ".
  * acceptance. Invitation expiry is still open in the spec, so none is applied.
  * Pending invites are cancelled when Primary changes; they were not grants yet.
  *
- * Payout choice (ADR-P076) is not recorded or shown here.
+ * The payout-recipient choice is not a relationship and not a HOST grant.
+ * hosting-payout.ts records it. Acceptance and admin replacement bind it
+ * in the same transaction as establishPrimaryHost. Neither path moves money.
  */
 
 const VILLA_IDS = new Set(PILOT_SEED.villas.map((villa) => villa.id));
@@ -296,6 +300,9 @@ export async function acceptDesignation(
     actorId: string;
     actorEmail: string;
     removeCohostIds?: readonly string[];
+    bookings?: readonly CohortBooking[];
+    stays?: readonly CohortStay[];
+    effectiveAt?: string;
   },
 ): Promise<{ unitId: string }> {
   const peeked = await db.query<{ unit_id: string }>(
@@ -352,6 +359,18 @@ export async function acceptDesignation(
     subjectIdentityId: row.outgoing_identity_id,
     detail: `designatedBy=${row.outgoing_identity_id};acceptedBy=${input.actorId}`,
   });
+  await bindPayoutChoice(db, {
+    unitId: row.unit_id,
+    outgoingIdentityId: row.outgoing_identity_id,
+    choice: await readPayoutChoice(db, row.id),
+    transferRef: row.id,
+    setBy: row.outgoing_identity_id,
+    basis: BASIS_NORMAL_ACCEPTANCE,
+    actor: input.actorId,
+    bookings: input.bookings ?? [],
+    stays: input.stays ?? [],
+    effectiveAt: input.effectiveAt ?? new Date().toISOString(),
+  });
   return { unitId: row.unit_id };
 }
 
@@ -362,6 +381,10 @@ export async function adminReplacePrimary(
     incomingIdentityId: string;
     reason: string;
     actor: string;
+    payoutChoice?: PayoutChoice | null;
+    bookings?: readonly CohortBooking[];
+    stays?: readonly CohortStay[];
+    effectiveAt?: string;
   },
 ): Promise<void> {
   assertUnit(input.unitId);
@@ -397,6 +420,18 @@ export async function adminReplacePrimary(
     actor: input.actor,
     subjectIdentityId: input.incomingIdentityId,
     detail: reason,
+  });
+  await bindPayoutChoice(db, {
+    unitId: input.unitId,
+    outgoingIdentityId: primary.identity_id,
+    choice: input.payoutChoice ?? null,
+    transferRef: newId("padm"),
+    setBy: input.actor,
+    basis: BASIS_ADMIN_EXCEPTION,
+    actor: input.actor,
+    bookings: input.bookings ?? [],
+    stays: input.stays ?? [],
+    effectiveAt: input.effectiveAt ?? new Date().toISOString(),
   });
 }
 
@@ -543,9 +578,18 @@ export async function materializeCohostInvites(
 
 export async function loadTransferDesk(
   db: Queryable,
-  input: { identityId: string; email: string },
+  input: {
+    identityId: string;
+    email: string;
+    bookings?: readonly CohortBooking[];
+    stays?: readonly CohortStay[];
+    now?: string;
+  },
 ): Promise<{ primaryUnits: DeskUnit[]; incoming: IncomingDesignation[] }> {
   await materializeCohostInvites(db, input);
+  const at = input.now ?? new Date().toISOString();
+  const bookings = input.bookings ?? [];
+  const stays = input.stays ?? [];
   const primaries = await db.query<{ unit_id: string }>(
     `select unit_id from hosting_relationships
      where identity_id = $1 and kind = 'PRIMARY' and valid_to is null
@@ -554,10 +598,19 @@ export async function loadTransferDesk(
   );
   const primaryUnits: DeskUnit[] = [];
   for (const primary of primaries) {
+    const pending = await pendingFor(db, primary.unit_id);
     primaryUnits.push({
       unitId: primary.unit_id,
-      pending: await pendingFor(db, primary.unit_id),
+      pending,
       cohosts: await cohostsFor(db, primary.unit_id),
+      payout: await payoutView(db, {
+        unitId: primary.unit_id,
+        designationId: pending?.id ?? null,
+        includeCohort: Boolean(pending),
+        bookings,
+        stays,
+        effectiveAt: at,
+      }),
     });
   }
   const incomingRows = await db.query<{ id: string; unit_id: string }>(
@@ -576,9 +629,32 @@ export async function loadTransferDesk(
       id: row.id,
       unitId: row.unit_id,
       cohosts: await cohostsFor(db, row.unit_id),
+      payout: await payoutView(db, {
+        unitId: row.unit_id,
+        designationId: row.id,
+        includeCohort: true,
+        bookings,
+        stays,
+        effectiveAt: at,
+      }),
     });
   }
   return { primaryUnits, incoming };
+}
+
+async function payoutView(
+  db: Queryable,
+  input: {
+    unitId: string;
+    designationId: string | null;
+    includeCohort: boolean;
+    bookings: readonly CohortBooking[];
+    stays: readonly CohortStay[];
+    effectiveAt: string;
+  },
+): Promise<PayoutDeskView> {
+  const view = await payoutDeskForUnit(db, input);
+  return { pendingChoice: view.pendingChoice, lines: view.lines, recorded: view.recorded };
 }
 
 async function pendingFor(db: Queryable, unitId: string) {

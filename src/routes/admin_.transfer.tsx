@@ -11,6 +11,7 @@ import {
 } from "@/lib/account-lookup";
 import { searchAccounts } from "@/lib/dev-identity-api";
 import { BASIS_ADMIN_EXCEPTION } from "@/lib/hosting-transfer-model";
+import { PAYOUT_MANUAL_NOTE } from "@/lib/hosting-payout-model";
 import { fetchAdminTransferPreview, submitAdminReplace } from "@/lib/hosting-transfer-api";
 import { fetchAdminStatus } from "@/lib/world-api";
 import { useBookingStore } from "@/lib/store";
@@ -30,9 +31,23 @@ function AdminTransferPage() {
   const [hits, setHits] = useState<{ id: string; name: string; email: string }[]>([]);
   const [picked, setPicked] = useState<{ id: string; name: string; email: string } | null>(null);
   const [reason, setReason] = useState("");
+  const [payoutChoice, setPayoutChoice] = useState<"" | "RETAIN" | "FOLLOW_INCOMING">("");
   const [preview, setPreview] = useState<{
     primaryIdentityId: string | null;
     cohosts: { identityId: string; name: string; email: string }[];
+    payout: {
+      pendingChoice: "RETAIN" | "FOLLOW_INCOMING" | null;
+      lines: {
+        bookingId: string;
+        guestName: string;
+        reference: string;
+        checkIn: string;
+        kind: "attributable" | "retained-locked" | "excluded";
+        reason: string;
+        retainedName: string | null;
+      }[];
+      recorded: { bookingId: string; retainedIdentityId: string; retainedName?: string | null }[];
+    };
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -90,7 +105,13 @@ function AdminTransferPage() {
     setNotice(null);
     try {
       await submitAdminReplace({
-        data: { unitId, incomingIdentityId: picked.id, reason, key: adminKey },
+        data: {
+          unitId,
+          incomingIdentityId: picked.id,
+          reason,
+          payoutChoice: payoutChoice || null,
+          key: adminKey,
+        },
       });
       setNotice("Đã thay chủ nhà chính. Co-host được giữ.");
       const next = await fetchAdminTransferPreview({ data: { unitId, key: adminKey } });
@@ -135,6 +156,7 @@ function AdminTransferPage() {
                     ? "không có"
                     : preview.cohosts.map((item) => item.name).join(", ")}
                 </p>
+                <OpsPayout payout={preview.payout} />
               </div>
             ) : null}
             <AccountField
@@ -152,6 +174,41 @@ function AdminTransferPage() {
               selected={picked}
               onClear={() => setPicked(null)}
             />
+            <fieldset className="text-sm" data-payout-admin-choice>
+              <legend className="font-medium">Người nhận payout của cả nhóm</legend>
+              <p className="mt-2 text-ink-soft" data-payout-ops>
+                {PAYOUT_MANUAL_NOTE} Spec không nói vận hành được chọn thay. Prototype này ghi giúp chủ nhà chính đang
+                ra, vì không có khoảng chờ. Người được giữ là chủ nhà đang ra, không phải vận hành. Bỏ trống thì không
+                ghi gì.
+              </p>
+              <label className="mt-3 flex items-start gap-2">
+                <input
+                  type="radio"
+                  name="payout-choice"
+                  checked={payoutChoice === ""}
+                  onChange={() => setPayoutChoice("")}
+                />
+                <span>Không chọn — mặc định theo chủ nhà tại lúc nhận phòng</span>
+              </label>
+              <label className="mt-2 flex items-start gap-2">
+                <input
+                  type="radio"
+                  name="payout-choice"
+                  checked={payoutChoice === "RETAIN"}
+                  onChange={() => setPayoutChoice("RETAIN")}
+                />
+                <span>Giữ cả nhóm cho chủ nhà chính hiện tại</span>
+              </label>
+              <label className="mt-2 flex items-start gap-2">
+                <input
+                  type="radio"
+                  name="payout-choice"
+                  checked={payoutChoice === "FOLLOW_INCOMING"}
+                  onChange={() => setPayoutChoice("FOLLOW_INCOMING")}
+                />
+                <span>Theo chủ nhà tại lúc nhận phòng</span>
+              </label>
+            </fieldset>
             <label className="block text-sm">
               Lý do
               <input
@@ -170,5 +227,58 @@ function AdminTransferPage() {
         </main>
       </RoleGate>
     </AdminAccess>
+  );
+}
+
+function OpsPayout({
+  payout,
+}: {
+  payout: {
+    lines: {
+      bookingId: string;
+      guestName: string;
+      reference: string;
+      checkIn: string;
+      kind: "attributable" | "retained-locked" | "excluded";
+      reason: string;
+    }[];
+    recorded: { bookingId: string; retainedIdentityId: string; retainedName?: string | null }[];
+  };
+}) {
+  const attributable = payout.lines.filter((line) => line.kind === "attributable");
+  const locked = payout.lines.filter((line) => line.kind === "retained-locked");
+  const excluded = payout.lines.filter((line) => line.kind === "excluded");
+  return (
+    <div className="mt-3 space-y-2" data-payout-ops-cohort>
+      <p data-payout-manual>{PAYOUT_MANUAL_NOTE}</p>
+      <p>Trong nhóm: {attributable.length === 0 ? "không có" : attributable.map((line) => line.guestName).join(", ")}</p>
+      {locked.length > 0 ? (
+        <ul data-payout-locked>
+          {locked.map((line) => (
+            <li key={line.bookingId}>
+              {line.guestName} — {line.reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {excluded.length > 0 ? (
+        <ul data-payout-excluded>
+          {excluded.map((line) => (
+            <li key={line.bookingId}>
+              {line.guestName} — {line.reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {payout.recorded.length > 0 ? (
+        <ul>
+          {payout.recorded.map((row) => (
+            <li key={row.bookingId}>
+              Đã ghi {row.bookingId} giữ cho {row.retainedName || row.retainedIdentityId}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

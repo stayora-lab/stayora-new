@@ -47,6 +47,14 @@ export const submitAcceptDesignation = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const submitPayoutChoice = createServerFn({ method: "POST" })
+  .validator((input: { designationId: string; choice: "RETAIN" | "FOLLOW_INCOMING" }) => input)
+  .handler(async ({ data }) => {
+    const { submitPayoutChoice: submit } = await import("./hosting-transfer.server.ts");
+    await submit(data);
+    return { ok: true as const };
+  });
+
 export const submitCohostInvite = createServerFn({ method: "POST" })
   .validator(person)
   .handler(async ({ data }) => {
@@ -79,7 +87,13 @@ export const fetchAdminTransferPreview = createServerFn({ method: "POST" })
 
 export const submitAdminReplace = createServerFn({ method: "POST" })
   .validator(
-    (input: { unitId: string; incomingIdentityId: string; reason: string; key?: string | null }) => input,
+    (input: {
+      unitId: string;
+      incomingIdentityId: string;
+      reason: string;
+      payoutChoice?: string | null;
+      key?: string | null;
+    }) => input,
   )
   .handler(async ({ data }) => {
     const { submitAdminReplace: submit } = await import("./hosting-transfer.server.ts");
