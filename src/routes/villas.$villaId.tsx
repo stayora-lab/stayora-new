@@ -116,12 +116,13 @@ function VillaDetail({ villa }: { villa: Villa }) {
     ? world.bookings.find((item) => item.requestId === existing.id)
     : undefined;
 
-  async function requestStay() {
+  async function requestStay(contact: { guestName: string; guestEmail?: string; guestPhone?: string }) {
     const { requestId } = await guestCreateRequest({
       villaId: villa.id,
       checkIn,
       checkOut,
       guests,
+      ...contact,
     });
     void navigate({ to: "/requests/$requestId", params: { requestId } });
   }

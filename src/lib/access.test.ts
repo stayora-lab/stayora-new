@@ -119,6 +119,8 @@ describe("dev access", () => {
         checkIn: "2026-10-01",
         checkOut: "2026-10-04",
         guests: 2,
+        guestName: "An",
+        guestPhone: "0901000001",
       },
       role,
     );

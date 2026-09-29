@@ -119,7 +119,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Anh Khoa",
       actor: GUEST,
       id: "req_seed_expired",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(expired.world, { handling: "EXCLUSIVE", requestId: expired.request.id, actor: HOST }).world;
     world = advanceTime(world, HOLD_MS + 60_000);
     const soon = createRequest(world, {
@@ -131,7 +132,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Hạnh",
       actor: SALE,
       id: "req_seed_hold_soon",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(soon.world, { handling: "EXCLUSIVE", requestId: soon.request.id, actor: HOST }).world;
     world = advanceTime(world, HOLD_MS - 2 * 60_000);
   }
@@ -147,7 +149,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Mai",
       actor: SALE,
       id: "req_seed_scheduled_today",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = payInitial(world, created.request.id);
   }
@@ -163,7 +166,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Anh Long",
       actor: GUEST,
       id: "req_seed_checked_in",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = payInitial(world, created.request.id);
     const stay = world.stays.find((item) => item.requestId === created.request.id);
@@ -181,7 +185,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Gia đình Trần",
       actor: SALE,
       id: "req_seed_completed",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = payInitial(world, created.request.id);
     const stay = world.stays.find((item) => item.requestId === created.request.id);
@@ -208,7 +213,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Lan",
       actor: GUEST,
       id: "req_seed_no_show",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = payInitial(world, created.request.id);
     const stay = world.stays.find((item) => item.requestId === created.request.id);
@@ -232,7 +238,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Anh Dũng",
       actor: SALE,
       id: "req_seed_conflict_stayora",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = payInitial(world, created.request.id);
     const overlap = PILOT_SEED.existingStays.find((stay) => stay.villaId === "t05");
@@ -261,7 +268,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Hoa",
       actor: GUEST,
       id: "req_seed_cancelled_conflict",
-    });
+    guestEmail: "guest@example.com",
+  });
     const accepted = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST });
     world = accepted.world;
     world = payInitial(world, created.request.id);
@@ -307,7 +315,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Anh Tuấn",
       actor: GUEST,
       id: "req_seed_pending",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = created.world;
   }
 
@@ -322,7 +331,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Ngọc",
       actor: GUEST,
       id: "req_seed_rejected",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = rejectRequest(created.world, { requestId: created.request.id, actor: HOST }).world;
   }
 
@@ -337,7 +347,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Anh Minh",
       actor: GUEST,
       id: "req_seed_hold_winner",
-    });
+    guestEmail: "guest@example.com",
+  });
     const second = createRequest(first.world, {
       villaId: "t11",
       checkIn: shift(today, 16),
@@ -347,7 +358,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Vy",
       actor: GUEST,
       id: "req_seed_conflicted",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(second.world, { handling: "EXCLUSIVE", requestId: first.request.id, actor: HOST }).world;
     world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: second.request.id, actor: HOST }).world;
   }
@@ -363,7 +375,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Anh Phúc",
       actor: SALE,
       id: "req_seed_unknown",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const obligation = world.obligations.find(
       (item) => item.requestId === created.request.id && item.kind === "INITIAL",
@@ -388,7 +401,8 @@ function seedStayoraScenarios(world: World, today: string): World {
       guestName: "Chị Quỳnh",
       actor: SALE,
       id: "req_seed_duplicate",
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const obligation = world.obligations.find(
       (item) => item.requestId === created.request.id && item.kind === "INITIAL",
@@ -436,6 +450,7 @@ function bookStayora(
     guestName: input.guestName,
     actor: SALE,
     id: input.id,
+    guestEmail: "guest@example.com",
   });
   world = acceptRequest(created.world, {
     handling: "EXCLUSIVE",
@@ -587,6 +602,7 @@ function seedHienWeek(world: World, today: string): World {
     guestName: "Anh Bình",
     actor: GUEST,
     id: "req_hien_competitive_a",
+    guestEmail: "guest@example.com",
   });
   const second = createRequest(first.world, {
     villaId: "t02",
@@ -596,6 +612,7 @@ function seedHienWeek(world: World, today: string): World {
     guestName: "Chị Trúc",
     actor: SALE,
     id: "req_hien_competitive_b",
+    guestEmail: "guest@example.com",
   });
   world = acceptRequest(second.world, {
     handling: "COMPETITIVE",

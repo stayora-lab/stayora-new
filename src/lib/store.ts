@@ -17,6 +17,7 @@ import {
   DEFAULT_GUESTS,
 } from "@/lib/stay";
 import { fetchWorld, resolveRole, submitWorldAction } from "./world-api.ts";
+import { rememberGuestCredential } from "./guest-session.ts";
 import {
   armDemoSession,
   fetchDevSession,
@@ -71,6 +72,9 @@ type BookingState = {
     checkIn: string;
     checkOut: string;
     guests: number;
+    guestName: string;
+    guestEmail?: string;
+    guestPhone?: string;
   }) => Promise<{ requestId: string }>;
   saleCreateRequest: (input: {
     villaId: string;
@@ -78,6 +82,8 @@ type BookingState = {
     checkOut: string;
     guests: number;
     guestName: string;
+    guestEmail?: string;
+    guestPhone?: string;
   }) => Promise<{ requestId: string }>;
   hostAccept: (requestId: string, handling: "EXCLUSIVE" | "COMPETITIVE") => Promise<void>;
   hostExtendAcceptance: (requestId: string) => Promise<void>;
@@ -200,7 +206,14 @@ export const useBookingStore = create<BookingState>()(
       setOpsDate: (opsDate) => set({ opsDate }),
       refreshWorld: async () => {
         try {
-          const payload = await fetchWorld();
+          const state = get();
+          const payload = await fetchWorld({
+            data: {
+              vai: state.identity ? undefined : vaiFor(roleOf(state)),
+              key: state.adminKey,
+              grantId: state.grantId,
+            },
+          });
           set({
             world: payload.world,
             version: payload.version,
@@ -348,6 +361,9 @@ export const useBookingStore = create<BookingState>()(
           updatedAt: result.updatedAt,
           fetchedAt: new Date().toISOString(),
         });
+        if (result.guestCredential && result.requestId) {
+          rememberGuestCredential(result.requestId, result.guestCredential);
+        }
         return { requestId: result.requestId };
       },
       advanceDemo: async () => {
@@ -357,7 +373,7 @@ export const useBookingStore = create<BookingState>()(
         await get().runAction({ type: "RESET" });
       },
       guestCreateRequest: async (input) => {
-        const result = await get().runAction({ type: "CREATE_REQUEST", ...input, guestName: "Khách" });
+        const result = await get().runAction({ type: "CREATE_REQUEST", ...input });
         if (!result.requestId) throw new DomainError("INVALID", "Không tạo được yêu cầu");
         return { requestId: result.requestId };
       },

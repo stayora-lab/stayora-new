@@ -6,8 +6,8 @@ import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
 import { StaySummary } from "@/components/stay-summary";
 import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
-import { balanceLine, obligationSucceeded, stayGuestLabel } from "@/lib/domain";
-import { useBookingStore } from "@/lib/store";
+import { balanceLine, stayGuestLabel } from "@/lib/domain";
+import { useGuestSlice } from "@/lib/guest-slice";
 import { GUEST_ARRIVAL, LOCATION_LABEL } from "@/lib/destination";
 import { getVilla } from "@/lib/villas";
 
@@ -21,35 +21,34 @@ function formatViDate(iso: string): string {
 
 function YourStayPage() {
   const { stayId } = Route.useParams();
-  const hydrated = useBookingStore((state) => state.hydrated);
-  const world = useBookingStore((state) => state.world);
-  const stay = world.stays.find((item) => item.id === stayId);
-  const booking = world.bookings.find((item) => item.stayId === stayId);
-  const request = booking
-    ? world.requests.find((item) => item.id === booking.requestId)
-    : undefined;
-  const balance = request
-    ? world.obligations.find((item) => item.requestId === request.id && item.kind === "BALANCE")
-    : undefined;
-  const balancePaid = balance ? obligationSucceeded(world, balance.id) : false;
+  const { state, slice } = useGuestSlice({ stayId });
 
-  if (!hydrated) {
+  if (state === "loading") {
     return <main className="mx-auto max-w-3xl px-4 py-24 text-muted">Đang mở kỳ nghỉ…</main>;
   }
 
-  if (!stay && request) {
-    return <Navigate to="/requests/$requestId" params={{ requestId: request.id }} />;
-  }
-
-  if (!stay) {
+  if (state !== "ready" || !slice) {
     return (
       <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">Không tìm thấy kỳ nghỉ này</h1>
+        <h1 className="font-serif text-title">Không mở được kỳ nghỉ này</h1>
+        <p className="mt-3 text-ink-soft">Đường dẫn không phải quyền truy cập.</p>
         <Button asChild className="mt-8">
           <Link to="/">Xem villa Oceanami</Link>
         </Button>
       </main>
     );
+  }
+
+  const stay = slice.stay;
+  const booking = slice.booking ?? undefined;
+  const request = slice.request;
+  const balance = slice.obligations.find((item) => item.kind === "BALANCE");
+  const balancePaid = balance
+    ? slice.attempts.some((item) => item.obligationId === balance.id && item.status === "SUCCEEDED")
+    : false;
+
+  if (!stay) {
+    return <Navigate to="/requests/$requestId" params={{ requestId: request.id }} />;
   }
 
   const villa = getVilla(stay.villaId);

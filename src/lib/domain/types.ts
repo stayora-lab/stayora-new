@@ -64,6 +64,9 @@ export type StayRequest = {
   checkOut: string;
   guests: number;
   guestName: string;
+  /** Minimum operational contact. Not a verified identity and not an account. */
+  guestEmail?: string;
+  guestPhone?: string;
   nightly: number;
   nights: number;
   total: number;

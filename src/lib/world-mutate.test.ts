@@ -53,7 +53,8 @@ describe("shared world optimistic concurrency", () => {
       guests: 2,
       guestName: "An",
       actor: { persona: "GUEST" },
-    });
+    guestEmail: "guest@example.com",
+  });
     const second = createRequest(first.world, {
       villaId: "t04",
       checkIn: "2026-12-01",
@@ -61,7 +62,8 @@ describe("shared world optimistic concurrency", () => {
       guests: 2,
       guestName: "Bình",
       actor: { persona: "GUEST" },
-    });
+    guestEmail: "guest@example.com",
+  });
     const store = memoryIo(second.world);
 
     const snapA = await store.io.load();

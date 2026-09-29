@@ -25,6 +25,7 @@ import { useBookingStore } from "@/lib/store";
 import { formatVnd, isIsoDate, nightsBetween } from "@/lib/stay";
 import { publishedVillas, villas, type Villa } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
+import { normalizeGuestContact } from "@/lib/guest-access";
 
 export const Route = createFileRoute("/sale")({
   component: SalePage,
@@ -50,6 +51,8 @@ function SalePage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState<Villa | null>(null);
   const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const clock = parseISO(world.now);
 
   const ready =
@@ -107,15 +110,18 @@ function SalePage() {
     if (!creating || !ready) return;
     setError(null);
     try {
+      const contact = normalizeGuestContact({ guestName, guestEmail, guestPhone });
       await saleCreateRequest({
         villaId: creating.id,
         checkIn: search.checkIn,
         checkOut: search.checkOut,
         guests: search.guests,
-        guestName: guestName.trim() || "Khách",
+        ...contact,
       });
       setCreating(null);
       setGuestName("");
+      setGuestEmail("");
+      setGuestPhone("");
       setTab("requests");
     } catch (err) {
       setError(domainMessageVi(err));
@@ -208,6 +214,8 @@ function SalePage() {
                 onCreate={() => {
                   setError(null);
                   setGuestName("");
+                  setGuestEmail("");
+                  setGuestPhone("");
                   setCreating(villa);
                 }}
               />
@@ -378,6 +386,29 @@ function SalePage() {
                 className="mt-2 h-12 w-full rounded-xl bg-cream px-4 text-ink outline-none ring-lotus/40 focus:ring-2"
               />
             </label>
+            <label className="mt-3 block">
+              <span className="text-xs font-semibold tracking-wider text-muted uppercase">Email</span>
+              <input
+                type="email"
+                value={guestEmail}
+                onChange={(event) => setGuestEmail(event.target.value)}
+                className="mt-2 h-12 w-full rounded-xl bg-cream px-4 text-ink outline-none ring-lotus/40 focus:ring-2"
+              />
+            </label>
+            <label className="mt-3 block">
+              <span className="text-xs font-semibold tracking-wider text-muted uppercase">
+                Điện thoại
+              </span>
+              <input
+                type="tel"
+                value={guestPhone}
+                onChange={(event) => setGuestPhone(event.target.value)}
+                className="mt-2 h-12 w-full rounded-xl bg-cream px-4 text-ink outline-none ring-lotus/40 focus:ring-2"
+              />
+            </label>
+            <p className="mt-2 text-xs text-muted">
+              Cần tên và email hoặc số điện thoại. Không tạo tài khoản và không xác minh liên hệ.
+            </p>
             {error ? <p className="mt-3 text-sm text-lotus-deep">{error}</p> : null}
             <div className="mt-6 flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setCreating(null)}>
