@@ -3,9 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 /**
  * PROTOTYPE ASSUMPTION. Opaque bearer for the ADR-P077 access invariant.
  * SRC-36 does not select a token, OTP, password, magic link, or QR.
- * The raw value is returned once to the creating Guest browser. Only the
- * SHA-256 hash is stored. This is not recovery, not verification of the
- * contact, and not a Host or Admin grant.
+ * The raw value is returned once. Only the SHA-256 hash is stored.
+ * This is not recovery, not verification of the contact, and not a Host or Admin grant.
+ *
+ * The world row and the hash are written in one transaction supplied by the
+ * caller. If the hash insert fails, the world write rolls back with it.
+ * A retry is a new commit of a request that was never stored, not a second
+ * copy of an orphaned request.
  */
 
 export type CredentialDb = {
@@ -47,4 +51,23 @@ export async function requestIdForGuestCredential(
     [hashGuestCredential(value)],
   );
   return rows[0]?.request_id ?? null;
+}
+
+export async function commitWorldWithCredential(
+  run: <T>(fn: (db: CredentialDb) => Promise<T>) => Promise<T>,
+  input: { worldJson: string; expectedVersion: number; requestId?: string; rowId?: number },
+): Promise<{ saved: boolean; guestCredential?: string }> {
+  return run(async (db) => {
+    const rows = await db.query<{ version: number }>(
+      `update world_state
+       set version = version + 1, data = $1::jsonb, updated_at = now()
+       where id = $2 and version = $3
+       returning version`,
+      [input.worldJson, input.rowId ?? 1, input.expectedVersion],
+    );
+    if (!rows[0]) return { saved: false };
+    if (!input.requestId) return { saved: true };
+    const guestCredential = await issueGuestCredential(db, input.requestId);
+    return { saved: true, guestCredential };
+  });
 }
