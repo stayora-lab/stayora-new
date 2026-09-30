@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { acceptRequest, createEmptyWorld, createRequest, recordPayment } from "./domain/engine.ts";
+import { isAvailable } from "./domain/availability.ts";
 import type { Actor, World } from "./domain/types.ts";
 import {
   openGuestSlice,
@@ -147,7 +148,11 @@ describe("guest credential boundary", () => {
     const world = created.world;
     assert.equal(openGuestSlice(world, null, { requestId: longId }), null);
     assert.equal(projectWorldForCaller(world, { persona: "GUEST" }).requests.length, 0);
-    assert.equal(projectWorldForCaller(world, { persona: "HOST" }).requests.length, 1);
+    assert.equal(projectWorldForCaller(world, { persona: "HOST" }).requests.length, 0);
+    assert.equal(
+      projectWorldForCaller(world, { persona: "HOST", hostId: "host-an" }).requests.length,
+      1,
+    );
 
     const db = await database();
     assert.equal(await requestIdForGuestCredential(db, longId), null);
@@ -257,7 +262,11 @@ describe("credential commit and sale handoff", () => {
     const slice = openGuestSlice(created.world, { requestId: "req_orphan" }, { requestId: "req_orphan" });
     assert.equal(slice?.request.guestName, "Mai");
     assert.equal(slice?.request.source, "SALE");
-    assert.equal(projectWorldForCaller(created.world, { persona: "SALE" }).requests.length, 1);
+    assert.equal(projectWorldForCaller(created.world, { persona: "SALE" }).requests.length, 0);
+    assert.equal(
+      projectWorldForCaller(created.world, { persona: "SALE", saleId: "sale-an" }).requests.length,
+      1,
+    );
     assert.equal(projectWorldForCaller(created.world, { persona: "GUEST" }).requests.length, 0);
     const url = guestHandoffUrl("https://stayora.example", "req_orphan", saved.guestCredential);
     assert.equal(url, `https://stayora.example/requests/req_orphan#${encodeURIComponent(saved.guestCredential)}`);
@@ -300,5 +309,223 @@ describe("credential commit and sale handoff", () => {
     assert.match(source("./guest-slice.ts"), /stripHashCredential/);
     assert.equal(source("./access.ts").includes("commitWorldWithCredential"), false);
     assert.equal(source("./authorize.ts").includes("guestCredential"), false);
+  });
+});
+
+function commercialPayload(world: World): string {
+  return JSON.stringify({
+    requests: world.requests,
+    bookings: world.bookings,
+    stays: world.stays,
+    commissions: world.commissions,
+    obligations: world.obligations,
+    attempts: world.attempts,
+    refundCases: world.refundCases,
+    commitments: world.commitments,
+    incidents: world.incidents,
+    protectiveHolds: world.protectiveHolds,
+    externalAccommodations: world.externalAccommodations,
+    conflicts: world.conflicts,
+    auditLog: world.auditLog,
+    checkoutAssessments: world.checkoutAssessments,
+    readinessNotes: world.readinessNotes,
+  });
+}
+
+describe("operational world scope", () => {
+  function bookedPair(): World {
+    let world = createEmptyWorld(NOW);
+    world = createRequest(world, {
+      villaId: "t01",
+      checkIn: "2026-12-01",
+      checkOut: "2026-12-04",
+      guests: 2,
+      guestName: "Mai",
+      guestEmail: "mai@example.com",
+      guestPhone: "0901000001",
+      actor: SALE,
+      id: "req_an",
+    }).world;
+    world = createRequest(world, {
+      villaId: "t04",
+      checkIn: "2026-12-10",
+      checkOut: "2026-12-14",
+      guests: 3,
+      guestName: "Bình",
+      guestEmail: "binh@example.com",
+      guestPhone: "0902000002",
+      actor: { persona: "SALE", saleId: "sale-binh" },
+      id: "req_binh",
+    }).world;
+    world = acceptRequest(world, {
+      requestId: "req_an",
+      actor: HOST,
+      handling: "EXCLUSIVE",
+    }).world;
+    world = acceptRequest(world, {
+      requestId: "req_binh",
+      actor: HOST,
+      handling: "EXCLUSIVE",
+    }).world;
+    world = pay(world, "req_an");
+    world = pay(world, "req_binh");
+    world = {
+      ...world,
+      commitments: world.commitments.map((item) =>
+        item.villaId === "t04" && item.status === "ACTIVE" ? { ...item, note: "ghi chú Bình" } : item,
+      ),
+      protectiveHolds: [
+        ...world.protectiveHolds,
+        {
+          id: "hold_t04",
+          villaId: "t04",
+          start: "2026-12-20",
+          end: "2026-12-22",
+          note: "Bình bị rò điện",
+          status: "ACTIVE",
+          createdAt: NOW,
+          createdBy: "HOST",
+          reviewDueAt: "2026-12-21T00:00:00.000Z",
+        },
+      ],
+      externalAccommodations: [
+        {
+          id: "ext_t01",
+          villaId: "t01",
+          checkIn: "2026-11-01",
+          checkOut: "2026-11-03",
+          guests: 2,
+          guestName: "Khách Mai",
+          source: "Airbnb",
+        },
+        {
+          id: "ext_t04",
+          villaId: "t04",
+          checkIn: "2026-11-04",
+          checkOut: "2026-11-06",
+          guests: 2,
+          guestName: "Khách Bình",
+          source: "Zalo",
+        },
+      ],
+      incidents: [
+        {
+          id: "inc_t04",
+          stayId: world.stays.find((item) => item.villaId === "t04")?.id ?? "sty_missing",
+          villaId: "t04",
+          note: "hỏng điều hòa của Bình",
+          hasPhoto: false,
+          createdAt: NOW,
+          createdBy: "HOST",
+        },
+      ],
+    };
+    return world;
+  }
+
+  it("keeps another sale's requests, commissions and guest contact out of the payload", () => {
+    const world = bookedPair();
+    const mine = projectWorldForCaller(world, { persona: "SALE", saleId: "sale-an" });
+    const raw = commercialPayload(mine);
+    assert.deepEqual(
+      mine.requests.map((item) => item.id),
+      ["req_an"],
+    );
+    assert.equal(mine.requests[0]?.guestEmail, "mai@example.com");
+    assert.equal(mine.requests[0]?.guestPhone, "0901000001");
+    assert.equal(mine.bookings.every((item) => item.saleId === "sale-an"), true);
+    assert.equal(mine.bookings.length, 1);
+    assert.equal(mine.stays.every((item) => item.requestId === "req_an"), true);
+    assert.equal(mine.commissions.every((item) => item.saleId === "sale-an"), true);
+    assert.equal(mine.commissions.length, 1);
+    assert.equal(mine.obligations.every((item) => item.requestId === "req_an"), true);
+    assert.equal(raw.includes("sale-binh"), false);
+    assert.equal(raw.includes("binh@example.com"), false);
+    assert.equal(raw.includes("0902000002"), false);
+    assert.equal(raw.includes("Bình"), false);
+    assert.equal(raw.includes("Khách Bình"), false);
+    const otherDates = mine.commitments.find((item) => item.villaId === "t04");
+    assert.ok(otherDates);
+    assert.equal(otherDates.requestId, undefined);
+    assert.equal(otherDates.bookingId, undefined);
+    assert.equal(otherDates.stayId, undefined);
+    assert.equal(otherDates.note, undefined);
+    assert.equal(isAvailable(mine, "t04", "2026-12-10", "2026-12-14"), false);
+    const otherHold = mine.protectiveHolds.find((item) => item.villaId === "t04");
+    assert.equal(otherHold?.note, "");
+    assert.equal(mine.externalAccommodations.every((item) => item.guestName === undefined), true);
+    assert.equal(mine.incidents.length, 0);
+
+    const none = projectWorldForCaller(world, { persona: "SALE" });
+    const empty = commercialPayload(none);
+    assert.equal(none.requests.length, 0);
+    assert.equal(none.bookings.length, 0);
+    assert.equal(none.commissions.length, 0);
+    assert.equal(empty.includes("mai@example.com"), false);
+    assert.equal(empty.includes("binh@example.com"), false);
+    assert.equal(empty.includes("sale-binh"), false);
+  });
+
+  it("keeps another host's villa records out of the payload", () => {
+    const world = bookedPair();
+    const an = projectWorldForCaller(world, { persona: "HOST", hostId: "host-an" });
+    const anRaw = commercialPayload(an);
+    assert.deepEqual(
+      an.requests.map((item) => item.villaId),
+      ["t01"],
+    );
+    assert.equal(an.requests[0]?.guestEmail, "mai@example.com");
+    assert.equal(an.bookings.every((item) => item.villaId === "t01"), true);
+    assert.equal(an.stays.every((item) => item.villaId === "t01"), true);
+    assert.equal(an.commitments.every((item) => item.villaId === "t01"), true);
+    assert.equal(an.obligations.every((item) => item.requestId === "req_an"), true);
+    assert.equal(an.commissions.every((item) => item.saleId === "sale-an"), true);
+    assert.equal(an.externalAccommodations.map((item) => item.guestName).join(), "Khách Mai");
+    assert.equal(an.incidents.length, 0);
+    assert.equal(an.protectiveHolds.every((item) => item.villaId === "t01"), true);
+    assert.equal(anRaw.includes("t04"), false);
+    assert.equal(anRaw.includes("sale-binh"), false);
+    assert.equal(anRaw.includes("binh@example.com"), false);
+    assert.equal(anRaw.includes("0902000002"), false);
+    assert.equal(anRaw.includes("Bình"), false);
+    assert.ok(an.commitments.some((item) => item.requestId === "req_an" && item.bookingId));
+
+    const cohost = projectWorldForCaller(world, { persona: "HOST", villaIds: ["t04"] });
+    assert.deepEqual(
+      cohost.requests.map((item) => item.id),
+      ["req_binh"],
+    );
+    assert.equal(cohost.requests[0]?.guestPhone, "0902000002");
+    assert.equal(cohost.commitments.some((item) => item.note === "ghi chú Bình"), true);
+    assert.equal(cohost.protectiveHolds.some((item) => item.note === "Bình bị rò điện"), true);
+    assert.equal(commercialPayload(cohost).includes("mai@example.com"), false);
+    assert.equal(commercialPayload(cohost).includes("t01"), false);
+
+    const both = projectWorldForCaller(world, {
+      persona: "HOST",
+      hostId: "host-an",
+      villaIds: ["t04"],
+    });
+    assert.equal(both.requests.length, 2);
+
+    const bare = projectWorldForCaller(world, { persona: "HOST" });
+    assert.equal(bare.requests.length, 0);
+    assert.equal(bare.bookings.length, 0);
+    assert.equal(bare.stays.length, 0);
+    assert.equal(bare.obligations.length, 0);
+    assert.equal(commercialPayload(bare).includes("mai@example.com"), false);
+    assert.equal(commercialPayload(bare).includes("binh@example.com"), false);
+
+    assert.equal(projectWorldForCaller(world, { persona: "BQL" }).requests.length, 2);
+    assert.equal(projectWorldForCaller(world, { persona: "BUTLER" }).requests.length, 2);
+    assert.equal(projectWorldForCaller(world, { persona: "ADMIN" }).requests.length, 2);
+    const guest = projectWorldForCaller(world, { persona: "GUEST" });
+    assert.equal(guest.requests.length, 0);
+    assert.equal(commercialPayload(guest).includes("mai@example.com"), false);
+    assert.equal(commercialPayload(guest).includes("binh@example.com"), false);
+    assert.equal(
+      guest.commitments.every((item) => item.requestId === undefined && item.note === undefined),
+      true,
+    );
   });
 });
