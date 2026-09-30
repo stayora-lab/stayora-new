@@ -196,7 +196,7 @@ export const useBookingStore = create<BookingState>()(
           saleId: role.saleId,
           hostId: role.hostId,
           butlerId: role.butlerId,
-          adminKey: role.persona === "ADMIN" ? get().adminKey : undefined,
+          adminKey: get().adminKey,
         }),
       setDemoMode: (demoMode) => set({ demoMode }),
       setSearch: (search) =>
@@ -310,35 +310,33 @@ export const useBookingStore = create<BookingState>()(
         if (urlKey) sessionStorage.setItem("stayora-admin-key", urlKey);
         const sessionKey =
           urlKey || sessionStorage.getItem("stayora-admin-key") || undefined;
+        const keyOk = Boolean(
+          sessionKey &&
+            (await resolveRole({ data: { vai: "admin", key: sessionKey } })).persona === "ADMIN",
+        );
+        if (keyOk) set({ adminKey: sessionKey });
+        else {
+          sessionStorage.removeItem("stayora-admin-key");
+          set({ adminKey: undefined });
+        }
         const role = parseVai(vai);
-        if (role?.persona === "ADMIN") {
-          const authorized = await resolveRole({ data: { vai: "admin", key: sessionKey } });
-          if (authorized.persona !== "ADMIN") {
-            sessionStorage.removeItem("stayora-admin-key");
+        if (role && role.persona !== "GUEST") {
+          if (!keyOk) {
             get().setRole({ persona: "GUEST" });
             return { persona: "GUEST" };
           }
-          set({
-            persona: "ADMIN",
-            adminKey: sessionKey,
-            saleId: undefined,
-            hostId: undefined,
-            butlerId: undefined,
-          });
-          return { persona: "ADMIN" };
-        }
-        if (role) {
           get().setRole(role);
           return role;
         }
-        if (sessionKey && window.location.pathname.startsWith("/admin")) {
-          const authorized = await resolveRole({ data: { vai: "admin", key: sessionKey } });
-          if (authorized.persona === "ADMIN") {
-            set({ persona: "ADMIN", adminKey: sessionKey });
-            return { persona: "ADMIN" };
-          }
-          sessionStorage.removeItem("stayora-admin-key");
+        if (keyOk && window.location.pathname.startsWith("/admin")) {
+          get().setRole({ persona: "ADMIN" });
+          return { persona: "ADMIN" };
         }
+        if (role?.persona === "GUEST") {
+          get().setRole({ persona: "GUEST" });
+          return { persona: "GUEST" };
+        }
+        if (!keyOk && get().persona !== "GUEST") get().setRole({ persona: "GUEST" });
         return null;
       },
       runAction: async (action) => {

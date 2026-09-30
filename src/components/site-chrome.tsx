@@ -186,9 +186,10 @@ export function PersonaSwitch() {
   const persona = useBookingStore((state) => state.persona);
   const demoMode = useBookingStore((state) => state.demoMode);
   const identity = useBookingStore((state) => state.identity);
+  const adminKey = useBookingStore((state) => state.adminKey);
   const setRole = useBookingStore((state) => state.setRole);
   const navigate = useNavigate();
-  if (!showDemoPersonaSwitch(demoMode, Boolean(identity))) return null;
+  if (!showDemoPersonaSwitch(demoMode, Boolean(identity)) || !adminKey) return null;
 
   return (
     <label data-persona-switch className="flex items-center gap-2 text-xs text-muted">
