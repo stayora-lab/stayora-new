@@ -9,6 +9,7 @@ import type {
   World,
 } from "./domain/types.ts";
 import { DomainError } from "./domain/types.ts";
+import { villasForHost } from "./villas.ts";
 
 /**
  * PROTOTYPE ASSUMPTION — not canonical policy.
@@ -84,12 +85,148 @@ export function openGuestSlice(
   return { request, booking, stay, obligations, attempts };
 }
 
-const OPERATIONAL = new Set(["HOST", "BUTLER", "ADMIN", "BQL", "SALE"]);
+/**
+ * Butler, BQL and Admin stay on the full operational world.
+ * Canonical copy says they are need-to-know (Butler is not commercial; BQL
+ * does not get the commercial ledger; Admin is exception-scoped) but
+ * 22-privacy-need-to-know says those categories are not field-level rules.
+ * Field visibility is still TBD, so this prototype does not invent a cut.
+ * SALE and HOST are relationship-scoped below. That is the wire boundary
+ * the workspaces were already filtering in the UI.
+ */
+const FULL_OPERATIONAL = new Set(["BUTLER", "ADMIN", "BQL"]);
 
-/** Full world only for a role the server already resolved. Guests get the redacted view. */
-export function projectWorldForCaller(world: World, role: { persona: string }): World {
-  if (OPERATIONAL.has(role.persona)) return world;
+export type WorldCaller = {
+  persona: string;
+  saleId?: string;
+  hostId?: string;
+  /** HOST and COHOST grant scope refs. Catalogue host ids are not in this list. */
+  villaIds?: readonly string[];
+};
+
+/** Projects the world the caller is allowed to hold. Guests stay accountless. */
+export function projectWorldForCaller(world: World, role: WorldCaller): World {
+  if (role.persona === "SALE") return projectWorldForSale(world, role.saleId);
+  if (role.persona === "HOST") return projectWorldForHost(world, villaIdsForHost(role));
+  if (FULL_OPERATIONAL.has(role.persona)) return world;
   return redactAccountlessWorld(world);
+}
+
+/**
+ * Catalogue Primary ids (host-an, …) plus villa ids from HOST and COHOST grants.
+ * Co-host is a grant, not a second hosting_relationships kind.
+ */
+function villaIdsForHost(role: { hostId?: string; villaIds?: readonly string[] }): Set<string> {
+  const ids = new Set<string>();
+  for (const id of role.villaIds ?? []) {
+    if (id) ids.add(id);
+  }
+  for (const villa of villasForHost(role.hostId)) ids.add(villa.id);
+  return ids;
+}
+
+function projectWorldForSale(world: World, saleId: string | undefined): World {
+  const requests = saleId ? world.requests.filter((item) => item.saleId === saleId) : [];
+  const requestIds = new Set(requests.map((item) => item.id));
+  const bookings = saleId ? world.bookings.filter((item) => item.saleId === saleId) : [];
+  const stays = staysForSale(world, requestIds, bookings);
+  return {
+    ...world,
+    requests,
+    bookings,
+    stays,
+    commissions: saleId ? world.commissions.filter((item) => item.saleId === saleId) : [],
+    ...moneyForRequests(world, requestIds),
+    incidents: [],
+    checkoutAssessments: [],
+    readinessNotes: [],
+    conflicts: [],
+    auditLog: [],
+    externalAccommodations: world.externalAccommodations.map((item) => ({
+      ...item,
+      guestName: undefined,
+    })),
+    commitments: world.commitments.map(publicCommitment),
+    protectiveHolds: (world.protectiveHolds ?? []).map(publicHold),
+  };
+}
+
+function staysForSale(world: World, requestIds: Set<string>, bookings: Booking[]): Stay[] {
+  const bookingIds = new Set(bookings.map((item) => item.id));
+  const stayIds = new Set(bookings.map((item) => item.stayId));
+  return world.stays.filter(
+    (stay) =>
+      (stay.requestId !== undefined && requestIds.has(stay.requestId)) ||
+      (stay.bookingId !== undefined && bookingIds.has(stay.bookingId)) ||
+      stayIds.has(stay.id),
+  );
+}
+
+function projectWorldForHost(world: World, villaIds: Set<string>): World {
+  const requests = world.requests.filter((item) => villaIds.has(item.villaId));
+  const requestIds = new Set(requests.map((item) => item.id));
+  const bookings = world.bookings.filter((item) => villaIds.has(item.villaId));
+  const bookingIds = new Set(bookings.map((item) => item.id));
+  const stays = world.stays.filter((item) => villaIds.has(item.villaId));
+  const stayIds = new Set(stays.map((item) => item.id));
+  const commitments = world.commitments.filter((item) => villaIds.has(item.villaId));
+  const incidents = world.incidents.filter((item) => villaIds.has(item.villaId));
+  const protectiveHolds = (world.protectiveHolds ?? []).filter((item) => villaIds.has(item.villaId));
+  const externalAccommodations = world.externalAccommodations.filter((item) =>
+    villaIds.has(item.villaId),
+  );
+  const conflicts = world.conflicts.filter((item) => villaIds.has(item.villaId));
+  const commissions = world.commissions.filter(
+    (item) => bookingIds.has(item.bookingId) || stayIds.has(item.stayId),
+  );
+  const money = moneyForRequests(world, requestIds);
+  const objectIds = new Set<string>(villaIds);
+  for (const item of [
+    ...requests,
+    ...bookings,
+    ...stays,
+    ...commitments,
+    ...incidents,
+    ...protectiveHolds,
+    ...externalAccommodations,
+    ...conflicts,
+    ...commissions,
+    ...money.obligations,
+    ...money.attempts,
+    ...money.refundCases,
+  ]) {
+    objectIds.add(item.id);
+  }
+  return {
+    ...world,
+    requests,
+    bookings,
+    stays,
+    commitments,
+    incidents,
+    checkoutAssessments: world.checkoutAssessments?.filter((item) => villaIds.has(item.villaId)),
+    readinessNotes: world.readinessNotes?.filter((item) => villaIds.has(item.villaId)),
+    commissions,
+    ...money,
+    conflicts,
+    protectiveHolds,
+    villaReadiness: world.villaReadiness?.filter((item) => villaIds.has(item.villaId)),
+    auditLog: world.auditLog.filter((item) => objectIds.has(item.objectId)),
+    externalAccommodations,
+  };
+}
+
+function moneyForRequests(
+  world: World,
+  requestIds: Set<string>,
+): Pick<World, "obligations" | "attempts" | "refundCases"> {
+  const obligations = world.obligations.filter((item) => requestIds.has(item.requestId));
+  const obligationIds = new Set(obligations.map((item) => item.id));
+  return {
+    obligations,
+    attempts: world.attempts.filter((item) => obligationIds.has(item.obligationId)),
+    refundCases: world.refundCases.filter((item) => requestIds.has(item.requestId)),
+  };
 }
 
 /**
