@@ -3,6 +3,8 @@ import { useState } from "react";
 import { DateRangeField, GuestField } from "@/components/dates-guests";
 import { Button } from "@/components/ui/button";
 import { useBookingStore } from "@/lib/store";
+import { normalizeGuestContact, type GuestContact } from "@/lib/guest-access";
+import { domainMessageVi } from "@/lib/domain";
 import {
   bookability,
   formatDateRange,
@@ -26,7 +28,7 @@ type Props = {
   guests: number;
   onDates: (next: { checkIn: string; checkOut: string }) => void;
   onGuests: (guests: number) => void;
-  onRequest: () => void;
+  onRequest: (contact: GuestContact) => void;
   existing?: ExistingStay;
 };
 
@@ -81,8 +83,22 @@ export function BookingForm({
   existing,
 }: Props) {
   const world = useBookingStore((state) => state.world);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [contactError, setContactError] = useState<string | null>(null);
   const result = bookability(villa, checkIn, checkOut, guests, world);
   const canRequest = result.state === "ready" && !existing;
+
+  function submit() {
+    try {
+      const contact = normalizeGuestContact({ guestName, guestEmail, guestPhone });
+      setContactError(null);
+      onRequest(contact);
+    } catch (error) {
+      setContactError(domainMessageVi(error));
+    }
+  }
 
   let helper = "Yêu cầu sẽ được gửi cho chủ nhà.";
   if (result.state === "unavailable") helper = "Villa không trống cho ngày này.";
@@ -112,11 +128,75 @@ export function BookingForm({
           {existing.label}
         </Button>
       ) : (
-        <Button size="lg" className="w-full" disabled={!canRequest} onClick={onRequest}>
-          Gửi yêu cầu
-        </Button>
+        <>
+          <ContactFields
+            guestName={guestName}
+            guestEmail={guestEmail}
+            guestPhone={guestPhone}
+            onName={setGuestName}
+            onEmail={setGuestEmail}
+            onPhone={setGuestPhone}
+          />
+          {contactError ? <p className="text-sm text-lotus-deep">{contactError}</p> : null}
+          <Button size="lg" className="w-full" disabled={!canRequest} onClick={submit}>
+            Gửi yêu cầu
+          </Button>
+        </>
       )}
       <p className="text-center text-sm text-muted">{helper}</p>
+    </div>
+  );
+}
+
+function ContactFields({
+  guestName,
+  guestEmail,
+  guestPhone,
+  onName,
+  onEmail,
+  onPhone,
+}: {
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  onName: (value: string) => void;
+  onEmail: (value: string) => void;
+  onPhone: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm">
+        Tên
+        <input
+          value={guestName}
+          onChange={(event) => onName(event.target.value)}
+          autoComplete="name"
+          className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
+        />
+      </label>
+      <label className="block text-sm">
+        Email
+        <input
+          type="email"
+          value={guestEmail}
+          onChange={(event) => onEmail(event.target.value)}
+          autoComplete="email"
+          className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
+        />
+      </label>
+      <label className="block text-sm">
+        Điện thoại
+        <input
+          type="tel"
+          value={guestPhone}
+          onChange={(event) => onPhone(event.target.value)}
+          autoComplete="tel"
+          className="mt-1 h-11 w-full rounded-xl bg-cream px-3"
+        />
+      </label>
+      <p className="text-xs text-muted">
+        Cần tên và email hoặc số điện thoại. Không cần tài khoản. Email và số chưa được xác minh.
+      </p>
     </div>
   );
 }

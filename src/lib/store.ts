@@ -17,6 +17,7 @@ import {
   DEFAULT_GUESTS,
 } from "@/lib/stay";
 import { fetchWorld, resolveRole, submitWorldAction } from "./world-api.ts";
+import { rememberGuestCredential } from "./guest-session.ts";
 import {
   armDemoSession,
   fetchDevSession,
@@ -71,6 +72,9 @@ type BookingState = {
     checkIn: string;
     checkOut: string;
     guests: number;
+    guestName: string;
+    guestEmail?: string;
+    guestPhone?: string;
   }) => Promise<{ requestId: string }>;
   saleCreateRequest: (input: {
     villaId: string;
@@ -78,6 +82,8 @@ type BookingState = {
     checkOut: string;
     guests: number;
     guestName: string;
+    guestEmail?: string;
+    guestPhone?: string;
   }) => Promise<{ requestId: string }>;
   hostAccept: (requestId: string, handling: "EXCLUSIVE" | "COMPETITIVE") => Promise<void>;
   hostExtendAcceptance: (requestId: string) => Promise<void>;
@@ -190,7 +196,7 @@ export const useBookingStore = create<BookingState>()(
           saleId: role.saleId,
           hostId: role.hostId,
           butlerId: role.butlerId,
-          adminKey: role.persona === "ADMIN" ? get().adminKey : undefined,
+          adminKey: get().adminKey,
         }),
       setDemoMode: (demoMode) => set({ demoMode }),
       setSearch: (search) =>
@@ -200,7 +206,14 @@ export const useBookingStore = create<BookingState>()(
       setOpsDate: (opsDate) => set({ opsDate }),
       refreshWorld: async () => {
         try {
-          const payload = await fetchWorld();
+          const state = get();
+          const payload = await fetchWorld({
+            data: {
+              vai: state.identity ? undefined : vaiFor(roleOf(state)),
+              key: state.adminKey,
+              grantId: state.grantId,
+            },
+          });
           set({
             world: payload.world,
             version: payload.version,
@@ -297,35 +310,33 @@ export const useBookingStore = create<BookingState>()(
         if (urlKey) sessionStorage.setItem("stayora-admin-key", urlKey);
         const sessionKey =
           urlKey || sessionStorage.getItem("stayora-admin-key") || undefined;
+        const keyOk = Boolean(
+          sessionKey &&
+            (await resolveRole({ data: { vai: "admin", key: sessionKey } })).persona === "ADMIN",
+        );
+        if (keyOk) set({ adminKey: sessionKey });
+        else {
+          sessionStorage.removeItem("stayora-admin-key");
+          set({ adminKey: undefined });
+        }
         const role = parseVai(vai);
-        if (role?.persona === "ADMIN") {
-          const authorized = await resolveRole({ data: { vai: "admin", key: sessionKey } });
-          if (authorized.persona !== "ADMIN") {
-            sessionStorage.removeItem("stayora-admin-key");
+        if (role && role.persona !== "GUEST") {
+          if (!keyOk) {
             get().setRole({ persona: "GUEST" });
             return { persona: "GUEST" };
           }
-          set({
-            persona: "ADMIN",
-            adminKey: sessionKey,
-            saleId: undefined,
-            hostId: undefined,
-            butlerId: undefined,
-          });
-          return { persona: "ADMIN" };
-        }
-        if (role) {
           get().setRole(role);
           return role;
         }
-        if (sessionKey && window.location.pathname.startsWith("/admin")) {
-          const authorized = await resolveRole({ data: { vai: "admin", key: sessionKey } });
-          if (authorized.persona === "ADMIN") {
-            set({ persona: "ADMIN", adminKey: sessionKey });
-            return { persona: "ADMIN" };
-          }
-          sessionStorage.removeItem("stayora-admin-key");
+        if (keyOk && window.location.pathname.startsWith("/admin")) {
+          get().setRole({ persona: "ADMIN" });
+          return { persona: "ADMIN" };
         }
+        if (role?.persona === "GUEST") {
+          get().setRole({ persona: "GUEST" });
+          return { persona: "GUEST" };
+        }
+        if (!keyOk && get().persona !== "GUEST") get().setRole({ persona: "GUEST" });
         return null;
       },
       runAction: async (action) => {
@@ -348,6 +359,9 @@ export const useBookingStore = create<BookingState>()(
           updatedAt: result.updatedAt,
           fetchedAt: new Date().toISOString(),
         });
+        if (result.guestCredential && result.requestId) {
+          rememberGuestCredential(result.requestId, result.guestCredential);
+        }
         return { requestId: result.requestId };
       },
       advanceDemo: async () => {
@@ -357,7 +371,7 @@ export const useBookingStore = create<BookingState>()(
         await get().runAction({ type: "RESET" });
       },
       guestCreateRequest: async (input) => {
-        const result = await get().runAction({ type: "CREATE_REQUEST", ...input, guestName: "Khách" });
+        const result = await get().runAction({ type: "CREATE_REQUEST", ...input });
         if (!result.requestId) throw new DomainError("INVALID", "Không tạo được yêu cầu");
         return { requestId: result.requestId };
       },

@@ -13,9 +13,9 @@ export { roleFromGrant };
 
 /**
  * Signed-in callers are authorized only by active grants, and never as ADMIN.
- * Stayora vận hành is the ADMIN_KEY path only (unsigned + demo).
- * A client-sent vai/role is ignored whenever an identity is present.
- * Otherwise the caller is a guest.
+ * Unsigned demo mode uses the ADMIN_KEY path for every non-guest persona.
+ * The demo cookie is not a credential. A client-sent vai is ignored when an
+ * identity is present. Otherwise the caller is a guest.
  */
 export function resolveWorkingRole(input: {
   signedIn: boolean;
@@ -35,6 +35,12 @@ export function resolveWorkingRole(input: {
       : personas[0];
     return chosen ? workingRoleFromGrants(active, chosen.role) : { persona: "GUEST" };
   }
-  if (input.demo) return authorizeRole(input.vai, input.key);
+  if (input.demo) {
+    const requested = authorizeRole(input.vai, input.key);
+    if (requested.persona !== "GUEST" && authorizeRole("admin", input.key).persona !== "ADMIN") {
+      return { persona: "GUEST" };
+    }
+    return requested;
+  }
   return { persona: "GUEST" };
 }

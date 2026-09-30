@@ -147,6 +147,7 @@ function bookedStay(actor: Actor = GUEST) {
     guests: 4,
     guestName: "Mai",
     actor,
+    guestEmail: "guest@example.com",
   });
   world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
   const paid = pay(world, created.request.id);
@@ -170,7 +171,8 @@ describe("Sale request converges with a direct Guest request", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     guestWorld = acceptRequest(guestCreated.world, { handling: "EXCLUSIVE",
       requestId: guestCreated.request.id,
       actor: HOST,
@@ -185,7 +187,8 @@ describe("Sale request converges with a direct Guest request", () => {
       guests: 2,
       guestName: "An",
       actor: SALE,
-    });
+    guestEmail: "guest@example.com",
+  });
     saleWorld = acceptRequest(saleCreated.world, { handling: "EXCLUSIVE",
       requestId: saleCreated.request.id,
       actor: HOST,
@@ -216,7 +219,8 @@ describe("Sale commission", () => {
       guests: 4,
       guestName: "Gia Phạm",
       actor: SALE,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = saleStay.world;
     const guestStay = createRequest(world, {
       villaId: "t04",
@@ -225,7 +229,8 @@ describe("Sale commission", () => {
       guests: 2,
       guestName: "Linh",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = guestStay.world;
 
     world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: saleStay.request.id, actor: HOST }).world;
@@ -546,7 +551,8 @@ describe("assignment is not authority", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     second = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const paid = pay(second, created.request.id);
     const onSecond = beginCleaning(paid.world, { villaId: "t06", actor });
@@ -560,7 +566,8 @@ describe("assignment is not authority", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     other = acceptRequest(otherRequest.world, { handling: "EXCLUSIVE", requestId: otherRequest.request.id, actor: HOST }).world;
     const otherPaid = pay(other, otherRequest.request.id);
     assert.throws(
@@ -579,7 +586,8 @@ describe("Stay transitions", () => {
       guests: 2,
       guestName: "An",
       actor: SALE,
-    });
+    guestEmail: "guest@example.com",
+  });
     assert.throws(
       () => acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: SALE }),
       (error: unknown) => error instanceof DomainError && error.code === "FORBIDDEN",
@@ -618,7 +626,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = first.world;
     const second = createRequest(world, {
       villaId: "t04",
@@ -627,7 +636,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = second.world;
     assert.equal(isAvailable(world, "t04", "2026-12-01", "2026-12-04"), true);
     assert.equal(world.requests.filter((item) => item.status === "PENDING").length, 2);
@@ -643,7 +653,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = first.world;
     const second = createRequest(world, {
       villaId: "t04",
@@ -652,7 +663,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = second.world;
     world = acceptRequest(world, { handling: "COMPETITIVE", requestId: first.request.id, actor: HOST }).world;
     world = acceptRequest(world, { handling: "COMPETITIVE", requestId: second.request.id, actor: HOST }).world;
@@ -676,7 +688,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = first.world;
     const second = createRequest(world, {
       villaId: "t04",
@@ -685,7 +698,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = second.world;
     world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: first.request.id, actor: HOST }).world;
     world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: second.request.id, actor: HOST }).world;
@@ -709,7 +723,8 @@ describe("Availability and overlapping requests", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     assert.throws(
       () => rejectRequest(world, { requestId: created.request.id, actor: HOST }),
@@ -729,7 +744,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const paid = pay(world, created.request.id);
     world = paid.world;
@@ -759,7 +775,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const unknown = pay(world, created.request.id, "UNKNOWN");
     world = unknown.world;
@@ -788,7 +805,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     world = advanceTime(world, 31 * 60 * 1000);
     assert.equal(world.requests.find((item) => item.id === created.request.id)?.status, "EXPIRED");
@@ -816,7 +834,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(first.world, { handling: "EXCLUSIVE", requestId: first.request.id, actor: HOST }).world;
     const unknown = pay(world, first.request.id, "UNKNOWN");
     world = unknown.world;
@@ -830,7 +849,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(second.world, { handling: "EXCLUSIVE", requestId: second.request.id, actor: HOST }).world;
     world = pay(world, second.request.id, "SUCCEEDED").world;
     assert.equal(world.bookings.length, 1);
@@ -862,7 +882,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const balance = balanceOf(world, created.request.id);
     assert.throws(
@@ -952,7 +973,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
     const external = recordExternalBooking(world, {
@@ -1014,7 +1036,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(farReq.world, { handling: "EXCLUSIVE", requestId: farReq.request.id, actor: HOST }).world;
     assert.equal(
       world.obligations.filter((item) => item.requestId === farReq.request.id).length,
@@ -1029,7 +1052,8 @@ describe("Payment confirmation", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(nearReq.world, { handling: "EXCLUSIVE", requestId: nearReq.request.id, actor: HOST }).world;
     const nearObligations = world.obligations.filter(
       (item) => item.requestId === nearReq.request.id,
@@ -1093,7 +1117,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     assert.throws(
       () =>
@@ -1168,7 +1193,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE");
     assert.ok(hold);
@@ -1371,7 +1397,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST }).world;
     const hold = world.commitments.find((item) => item.kind === "HOLD" && item.status === "ACTIVE")!;
     const external = recordExternalBooking(world, {
@@ -1519,7 +1546,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = created.world;
     assert.equal(world.auditLog.length, 1);
     assert.equal(world.auditLog[0]?.action, "CREATE_REQUEST");
@@ -1531,7 +1559,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = other.world;
     assert.equal(world.auditLog.length, 2);
 
@@ -1570,7 +1599,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "Lan",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = unknownReq.world;
     assert.equal(world.auditLog.length, 11);
     world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: unknownReq.request.id, actor: HOST }).world;
@@ -1592,7 +1622,8 @@ describe("Phase 2 host calendar, external, admin", () => {
       guests: 2,
       guestName: "Tuấn",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = noShow.world;
     world = acceptRequest(world, { handling: "EXCLUSIVE", requestId: noShow.request.id, actor: HOST }).world;
     world = pay(world, noShow.request.id).world;
@@ -1829,7 +1860,8 @@ describe("emergency protective hold is not an inventory commitment", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     const accepted = acceptRequest(created.world, { handling: "EXCLUSIVE", requestId: created.request.id, actor: HOST });
     assert.equal(accepted.request.status, "CONFLICTED");
     assert.equal(
@@ -2102,7 +2134,8 @@ describe("Parallel acceptance and the two request clocks", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     const second = createRequest(first.world, {
       villaId: "t04",
       checkIn: "2026-12-01",
@@ -2110,7 +2143,8 @@ describe("Parallel acceptance and the two request clocks", () => {
       guests: 2,
       guestName: "Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     return { first, second };
   }
 
@@ -2133,7 +2167,8 @@ describe("Parallel acceptance and the two request clocks", () => {
       guests: 2,
       guestName: "Cường",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = pending.world;
     const paid = pay(world, first.request.id);
     world = paid.world;
@@ -2224,7 +2259,8 @@ describe("Parallel acceptance and the two request clocks", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = created.world;
     const due = world.requests[0]?.responseDueAt;
     assert.equal(due, new Date(Date.parse(NOW) + HOST_RESPONSE_MS).toISOString());
@@ -2243,7 +2279,8 @@ describe("Parallel acceptance and the two request clocks", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(accepted.world, {
       handling: "COMPETITIVE",
       requestId: accepted.request.id,
@@ -2303,7 +2340,8 @@ describe("Parallel acceptance and the two request clocks", () => {
       guests: 2,
       guestName: "An",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     const accepted = acceptRequest(created.world, {
       handling: "COMPETITIVE",
       requestId: created.request.id,

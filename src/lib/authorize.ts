@@ -24,8 +24,9 @@ function adminKeyMatches(provided: string | null | undefined): boolean {
 }
 
 /**
- * Re-derive the role on the server. The client-sent RoleSession is never trusted.
- * Unset ADMIN_KEY or a wrong/missing key → GUEST (fail closed).
+ * Re-derive a requested vai. The client-sent role is never stored here.
+ * ADMIN without a matching ADMIN_KEY is GUEST. Other personas only parse:
+ * demo mode must still pass the same key check in resolveWorkingRole.
  */
 export function authorizeRole(
   vai: string | null | undefined,

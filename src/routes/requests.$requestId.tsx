@@ -5,7 +5,8 @@ import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
 import { GUEST_ARRIVAL } from "@/lib/destination";
 import { StaySummary } from "@/components/stay-summary";
 import { Button } from "@/components/ui/button";
-import { balanceLine, competingAccepted, holdCountdown, obligationSucceeded, paymentPlanLabel } from "@/lib/domain";
+import { balanceLine, holdCountdown, paymentPlanLabel } from "@/lib/domain";
+import { useGuestSlice } from "@/lib/guest-slice";
 import { useBookingStore } from "@/lib/store";
 import { formatVnd } from "@/lib/stay";
 import { getVilla } from "@/lib/villas";
@@ -17,39 +18,34 @@ export const Route = createFileRoute("/requests/$requestId")({
 function RequestPage() {
   const { requestId } = Route.useParams();
   const navigate = useNavigate();
-  const hydrated = useBookingStore((state) => state.hydrated);
   const world = useBookingStore((state) => state.world);
-  const request = world.requests.find((item) => item.id === requestId);
-  const booking = world.bookings.find((item) => item.requestId === requestId);
-  const stay = booking
-    ? world.stays.find((item) => item.id === booking.stayId)
-    : undefined;
-  const initial = world.obligations.find(
-    (item) => item.requestId === requestId && item.kind === "INITIAL",
-  );
-  const balance = world.obligations.find(
-    (item) => item.requestId === requestId && item.kind === "BALANCE",
-  );
-  const unknown = world.attempts.find(
-    (item) => item.obligationId === initial?.id && item.status === "UNKNOWN",
-  );
-  const balancePaid = balance ? obligationSucceeded(world, balance.id) : false;
+  const { state, slice } = useGuestSlice({ requestId });
 
-  if (!hydrated) {
+  if (state === "loading") {
     return <main className="mx-auto max-w-lg px-4 py-24 text-muted">Đang mở yêu cầu…</main>;
   }
 
-  if (!request) {
+  if (state !== "ready" || !slice) {
     return (
       <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="font-serif text-title">Không tìm thấy yêu cầu này</h1>
-        <p className="mt-3 text-ink-soft">Có thể đây là phiên khác trên thiết bị này.</p>
+        <h1 className="font-serif text-title">Không mở được yêu cầu này</h1>
+        <p className="mt-3 text-ink-soft">Đường dẫn không phải quyền truy cập.</p>
         <Button asChild className="mt-8">
           <Link to="/">Xem villa Oceanami</Link>
         </Button>
       </main>
     );
   }
+
+  const request = slice.request;
+  const booking = slice.booking ?? undefined;
+  const stay = slice.stay ?? undefined;
+  const initial = slice.obligations.find((item) => item.kind === "INITIAL");
+  const balance = slice.obligations.find((item) => item.kind === "BALANCE");
+  const unknown = slice.attempts.find((item) => item.obligationId === initial?.id && item.status === "UNKNOWN");
+  const balancePaid = balance
+    ? slice.attempts.some((item) => item.obligationId === balance.id && item.status === "SUCCEEDED")
+    : false;
 
   const villa = getVilla(request.villaId);
   if (!villa) {
@@ -119,7 +115,6 @@ function RequestPage() {
 
   const clock = parseISO(world.now);
   const plan = paymentPlanLabel(request.total, request.checkIn, request.createdAt);
-  const rivals = request.handling === "COMPETITIVE" ? competingAccepted(world, request.id) : [];
   const waitingCopy =
     request.status === "EXPIRED"
       ? "Hết hạn phản hồi."
@@ -143,11 +138,6 @@ function RequestPage() {
       </p>
       <h1 className="mt-2 font-serif text-title">Đã gửi yêu cầu của bạn</h1>
       <p className="mt-3 text-ink-soft">{waitingCopy}</p>
-      {rivals.length > 0 ? (
-        <p className="mt-3 text-sm text-ink-soft">
-          Có {rivals.length} yêu cầu khác cũng được chấp nhận cho những ngày này.
-        </p>
-      ) : null}
 
       {unknown ? (
         <div className="mt-6 rounded-2xl bg-lotus-soft p-4">

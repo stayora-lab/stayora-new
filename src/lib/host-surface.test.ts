@@ -56,7 +56,8 @@ describe("host payment lines", () => {
       guests: 2,
       guestName: "Anh Bình",
       actor: GUEST,
-    });
+    guestEmail: "guest@example.com",
+  });
     world = acceptRequest(created.world, {
       handling: "COMPETITIVE",
       requestId: created.request.id,

@@ -49,6 +49,8 @@ export type WorldAction =
       checkOut: string;
       guests: number;
       guestName?: string;
+      guestEmail?: string;
+      guestPhone?: string;
     }
   | { type: "ACCEPT_REQUEST"; requestId: string; handling: AcceptanceHandling }
   | { type: "EXTEND_ACCEPTANCE"; requestId: string }
@@ -192,7 +194,9 @@ export function applyWorldAction(
         checkIn: action.checkIn,
         checkOut: action.checkOut,
         guests: action.guests,
-        guestName: action.guestName?.trim() || "Khách",
+        guestName: action.guestName ?? "",
+        guestEmail: action.guestEmail,
+        guestPhone: action.guestPhone,
         actor,
       });
       return { world: result.world, requestId: result.request.id };

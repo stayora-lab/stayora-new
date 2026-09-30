@@ -1,4 +1,5 @@
 import { parseISO } from "date-fns";
+import { normalizeGuestContact } from "../guest-access.ts";
 import {
   activeCommitments,
   commitmentsOverlap,
@@ -314,6 +315,8 @@ export function createRequest(
     checkOut: string;
     guests: number;
     guestName: string;
+    guestEmail?: string | null;
+    guestPhone?: string | null;
     actor: Actor;
     id?: string;
   },
@@ -333,13 +336,16 @@ export function createRequest(
   }
   const source = input.actor.persona === "SALE" ? "SALE" : "GUEST";
   const saleId = input.actor.persona === "SALE" ? input.actor.saleId : undefined;
+  const contact = normalizeGuestContact(input);
   const request: StayRequest = {
     id: input.id ?? nid("req"),
     villaId: input.villaId,
     checkIn: input.checkIn,
     checkOut: input.checkOut,
     guests: input.guests,
-    guestName: input.guestName.trim() || "Khách",
+    guestName: contact.guestName,
+    guestEmail: contact.guestEmail,
+    guestPhone: contact.guestPhone,
     nightly: villa.nightly,
     nights,
     total: villa.nightly * nights,
