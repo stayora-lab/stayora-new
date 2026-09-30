@@ -68,19 +68,13 @@ export const submitWorldAction = createServerFn({ method: "POST" })
     const role = await callerRole(data);
     try {
       const result = await runWorldAction(data.action, role);
-      let guestCredential: string | undefined;
-      if (data.action.type === "CREATE_REQUEST" && result.requestId && role.persona === "GUEST") {
-        const { getSql } = await import("./db.ts");
-        const { issueGuestCredential } = await import("./guest-credential.server.ts");
-        guestCredential = await issueGuestCredential(await getSql(), result.requestId);
-      }
       return {
         ok: true,
         world: projectWorldForCaller(result.world, role),
         version: result.version,
         updatedAt: result.updatedAt,
         requestId: result.requestId,
-        guestCredential,
+        guestCredential: result.guestCredential,
       };
     } catch (error) {
       const code =

@@ -1,8 +1,9 @@
 import { expireHolds, type World } from "@/lib/domain";
-import { getSql } from "@/lib/db";
+import { getSql, withTransaction } from "@/lib/db";
 import { seedFromPilot } from "./seed-pilot.ts";
 import { mutateWorld, type WorldSnapshot } from "./world-mutate.ts";
 import { applyWorldAction, type WorldAction } from "./world-actions.ts";
+import { commitWorldWithCredential } from "./guest-credential.server.ts";
 import type { RoleSession } from "./role.ts";
 
 const ROW_ID = 1;
@@ -74,20 +75,35 @@ export async function readWorld(): Promise<{ world: World; version: number; upda
 }
 
 export async function runWorldAction(action: WorldAction, role: RoleSession) {
+  let pendingRequestId: string | undefined;
+  let guestCredential: string | undefined;
   const io = {
     load: async () => {
       const snap = await readWorld();
       return { world: snap.world, version: snap.version };
     },
-    save: saveRow,
+    save: async (world: World, expectedVersion: number) => {
+      const outcome = await commitWorldWithCredential((fn) => withTransaction(fn), {
+        worldJson: JSON.stringify(world),
+        expectedVersion,
+        requestId: action.type === "CREATE_REQUEST" ? pendingRequestId : undefined,
+      });
+      guestCredential = outcome.saved ? outcome.guestCredential : undefined;
+      return outcome.saved;
+    },
   };
-  const result = await mutateWorld(io, (world) => applyWorldAction(world, action, role));
+  const result = await mutateWorld(io, (world) => {
+    const applied = applyWorldAction(world, action, role);
+    pendingRequestId = applied.requestId;
+    return applied;
+  });
   const latest = await loadRow();
   return {
     world: result.world,
     version: result.version,
     updatedAt: latest?.updatedAt ?? new Date().toISOString(),
     requestId: result.requestId,
+    guestCredential,
   };
 }
 

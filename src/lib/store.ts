@@ -84,7 +84,7 @@ type BookingState = {
     guestName: string;
     guestEmail?: string;
     guestPhone?: string;
-  }) => Promise<{ requestId: string }>;
+  }) => Promise<{ requestId: string; guestCredential?: string }>;
   hostAccept: (requestId: string, handling: "EXCLUSIVE" | "COMPETITIVE") => Promise<void>;
   hostExtendAcceptance: (requestId: string) => Promise<void>;
   hostExternal: (input: {
@@ -359,10 +359,14 @@ export const useBookingStore = create<BookingState>()(
           updatedAt: result.updatedAt,
           fetchedAt: new Date().toISOString(),
         });
-        if (result.guestCredential && result.requestId) {
+        if (
+          result.guestCredential &&
+          result.requestId &&
+          roleOf(get()).persona === "GUEST"
+        ) {
           rememberGuestCredential(result.requestId, result.guestCredential);
         }
-        return { requestId: result.requestId };
+        return { requestId: result.requestId, guestCredential: result.guestCredential };
       },
       advanceDemo: async () => {
         await get().runAction({ type: "ADVANCE_TIME" });
@@ -378,7 +382,7 @@ export const useBookingStore = create<BookingState>()(
       saleCreateRequest: async (input) => {
         const result = await get().runAction({ type: "CREATE_REQUEST", ...input });
         if (!result.requestId) throw new DomainError("INVALID", "Không tạo được yêu cầu");
-        return { requestId: result.requestId };
+        return { requestId: result.requestId, guestCredential: result.guestCredential };
       },
       hostAccept: async (requestId, handling) => {
         await get().runAction({ type: "ACCEPT_REQUEST", requestId, handling });

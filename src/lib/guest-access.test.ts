@@ -13,8 +13,10 @@ import {
   hashGuestCredential,
   issueGuestCredential,
   requestIdForGuestCredential,
+  commitWorldWithCredential,
   type CredentialDb,
 } from "./guest-credential.server.ts";
+import { guestHandoffUrl } from "./guest-session.ts";
 
 const NOW = "2026-09-22T03:00:00.000Z";
 const GUEST: Actor = { persona: "GUEST" };
@@ -51,12 +53,63 @@ async function database(): Promise<CredentialDb> {
   await pg.waitReady;
   const sql = readFileSync(new URL("../../migrations/0008_guest_credential.sql", import.meta.url), "utf8");
   await pg.exec(sql);
+  return queryDb(pg);
+}
+
+function queryDb(pg: PGlite): CredentialDb {
   return {
     query: async <T>(text: string, params?: unknown[]) => {
       const result = await pg.query<T>(text, params);
       return result.rows;
     },
   };
+}
+
+async function worldDatabase(seed: World): Promise<PGlite> {
+  const pg = new PGlite();
+  await pg.waitReady;
+  await pg.exec(`
+    create table world_state (
+      id int primary key,
+      version int not null,
+      data jsonb not null,
+      updated_at timestamptz not null default now()
+    );
+  `);
+  const cred = readFileSync(new URL("../../migrations/0008_guest_credential.sql", import.meta.url), "utf8");
+  await pg.exec(cred);
+  await pg.query("insert into world_state (id, version, data) values ($1, $2, $3::jsonb)", [
+    1,
+    1,
+    JSON.stringify(seed),
+  ]);
+  return pg;
+}
+
+function txRunner(pg: PGlite, failInsert: boolean) {
+  return <T>(fn: (db: CredentialDb) => Promise<T>) =>
+    pg.transaction(async (tx) => {
+      const db: CredentialDb = {
+        query: async <Row>(text: string, params?: unknown[]) => {
+          if (failInsert && text.includes("insert into guest_credentials")) {
+            throw new Error("connection dropped");
+          }
+          const result = await tx.query<Row>(text, params);
+          return result.rows;
+        },
+      };
+      return fn(db);
+    });
+}
+
+async function worldRow(pg: PGlite): Promise<{ version: number; text: string }> {
+  const rows = await pg.query<{ version: number; data: unknown }>(
+    "select version, data from world_state where id = 1",
+  );
+  const row = rows.rows[0];
+  if (!row) throw new Error("missing world");
+  const text = typeof row.data === "string" ? row.data : JSON.stringify(row.data);
+  return { version: Number(row.version), text };
 }
 
 describe("guest minimum contact", () => {
@@ -164,5 +217,88 @@ describe("guest credential boundary", () => {
     assert.match(source("../routes/your-stay.$stayId.tsx"), /useGuestSlice/);
     assert.equal(source("../routes/requests.$requestId.tsx").includes("world.requests.find"), false);
     assert.equal(source("../routes/your-stay.$stayId.tsx").includes("world.stays.find"), false);
+  });
+});
+
+describe("credential commit and sale handoff", () => {
+  it("rolls the request back when the credential insert fails, then a retry stores one", async () => {
+    const created = ask({ id: "req_orphan", guestName: "Mai", guestEmail: "mai@example.com", actor: SALE });
+    const pg = await worldDatabase(createEmptyWorld(NOW));
+    await assert.rejects(
+      () =>
+        commitWorldWithCredential(txRunner(pg, true), {
+          worldJson: JSON.stringify(created.world),
+          expectedVersion: 1,
+          requestId: created.request.id,
+        }),
+      /connection dropped/,
+    );
+    const rolled = await worldRow(pg);
+    assert.equal(rolled.version, 1);
+    assert.equal(rolled.text.includes("req_orphan"), false);
+    assert.equal((await pg.query("select request_id from guest_credentials")).rows.length, 0);
+
+    const saved = await commitWorldWithCredential(txRunner(pg, false), {
+      worldJson: JSON.stringify(created.world),
+      expectedVersion: 1,
+      requestId: created.request.id,
+    });
+    assert.equal(saved.saved, true);
+    assert.ok(saved.guestCredential);
+    assert.notEqual(saved.guestCredential, created.request.id);
+    const after = await worldRow(pg);
+    assert.equal(after.version, 2);
+    assert.equal(after.text.includes("req_orphan"), true);
+    const hashes = await pg.query<{ token_hash: string }>("select token_hash from guest_credentials");
+    assert.equal(hashes.rows.length, 1);
+    assert.equal(hashes.rows[0]?.token_hash, hashGuestCredential(saved.guestCredential));
+    const db = queryDb(pg);
+    assert.equal(await requestIdForGuestCredential(db, saved.guestCredential), "req_orphan");
+    const slice = openGuestSlice(created.world, { requestId: "req_orphan" }, { requestId: "req_orphan" });
+    assert.equal(slice?.request.guestName, "Mai");
+    assert.equal(slice?.request.source, "SALE");
+    assert.equal(projectWorldForCaller(created.world, { persona: "SALE" }).requests.length, 1);
+    assert.equal(projectWorldForCaller(created.world, { persona: "GUEST" }).requests.length, 0);
+    const url = guestHandoffUrl("https://stayora.example", "req_orphan", saved.guestCredential);
+    assert.equal(url, `https://stayora.example/requests/req_orphan#${encodeURIComponent(saved.guestCredential)}`);
+    assert.equal(url.includes(`/requests/${saved.guestCredential}`), false);
+  });
+
+  it("a sale credential opens the stay the same way, and sale does not keep it", async () => {
+    const created = ask({ id: "req_sale", guestName: "Mai", guestPhone: "0901000001", actor: SALE });
+    let world = acceptRequest(created.world, {
+      requestId: created.request.id,
+      actor: HOST,
+      handling: "EXCLUSIVE",
+    }).world;
+    world = pay(world, created.request.id);
+    const stay = world.stays.find((item) => item.requestId === "req_sale");
+    assert.ok(stay);
+    const pg = await worldDatabase(createEmptyWorld(NOW));
+    const saved = await commitWorldWithCredential(txRunner(pg, false), {
+      worldJson: JSON.stringify(world),
+      expectedVersion: 1,
+      requestId: "req_sale",
+    });
+    assert.ok(saved.guestCredential);
+    const db = queryDb(pg);
+    assert.equal(await requestIdForGuestCredential(db, saved.guestCredential!), "req_sale");
+    const slice = openGuestSlice(world, { requestId: "req_sale" }, { stayId: stay.id });
+    assert.equal(slice?.stay?.id, stay.id);
+    assert.equal(slice?.request.guestPhone, "0901000001");
+    assert.equal(openGuestSlice(world, { requestId: "req_sale" }, { requestId: "req_other" }), null);
+
+    const store = source("./store.ts");
+    const rememberAt = store.indexOf("rememberGuestCredential(result.requestId");
+    assert.equal(rememberAt > 0, true);
+    assert.match(store.slice(rememberAt - 200, rememberAt), /persona === "GUEST"/);
+    assert.equal(source("./world-api.ts").includes("issueGuestCredential"), false);
+    assert.match(source("./world.server.ts"), /commitWorldWithCredential/);
+    assert.match(source("../routes/sale.tsx"), /guestHandoffUrl/);
+    assert.equal(source("../routes/sale.tsx").includes("rememberGuestCredential"), false);
+    assert.match(source("./guest-slice.ts"), /persona === "GUEST"/);
+    assert.match(source("./guest-slice.ts"), /stripHashCredential/);
+    assert.equal(source("./access.ts").includes("commitWorldWithCredential"), false);
+    assert.equal(source("./authorize.ts").includes("guestCredential"), false);
   });
 });

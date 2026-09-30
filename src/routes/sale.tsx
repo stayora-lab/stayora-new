@@ -26,6 +26,7 @@ import { formatVnd, isIsoDate, nightsBetween } from "@/lib/stay";
 import { publishedVillas, villas, type Villa } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import { normalizeGuestContact } from "@/lib/guest-access";
+import { guestHandoffUrl } from "@/lib/guest-session";
 
 export const Route = createFileRoute("/sale")({
   component: SalePage,
@@ -53,6 +54,7 @@ function SalePage() {
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+  const [handoff, setHandoff] = useState<{ requestId: string; credential: string } | null>(null);
   const clock = parseISO(world.now);
 
   const ready =
@@ -111,7 +113,7 @@ function SalePage() {
     setError(null);
     try {
       const contact = normalizeGuestContact({ guestName, guestEmail, guestPhone });
-      await saleCreateRequest({
+      const created = await saleCreateRequest({
         villaId: creating.id,
         checkIn: search.checkIn,
         checkOut: search.checkOut,
@@ -122,6 +124,11 @@ function SalePage() {
       setGuestName("");
       setGuestEmail("");
       setGuestPhone("");
+      setHandoff(
+        created.guestCredential
+          ? { requestId: created.requestId, credential: created.guestCredential }
+          : null,
+      );
       setTab("requests");
     } catch (err) {
       setError(domainMessageVi(err));
@@ -251,6 +258,37 @@ function SalePage() {
 
       {tab === "requests" ? (
         <section className="mx-auto max-w-lg space-y-3 px-4 pt-5 sm:px-6">
+          {handoff ? (
+            <div className="rounded-2xl bg-lotus-soft p-4">
+              <p className="font-medium text-lotus-deep">Đường dẫn cho khách</p>
+              <p className="mt-2 text-sm text-ink-soft">
+                Chỉ hiện một lần. Gửi riêng cho khách qua Zalo hoặc điện thoại. Sale không mở yêu cầu bằng liên kết này.
+              </p>
+              <p className="mt-3 break-all font-mono text-xs text-ink">
+                {guestHandoffUrl(window.location.origin, handoff.requestId, handoff.credential)}
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const text = [
+                      "Stayora · yêu cầu của bạn",
+                      guestHandoffUrl(window.location.origin, handoff.requestId, handoff.credential),
+                    ].join("\n");
+                    void copyText(text).then((ok) => {
+                      setCopied(ok ? "handoff" : null);
+                      window.setTimeout(() => setCopied(null), 2200);
+                    });
+                  }}
+                >
+                  {copied === "handoff" ? "Đã sao chép" : "Copy đường dẫn cho khách"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setHandoff(null)}>
+                  Đã gửi
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {myRequests.length === 0 ? (
             <Empty>Chưa có yêu cầu. Tạo từ tab Tìm villa.</Empty>
           ) : (

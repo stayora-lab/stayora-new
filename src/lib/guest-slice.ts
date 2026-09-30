@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import type { GuestSlice } from "./guest-access.ts";
-import { readGuestCredential, rememberGuestCredential } from "./guest-session.ts";
+import {
+  readGuestCredential,
+  readHashCredential,
+  rememberGuestCredential,
+  stripHashCredential,
+} from "./guest-session.ts";
+import { useBookingStore } from "./store.ts";
 import { fetchGuestSlice } from "./world-api.ts";
 
 export function useGuestSlice(query: { requestId?: string; stayId?: string }): {
@@ -14,7 +20,17 @@ export function useGuestSlice(query: { requestId?: string; stayId?: string }): {
 
   useEffect(() => {
     const resourceId = requestId ?? stayId;
-    const credential = resourceId ? readGuestCredential(resourceId) : null;
+    let credential = resourceId ? readGuestCredential(resourceId) : null;
+    if (!credential && requestId) {
+      const fromHash = readHashCredential();
+      if (fromHash) {
+        stripHashCredential();
+        if (useBookingStore.getState().persona === "GUEST") {
+          rememberGuestCredential(requestId, fromHash);
+          credential = fromHash;
+        }
+      }
+    }
     if (!credential) {
       setSlice(null);
       setState("denied");
