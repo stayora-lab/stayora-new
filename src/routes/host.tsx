@@ -238,10 +238,15 @@ function HostPage() {
               <p className="mt-1 text-sm text-ink-soft">
                 {viDateRange(fact.checkIn, fact.checkOut)} · {fact.source}
               </p>
-              <p className="mt-2 text-sm text-muted">Chưa giữ chỗ. Lịch vẫn trống.</p>
+              <p className="mt-2 text-sm text-muted">
+                Ghi nhận này chưa giữ lịch và chưa tạo kỳ ở.
+              </p>
               <Button className="mt-3 w-full" onClick={() => run(() => hostEstablishExternal(fact.id))}>
-                Giữ chỗ theo ghi nhận này
+                Giữ chỗ và tạo kỳ ở
               </Button>
+              <p className="mt-2 text-xs text-muted">
+                Giữ lịch theo ngày này. Nếu trùng chỗ đang có, sẽ hiện xung đột, không ghi đè.
+              </p>
             </article>
           ))}
           <TodayCard
@@ -307,10 +312,15 @@ function HostPage() {
             onExternal={(input) =>
               run(
                 () => hostExternal(input),
-                `Đã ghi đặt ngoài: ${villaName(input.villaId)}, ${viDateRange(input.checkIn, input.checkOut)}`,
+                `Đã ghi nhận và giữ chỗ: ${villaName(input.villaId)}, ${viDateRange(input.checkIn, input.checkOut)}. Lịch đã giữ. Đã tạo kỳ ở, không phải đặt Stayora.`,
               )
             }
-            onRecordFact={(input) => run(() => hostRecordFact(input))}
+            onRecordFact={(input) =>
+              run(
+                () => hostRecordFact(input),
+                `Đã ghi nhận: ${villaName(input.villaId)}, ${viDateRange(input.checkIn, input.checkOut)}. Ghi nhận này chưa giữ lịch. Chưa có kỳ ở.`,
+              )
+            }
             onBlock={(input) =>
               run(
                 () => hostCreateBlock(input),
