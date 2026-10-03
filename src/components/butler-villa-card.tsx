@@ -139,6 +139,11 @@ export function VillaDayCard({
                 Cần chú ý
               </span>
             ) : null}
+            {card.freshnessDetail ? (
+              <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-medium text-ink">
+                Chuẩn bị lại
+              </span>
+            ) : null}
             {card.readiness === "CLEANING" ? (
               <span
                 data-readiness-label="CLEANING"
@@ -148,10 +153,10 @@ export function VillaDayCard({
                 Đang dọn
               </span>
             ) : null}
-            {card.readiness === "DIRTY" ? (
+            {card.readiness === "DIRTY" && !card.freshnessDetail ? (
               <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-medium text-ink">Cần dọn</span>
             ) : null}
-            {card.housekeeping === "ready" ? (
+            {card.readiness === "READY" && !card.freshnessDetail ? (
               <span className="rounded-full bg-moss px-2 py-0.5 text-xs font-medium text-cream">Sẵn sàng</span>
             ) : null}
             {card.housekeeping === "quiet" ||
@@ -161,6 +166,13 @@ export function VillaDayCard({
           </div>
         </div>
         {card.lateLabel ? <p className="mt-2 text-sm font-medium text-lotus">{card.lateLabel}</p> : null}
+        {card.freshnessDetail ? <p className="mt-2 text-sm text-ink">{card.freshnessDetail}</p> : null}
+        {card.waitingResolution ? (
+          <p className="mt-2 text-sm font-medium text-ink">Đã trả phòng · đang chờ xử lý</p>
+        ) : null}
+        {card.enhancedNote && (card.readiness === "DIRTY" || card.readiness === "CLEANING") ? (
+          <p className="mt-2 text-sm text-ink">Cần vệ sinh tăng cường</p>
+        ) : null}
         {card.attentionNote ? <p className="mt-2 text-sm text-ink-soft">{card.attentionNote}</p> : null}
         {card.holdOverdue ? (
           <p className="mt-1 text-sm font-medium">Đã quá hạn xem lại. Vẫn đang giữ.</p>

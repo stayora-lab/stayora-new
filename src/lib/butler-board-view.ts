@@ -1,7 +1,7 @@
 import { format, parseISO } from "date-fns";
-import { nextCardAction, type NextCardAction } from "./butler-card.ts";
+import { type NextCardAction } from "./butler-card.ts";
 import { addIsoDays } from "./butler-timeline.ts";
-import { butlerFieldBoard, readinessOf } from "./domain/engine.ts";
+import { butlerFieldBoard, readinessOf, activeEnhancedCleaningNote } from "./domain/engine.ts";
 import type { ProtectiveHold, Stay, VillaReadinessState, World } from "./domain/types.ts";
 
 /**
@@ -52,6 +52,9 @@ export type VillaCardModel = {
   attentionNote: string | null;
   holdOverdue: boolean;
   readiness: VillaReadinessState;
+  freshnessDetail: string | null;
+  enhancedNote: string | null;
+  waitingResolution: boolean;
   action: CardAction | null;
 };
 
@@ -64,11 +67,66 @@ export type DayLayout = {
 export type BoardFlags = { canAct: boolean; canHold: boolean };
 
 const ACTION_PRIORITY: NextCardAction["id"][] = [
-  "observe-departure",
   "check-out",
-  "observe-arrival",
+  "observe-departure",
   "check-in",
+  "observe-arrival",
 ];
+
+export const FRESHNESS_DETAIL = "Đã quá 72 giờ — cần kiểm tra/dọn lại";
+
+/** One next step for the opened stay. Cleaning does not replace a due guest movement. */
+export function drawerAction(
+  stay: Stay,
+  readiness: VillaReadinessState,
+  viewed: string,
+): CardAction | null {
+  if (stay.status === "CHECKED_IN") {
+    if (stay.checkOut > viewed) return null;
+    if (!stay.departureObservedAt) {
+      return {
+        kind: "stay",
+        id: "observe-departure",
+        label: "Đã thấy khách rời villa",
+        tone: "lotus",
+        stayId: stay.id,
+      };
+    }
+    return { kind: "stay", id: "check-out", label: "Trả phòng", tone: "lotus", stayId: stay.id };
+  }
+  if (stay.status === "SCHEDULED") {
+    if (stay.arrivalObservedAt) {
+      return { kind: "stay", id: "check-in", label: "Nhận phòng", tone: "lotus", stayId: stay.id };
+    }
+    if (readiness === "DIRTY" || readiness === "CLEANING") return cleaningAction(readiness, stay.villaId);
+    if (stay.checkIn > viewed) return null;
+    return {
+      kind: "stay",
+      id: "observe-arrival",
+      label: "Đã thấy khách đến",
+      tone: "lotus",
+      stayId: stay.id,
+    };
+  }
+  if (stay.status === "CHECKED_OUT" || stay.status === "COMPLETED") {
+    return cleaningAction(readiness, stay.villaId);
+  }
+  return null;
+}
+
+function cleaningAction(readiness: VillaReadinessState, villaId: string): CardAction | null {
+  if (readiness === "DIRTY") return { kind: "begin-cleaning", label: "Bắt đầu dọn", tone: "moss", villaId };
+  if (readiness === "CLEANING") {
+    return { kind: "complete-cleaning", label: "Dọn xong", tone: "moss", villaId };
+  }
+  return null;
+}
+
+function actionRank(action: CardAction): number {
+  if (action.kind === "begin-cleaning" || action.kind === "complete-cleaning") return 3;
+  if (action.kind === "stay") return ACTION_PRIORITY.indexOf(action.id);
+  return 9;
+}
 
 export function windowForOrder(order: number): WindowId {
   const index = ((order % DISPLAY_WINDOWS.length) + DISPLAY_WINDOWS.length) % DISPLAY_WINDOWS.length;
@@ -119,10 +177,17 @@ function attentionFor(world: World, villaId: string, date: string, today: string
   };
 }
 
-function stayAction(stay: Stay, date: string): NextCardAction | null {
-  if (stay.status === "CHECKED_IN" && stay.checkOut <= date) return nextCardAction(stay, "departing");
-  if (stay.status !== "SCHEDULED" || stay.checkIn > date) return null;
-  return nextCardAction(stay, "arriving");
+function waitingResolution(world: World, villaId: string): boolean {
+  return world.incidents.some(
+    (incident) =>
+      incident.villaId === villaId &&
+      incident.completionBlocker === true &&
+      incident.status !== "RESOLVED",
+  );
+}
+
+function enhancedCleaningNote(world: World, villaId: string): string | null {
+  return activeEnhancedCleaningNote(world, villaId);
 }
 
 function chooseAction(
@@ -133,34 +198,22 @@ function chooseAction(
   readiness: VillaReadinessState,
   villaId: string,
 ): CardAction | null {
-  if (flags.canAct && readiness === "DIRTY") {
-    return { kind: "begin-cleaning", label: "Bắt đầu dọn", tone: "moss", villaId };
+  if (!flags.canAct) {
+    if (flags.canHold && holdId) return { kind: "release-hold", label: "Gỡ giữ bảo vệ", tone: "lotus", holdId };
+    return null;
   }
-  if (flags.canAct && readiness === "CLEANING") {
-    return { kind: "complete-cleaning", label: "Dọn xong", tone: "moss", villaId };
+  const options: CardAction[] = [];
+  for (const stay of stays) {
+    const action = drawerAction(stay, readiness, date);
+    if (action) options.push(action);
   }
-  if (flags.canAct) {
-    const ranked = stays
-      .map((stay) => ({ stay, action: stayAction(stay, date) }))
-      .filter((item): item is { stay: Stay; action: NextCardAction } => item.action !== null)
-      .sort(
-        (a, b) => ACTION_PRIORITY.indexOf(a.action.id) - ACTION_PRIORITY.indexOf(b.action.id),
-      );
-    const winner = ranked[0];
-    if (winner) {
-      return {
-        kind: "stay",
-        id: winner.action.id,
-        label: winner.action.label,
-        tone: "lotus",
-        stayId: winner.stay.id,
-      };
-    }
+  const guestStillIn = stays.some((stay) => stay.status === "CHECKED_IN" && stay.checkOut > date);
+  if (!guestStillIn && !options.some((action) => action.kind !== "stay")) {
+    const cleaning = cleaningAction(readiness, villaId);
+    if (cleaning) options.push(cleaning);
   }
-  if (flags.canHold && holdId) {
-    return { kind: "release-hold", label: "Gỡ giữ bảo vệ", tone: "lotus", holdId };
-  }
-  return null;
+  options.sort((a, b) => actionRank(a) - actionRank(b));
+  return options[0] ?? null;
 }
 
 function housekeepingOf(blocked: boolean, readiness: VillaReadinessState): Housekeeping {
@@ -170,7 +223,12 @@ function housekeepingOf(blocked: boolean, readiness: VillaReadinessState): House
 }
 
 function markFor(stay: Stay, date: string): GuestMark {
-  if (stay.status === "CHECKED_IN" && stay.checkOut <= date) return "departure";
+  if (
+    (stay.status === "CHECKED_IN" || stay.status === "CHECKED_OUT" || stay.status === "COMPLETED") &&
+    stay.checkOut <= date
+  ) {
+    return "departure";
+  }
   if (stay.status === "SCHEDULED" && stay.checkIn <= date) return "arrival";
   return "in-house";
 }
@@ -217,8 +275,12 @@ export function dayLayout(
   for (const [villaId, bucket] of grouped) {
     const order = orderOf(villaId, villaIds);
     const attention = attentionFor(world, villaId, date, today);
-    const readiness = readinessOf(world, villaId).state;
+    const readinessRecord = readinessOf(world, villaId);
+    const readiness = readinessRecord.state;
     const needsPrep = readiness === "DIRTY" || readiness === "CLEANING";
+    const waiting = waitingResolution(world, villaId);
+    const freshnessDetail =
+      readinessRecord.cause === "FRESHNESS_DECAY" && readiness === "DIRTY" ? FRESHNESS_DETAIL : null;
     const rank = { departure: 0, arrival: 1, "in-house": 2 };
     const events = bucket.stays
       .map((stay) => ({ stayId: stay.id, mark: markFor(stay, date), guests: stay.guests }))
@@ -227,14 +289,24 @@ export function dayLayout(
       villaId,
       order,
       window: windowForOrder(order),
-      housekeeping: housekeepingOf(Boolean(attention.note), readiness),
+      housekeeping: housekeepingOf(Boolean(attention.note) || waiting, readiness),
       needsPrep,
       events,
       lateLabel: bucket.late,
       attentionNote: attention.note,
       holdOverdue: attention.overdue,
       readiness,
-      action: chooseAction(bucket.stays, date, flags, attention.hold?.id ?? null, readiness, villaId),
+      freshnessDetail,
+      enhancedNote: enhancedCleaningNote(world, villaId),
+      waitingResolution: waiting,
+      action: chooseAction(
+        bucket.stays,
+        date,
+        flags,
+        attention.hold?.id ?? null,
+        readiness,
+        villaId,
+      ),
     });
   }
 

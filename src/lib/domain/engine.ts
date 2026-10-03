@@ -130,9 +130,11 @@ function replaceStay(world: World, stay: Stay): World {
   };
 }
 
+type AuditSubject = Actor | { persona: "PLATFORM_POLICY" };
+
 function withAudit(
   world: World,
-  actor: Actor,
+  actor: AuditSubject,
   action: string,
   objectId: string,
   reason?: string,
@@ -908,9 +910,36 @@ export function completeCleaning(
     cause: "COMPLETE_CLEANING",
   };
   return {
-    world: withAudit(withReadiness(world, readiness), input.actor, "COMPLETE_CLEANING", input.villaId),
+    world: withAudit(
+      closeActiveEnhancedCleaning(withReadiness(world, readiness), input.villaId),
+      input.actor,
+      "COMPLETE_CLEANING",
+      input.villaId,
+    ),
     readiness,
   };
+}
+
+/**
+ * The enhanced-cleaning note stays in history. It is active only until the
+ * villa next reaches READY. A later DIRTY cause does not reopen it.
+ */
+export function activeEnhancedCleaningNote(world: World, villaId: string): string | null {
+  const note = (world.readinessNotes ?? []).find(
+    (item) => item.villaId === villaId && item.kind === "ENHANCED_CLEANING" && !item.closedAt,
+  );
+  return note?.note ?? null;
+}
+
+function closeActiveEnhancedCleaning(world: World, villaId: string): World {
+  const notes = world.readinessNotes ?? [];
+  let changed = false;
+  const next = notes.map((note) => {
+    if (note.closedAt || note.villaId !== villaId || note.kind !== "ENHANCED_CLEANING") return note;
+    changed = true;
+    return { ...note, closedAt: world.now };
+  });
+  return changed ? { ...world, readinessNotes: next } : world;
 }
 
 /** Recorded departure dirties a stored READY villa. DIRTY and CLEANING stay as they are. */
@@ -1006,14 +1035,16 @@ export function checkOutStay(
   };
 }
 
-/** Separate from checkout. Completes only after Checkout Assessment, and only when no qualifying blocker remains. */
+/**
+ * Platform Policy evaluates Completion. Not an actor action.
+ * Checkout stays with the Butler. This does not check assignment.
+ */
 export function evaluateStayCompletion(
   world: World,
-  input: { stayId: string; actor: Actor },
+  input: { stayId: string },
 ): { world: World; stay: Stay } {
   world = expireHolds(world);
   const stay = requireStay(world, input.stayId);
-  assertButlerAssigned(world, input.actor, stay.villaId);
   if (stay.status !== "CHECKED_OUT") {
     throw new DomainError("INVALID_TRANSITION", "Completion is only evaluated after checkout");
   }
@@ -1043,7 +1074,7 @@ export function evaluateStayCompletion(
   return {
     world: withAudit(
       { ...replaceStay(world, completed), commissions },
-      input.actor,
+      { persona: "PLATFORM_POLICY" },
       "COMPLETE",
       completed.id,
     ),
@@ -1150,6 +1181,40 @@ export function recordCheckoutAssessment(
     world: withAudit(next, input.actor, "CHECKOUT_ASSESSMENT", assessment.id, input.outcome),
     assessment,
   };
+}
+
+/**
+ * PROTOTYPE ASSUMPTION — Slice 6, Oceanami V0.
+ * One Butler confirmation records Checkout and the required assessment.
+ * Platform Policy then evaluates Completion. The Butler does not own it.
+ * NORMAL and enhanced cleaning complete when nothing blocks them.
+ * Damage leaves the Stay CHECKED_OUT.
+ */
+export function checkoutWithAssessment(
+  world: World,
+  input: {
+    stayId: string;
+    actor: Actor;
+    outcome: CheckoutAssessmentOutcome;
+    note?: string;
+    hasPhoto?: boolean;
+  },
+): { world: World; stay: Stay; completed: boolean } {
+  const checked = checkOutStay(world, { stayId: input.stayId, actor: input.actor });
+  const assessed = recordCheckoutAssessment(checked.world, {
+    stayId: input.stayId,
+    actor: input.actor,
+    outcome: input.outcome,
+    note: input.note,
+    hasPhoto: input.hasPhoto,
+  });
+  const checkedOut = assessed.world.stays.find((item) => item.id === input.stayId);
+  if (!checkedOut) throw new DomainError("NOT_FOUND", "Stay not found");
+  if (openCompletionBlocker(assessed.world, input.stayId)) {
+    return { world: assessed.world, stay: checkedOut, completed: false };
+  }
+  const done = evaluateStayCompletion(assessed.world, { stayId: input.stayId });
+  return { world: done.world, stay: done.stay, completed: true };
 }
 
 function assertDamageResolution(actor: Actor, villaId: string): void {
@@ -1855,6 +1920,24 @@ export function stayGuestLabel(status: Stay["status"]): string {
       return "Hoàn tất";
     case "DID_NOT_OCCUR":
       return "Không diễn ra";
+    case "CANCELLED":
+      return "Đã huỷ";
+  }
+}
+
+/** Guest surface only. Does not name readiness, assignment, or blockers. */
+export function guestStayPhrase(status: Stay["status"]): string {
+  switch (status) {
+    case "SCHEDULED":
+      return "Sắp đến";
+    case "CHECKED_IN":
+      return "Đang lưu trú";
+    case "CHECKED_OUT":
+      return "Đã trả phòng";
+    case "COMPLETED":
+      return "Kỳ nghỉ đã hoàn tất";
+    case "DID_NOT_OCCUR":
+      return "Kỳ ở không diễn ra";
     case "CANCELLED":
       return "Đã huỷ";
   }

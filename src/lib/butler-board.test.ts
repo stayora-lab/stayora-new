@@ -127,13 +127,13 @@ describe("butler today cards", () => {
     assert.doesNotMatch(prepareHtml, /<a /);
 
     assert.match(arriveHtml, /data-next-action="observe-arrival"/);
-    assert.match(arriveHtml, /Ghi nhận khách đến/);
+    assert.match(arriveHtml, /Đã thấy khách đến/);
     assert.equal(nextCardAction({ ...arriving, arrivalObservedAt: NOW }, "arriving")?.label, "Nhận phòng");
 
     assert.match(leaveHtml, /Ngày đi/);
     assert.match(leaveHtml, /Anh Long/);
     assert.match(leaveHtml, /data-next-action="observe-departure"/);
-    assert.match(leaveHtml, /Ghi nhận khách đi/);
+    assert.match(leaveHtml, /Đã thấy khách rời villa/);
     assert.doesNotMatch(leaveHtml, /<a /);
 
     assert.match(bqlHtml, /Khách · \d+ khách/);

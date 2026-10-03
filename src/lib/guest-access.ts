@@ -9,6 +9,7 @@ import type {
   World,
 } from "./domain/types.ts";
 import { DomainError } from "./domain/types.ts";
+import { GUEST_POST_STAY_READ_MS } from "./domain/config.ts";
 
 /**
  * PROTOTYPE ASSUMPTION — not canonical policy.
@@ -149,4 +150,19 @@ function publicHold(item: ProtectiveHold): ProtectiveHold {
     endedAt: item.endedAt,
     endedAs: item.endedAs,
   };
+}
+
+export type GuestStayAccess = "live" | "read-only" | "ended";
+
+/**
+ * Oceanami V0 prototype window. A completed Stay is read-only until
+ * completedAt + 30 days, then the view is denied. Not a security system.
+ */
+export function guestStayAccess(
+  stay: { status: string; completedAt?: string } | null | undefined,
+  now: string,
+): GuestStayAccess {
+  if (!stay || stay.status !== "COMPLETED" || !stay.completedAt) return "live";
+  if (Date.parse(now) - Date.parse(stay.completedAt) >= GUEST_POST_STAY_READ_MS) return "ended";
+  return "read-only";
 }

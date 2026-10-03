@@ -162,10 +162,10 @@ describe("two-axis butler board", () => {
     });
     assert.match(html, /data-events="departure arrival"/);
     assert.match(html, /data-readiness="DIRTY"/);
-    assert.match(html, /data-action-tone="moss"/);
-    assert.match(html, /data-next-action="begin-cleaning"/);
-    assert.match(html, /bg-moss/);
-    assert.match(html, /Bắt đầu dọn/);
+    assert.match(html, /data-action-tone="lotus"/);
+    assert.match(html, /data-next-action="observe-departure"/);
+    assert.match(html, /bg-lotus/);
+    assert.match(html, /Đã thấy khách rời villa/);
     assert.match(html, /Cần dọn/);
     assert.doesNotMatch(html, /Đang dọn/);
     assert.match(html, /<svg/);
@@ -175,6 +175,26 @@ describe("two-axis butler board", () => {
     assert.match(html, /size-11/);
     assert.match(html, /aria-label="Chưa có số điện thoại"/);
     assert.doesNotMatch(html, /disabled/);
+
+    const prepOnly = structuredClone(dirty) as World;
+    prepOnly.stays = prepOnly.stays.map((stay) =>
+      stay.villaId === "t06" && stay.status === "CHECKED_IN"
+        ? { ...stay, status: "COMPLETED" as const, completedAt: NOW, checkedOutAt: NOW }
+        : stay,
+    );
+    const prepCard = findCard(dayLayout(prepOnly, today, scope, today, FLAGS), "t06");
+    assert.ok(prepCard);
+    const prepHtml = await render("VillaDayCard", {
+      card: prepCard,
+      stays: prepOnly.stays,
+      role: { persona: "BUTLER", butlerId: "butler-chi", villaIds: scope },
+      onOpen: () => undefined,
+      onAction: () => undefined,
+      onReport: () => undefined,
+    });
+    assert.match(prepHtml, /data-next-action="begin-cleaning"/);
+    assert.match(prepHtml, /Bắt đầu dọn/);
+    assert.match(prepHtml, /bg-moss/);
 
     const seeded = findCard(dayLayout(world, today, scope, today, FLAGS), "t06");
     assert.ok(seeded);
@@ -225,6 +245,11 @@ describe("two-axis butler board", () => {
         cause: "BEGIN_CLEANING",
       },
     ];
+    cleaningWorld.stays = cleaningWorld.stays.map((stay) =>
+      stay.villaId === "t06" && stay.status === "CHECKED_IN"
+        ? { ...stay, status: "COMPLETED" as const, completedAt: NOW, checkedOutAt: NOW }
+        : stay,
+    );
     const card = findCard(dayLayout(cleaningWorld, today, scope, today, FLAGS), "t06");
     assert.ok(card);
     assert.equal(card.readiness, "CLEANING");

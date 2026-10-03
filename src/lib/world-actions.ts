@@ -2,9 +2,7 @@ import {
   acceptRequest,
   advanceTime,
   checkInStay,
-  checkOutStay,
-  evaluateStayCompletion,
-  recordCheckoutAssessment,
+  checkoutWithAssessment,
   resolveCheckoutDamage,
   extendAcceptanceDeadline,
   observeArrival,
@@ -94,15 +92,13 @@ export type WorldAction =
       reason: string;
     }
   | { type: "CHECK_IN"; stayId: string }
-  | { type: "CHECK_OUT"; stayId: string }
   | {
-      type: "CHECKOUT_ASSESSMENT";
+      type: "CHECKOUT_WITH_ASSESSMENT";
       stayId: string;
       outcome: CheckoutAssessmentOutcome;
       note?: string;
       hasPhoto?: boolean;
     }
-  | { type: "COMPLETE_STAY"; stayId: string }
   | { type: "RESOLVE_CHECKOUT_DAMAGE"; incidentId: string }
   | { type: "BEGIN_CLEANING"; villaId: string }
   | { type: "COMPLETE_CLEANING"; villaId: string }
@@ -152,13 +148,11 @@ function villaIdFor(world: World, action: WorldAction): string | undefined {
   }
   if (
     action.type === "CHECK_IN" ||
-    action.type === "CHECK_OUT" ||
     action.type === "OBSERVE_ARRIVAL" ||
     action.type === "OBSERVE_DEPARTURE" ||
     action.type === "DID_NOT_OCCUR" ||
     action.type === "REPORT_INCIDENT" ||
-    action.type === "CHECKOUT_ASSESSMENT" ||
-    action.type === "COMPLETE_STAY"
+    action.type === "CHECKOUT_WITH_ASSESSMENT"
   ) {
     return world.stays.find((item) => item.id === action.stayId)?.villaId;
   }
@@ -298,23 +292,15 @@ export function applyWorldAction(
       const result = checkInStay(world, { stayId: action.stayId, actor });
       return { world: result.world };
     }
-    case "CHECK_OUT": {
-      const checked = checkOutStay(world, { stayId: action.stayId, actor });
-      return { world: checked.world };
-    }
-    case "CHECKOUT_ASSESSMENT": {
-      const assessed = recordCheckoutAssessment(world, {
+    case "CHECKOUT_WITH_ASSESSMENT": {
+      const result = checkoutWithAssessment(world, {
         stayId: action.stayId,
         actor,
         outcome: action.outcome,
         note: action.note,
         hasPhoto: action.hasPhoto,
       });
-      return { world: assessed.world };
-    }
-    case "COMPLETE_STAY": {
-      const completed = evaluateStayCompletion(world, { stayId: action.stayId, actor });
-      return { world: completed.world };
+      return { world: result.world };
     }
     case "RESOLVE_CHECKOUT_DAMAGE": {
       const resolved = resolveCheckoutDamage(world, { incidentId: action.incidentId, actor });

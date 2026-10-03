@@ -198,7 +198,7 @@ function seedStayoraScenarios(world: World, today: string): World {
         actor: BUTLER_CHI,
         outcome: "NORMAL",
       }).world;
-      world = evaluateStayCompletion(world, { stayId: stay.id, actor: BUTLER_CHI }).world;
+      world = evaluateStayCompletion(world, { stayId: stay.id }).world;
     }
   }
 

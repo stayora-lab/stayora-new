@@ -6,7 +6,7 @@ import { DestinationAbout, StayoraServiceNote } from "@/components/site-chrome";
 import { StaySummary } from "@/components/stay-summary";
 import { Photo, VillaPlaceholder } from "@/components/photo";
 import { Button } from "@/components/ui/button";
-import { balanceLine, stayGuestLabel } from "@/lib/domain";
+import { balanceLine, guestStayPhrase } from "@/lib/domain";
 import { useGuestSlice } from "@/lib/guest-slice";
 import { GUEST_ARRIVAL, LOCATION_LABEL } from "@/lib/destination";
 import { getVilla } from "@/lib/villas";
@@ -21,10 +21,22 @@ function formatViDate(iso: string): string {
 
 function YourStayPage() {
   const { stayId } = Route.useParams();
-  const { state, slice } = useGuestSlice({ stayId });
+  const { state, slice, access } = useGuestSlice({ stayId });
 
   if (state === "loading") {
     return <main className="mx-auto max-w-3xl px-4 py-24 text-muted">Đang mở kỳ nghỉ…</main>;
+  }
+
+  if (state === "closed") {
+    return (
+      <main lang="vi" className="mx-auto max-w-lg px-4 py-24 text-center">
+        <h1 className="font-serif text-title">Kỳ nghỉ đã đóng</h1>
+        <p className="mt-3 text-ink-soft">Sau 30 ngày, trang này không còn mở.</p>
+        <Button asChild className="mt-8">
+          <Link to="/">Xem villa Oceanami</Link>
+        </Button>
+      </main>
+    );
   }
 
   if (state !== "ready" || !slice) {
@@ -92,9 +104,20 @@ function YourStayPage() {
 
         <p className="mt-6 flex flex-wrap items-center gap-3 text-sm">
           <span className="rounded-full bg-lotus-soft px-3 py-1 font-medium text-lotus-deep">
-            {stayGuestLabel(stay.status)}
+            {guestStayPhrase(stay.status)}
           </span>
         </p>
+        {stay.status === "CHECKED_IN" ? (
+          <p className="mt-4 text-sm text-ink-soft">Bạn đang lưu trú tại villa.</p>
+        ) : null}
+        {stay.status === "CHECKED_OUT" ? (
+          <p className="mt-4 text-sm text-ink-soft">Bạn đã trả phòng.</p>
+        ) : null}
+        {access === "read-only" || stay.status === "COMPLETED" ? (
+          <p className="mt-4 rounded-2xl bg-cream px-4 py-3 text-sm text-ink" data-guest-readonly>
+            Kỳ nghỉ đã hoàn tất. Trang này chỉ để xem lại.
+          </p>
+        ) : null}
         <StayoraServiceNote
           reference={booking?.reference}
           payment={balance ? balanceLine(balance, balancePaid) : undefined}
