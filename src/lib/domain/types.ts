@@ -4,6 +4,9 @@ export type NonOccurrenceReason = (typeof NON_OCCURRENCE_REASONS)[number];
 
 export type Persona = "GUEST" | "SALE" | "HOST" | "BUTLER" | "BQL" | "ADMIN";
 
+/** Audit only. Not a role and not selectable in the demo switch. */
+export type AuditPersona = Persona | "PLATFORM_POLICY";
+
 export type Actor =
   | { persona: "GUEST" }
   | { persona: "SALE"; saleId: string }
@@ -205,7 +208,7 @@ export type InventoryConflict = {
 export type AuditEntry = {
   id: string;
   at: string;
-  persona: Persona;
+  persona: AuditPersona;
   action: string;
   objectId: string;
   reason?: string;
@@ -253,6 +256,11 @@ export type ReadinessNote = {
   note: string;
   recordedAt: string;
   recordedBy: Persona;
+  /**
+   * Set when this cleanup cycle reaches READY.
+   * The note stays in history. A later DIRTY cause must not reopen it.
+   */
+  closedAt?: string;
 };
 
 /** Availability block that is not an inventory commitment. ADR-P067. */

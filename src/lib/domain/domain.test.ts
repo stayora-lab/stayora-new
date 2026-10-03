@@ -257,7 +257,7 @@ describe("Sale commission", () => {
     world = checkOutStay(world, { stayId, actor: BUTLER }).world;
     assert.equal(world.stays.find((item) => item.id === stayId)?.status, "CHECKED_OUT");
     assert.equal(world.commissions.find((item) => item.stayId === stayId)?.status, "PENDING");
-    world = evaluateStayCompletion(normalAssessment(world, stayId), { stayId, actor: BUTLER }).world;
+    world = evaluateStayCompletion(normalAssessment(world, stayId), { stayId }).world;
     assert.equal(world.commissions.find((item) => item.stayId === stayId)?.status, "EARNED");
     assert.equal(world.stays.find((item) => item.id === stayId)?.status, "COMPLETED");
     assertNoOverlap(world);
@@ -308,7 +308,6 @@ describe("Stay transitions", () => {
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_OUT");
     world = evaluateStayCompletion(normalAssessment(world, booked.stayId), {
       stayId: booked.stayId,
-      actor: BUTLER,
     }).world;
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "COMPLETED");
     const commitment = world.commitments.find(
@@ -444,12 +443,16 @@ describe("checkout is not completion", () => {
     assert.equal(commitment?.status, "ACTIVE");
     const done = evaluateStayCompletion(normalAssessment(left.world, booked.stayId), {
       stayId: booked.stayId,
-      actor: BUTLER,
     });
     assert.equal(done.stay.status, "COMPLETED");
     assert.equal(done.stay.checkedOutAt, left.stay.checkedOutAt);
     assert.ok(done.stay.completedAt);
     assert.equal(done.world.auditLog[0]?.action, "COMPLETE");
+    assert.equal(done.world.auditLog[0]?.persona, "PLATFORM_POLICY");
+    assert.equal(
+      done.world.auditLog.find((entry) => entry.action === "CHECK_OUT")?.persona,
+      "BUTLER",
+    );
     assert.equal(
       done.world.commitments.find((item) => item.bookingId === booked.bookingId)?.status,
       "ACTIVE",
@@ -471,7 +474,6 @@ describe("checkout is not completion", () => {
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_OUT");
     world = evaluateStayCompletion(normalAssessment(world, booked.stayId), {
       stayId: booked.stayId,
-      actor: BUTLER,
     }).world;
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "COMPLETED");
     assert.equal(world.incidents.length, 1);
@@ -502,7 +504,14 @@ describe("assignment is not authority", () => {
     const checked = checkInStay(world, { stayId: booked.stayId, actor: BUTLER }).world;
     refused(() => checkOutStay(checked, { stayId: booked.stayId, actor: dung }));
     const left = checkOutStay(checked, { stayId: booked.stayId, actor: BUTLER }).world;
-    refused(() => evaluateStayCompletion(left, { stayId: booked.stayId, actor: dung }));
+    const completed = evaluateStayCompletion(normalAssessment(left, booked.stayId), {
+      stayId: booked.stayId,
+    });
+    assert.equal(completed.stay.status, "COMPLETED");
+    assert.equal(
+      completed.world.auditLog.find((entry) => entry.action === "COMPLETE")?.persona,
+      "PLATFORM_POLICY",
+    );
     assert.equal(world.stays.find((item) => item.id === booked.stayId)?.status, "SCHEDULED");
     assertNoOverlap(world);
   });
@@ -1519,7 +1528,6 @@ describe("Phase 2 host calendar, external, admin", () => {
     const left = checkOutStay(checked.world, { stayId: booked.stayId, actor: BUTLER });
     const done = evaluateStayCompletion(normalAssessment(left.world, booked.stayId), {
       stayId: booked.stayId,
-      actor: BUTLER,
     });
     assert.equal(done.stay.status, "COMPLETED");
     assert.equal(done.world.commissions[0]?.status, "VOID");
@@ -2545,7 +2553,6 @@ describe("Villa Readiness is independent of any Stay (ADR-P072)", () => {
     ).world;
     const dirtyDone = evaluateStayCompletion(normalAssessment(dirtyOut, dirtyStay.stayId), {
       stayId: dirtyStay.stayId,
-      actor: BUTLER,
     });
     assert.equal(dirtyDone.stay.status, "COMPLETED");
     assert.equal(readinessOf(dirtyDone.world, "t01").state, "DIRTY");
@@ -2559,7 +2566,6 @@ describe("Villa Readiness is independent of any Stay (ADR-P072)", () => {
     assert.equal(readinessOf(cleaningOut, "t01").state, "CLEANING");
     const cleaningDone = evaluateStayCompletion(normalAssessment(cleaningOut, cleaningStay.stayId), {
       stayId: cleaningStay.stayId,
-      actor: BUTLER,
     });
     assert.equal(cleaningDone.stay.status, "COMPLETED");
     assert.equal(readinessOf(cleaningDone.world, "t01").state, "CLEANING");
@@ -2580,7 +2586,7 @@ describe("Checkout Assessment", () => {
   it("NORMAL completes immediately and does not ask the Host", () => {
     const { stayId, world } = checkedOut();
     assert.throws(
-      () => evaluateStayCompletion(world, { stayId, actor: BUTLER }),
+      () => evaluateStayCompletion(world, { stayId }),
       (error: unknown) => error instanceof DomainError && error.code === "ASSESSMENT_REQUIRED",
     );
     const assessed = recordCheckoutAssessment(world, {
@@ -2589,7 +2595,7 @@ describe("Checkout Assessment", () => {
       outcome: "NORMAL",
     });
     assert.equal(assessed.assessment.outcome, "NORMAL");
-    const done = evaluateStayCompletion(assessed.world, { stayId, actor: BUTLER });
+    const done = evaluateStayCompletion(assessed.world, { stayId });
     assert.equal(done.stay.status, "COMPLETED");
     assert.equal(done.world.incidents.length, world.incidents.length);
   });
@@ -2614,7 +2620,7 @@ describe("Checkout Assessment", () => {
     assert.equal(incident?.completionBlocker, true);
     assert.equal(incident?.status, "OPEN");
     assert.throws(
-      () => evaluateStayCompletion(assessed.world, { stayId, actor: BUTLER }),
+      () => evaluateStayCompletion(assessed.world, { stayId }),
       (error: unknown) => error instanceof DomainError && error.code === "COMPLETION_BLOCKED",
     );
     const host: Actor = { persona: "HOST" };
@@ -2642,7 +2648,7 @@ describe("Checkout Assessment", () => {
     assert.equal(cleared.world.attempts, money.attempts);
     assert.equal(cleared.world.refundCases, money.refundCases);
     assert.equal(cleared.world.obligations, money.obligations);
-    const done = evaluateStayCompletion(cleared.world, { stayId, actor: BUTLER });
+    const done = evaluateStayCompletion(cleared.world, { stayId });
     assert.equal(done.stay.status, "COMPLETED");
   });
 
@@ -2662,7 +2668,7 @@ describe("Checkout Assessment", () => {
     assert.equal(note?.kind, "ENHANCED_CLEANING");
     assert.equal(note?.note, "Cần giặt thảm");
     assert.equal(openBlocker(assessed.world, stayId), false);
-    const done = evaluateStayCompletion(assessed.world, { stayId, actor: BUTLER });
+    const done = evaluateStayCompletion(assessed.world, { stayId });
     assert.equal(done.stay.status, "COMPLETED");
     assert.equal(readinessOf(done.world, "t01").state, before.state);
   });
@@ -2676,7 +2682,7 @@ describe("Checkout Assessment", () => {
       hasPhoto: false,
     }).world;
     const assessed = normalAssessment(reported, stayId);
-    const done = evaluateStayCompletion(assessed, { stayId, actor: BUTLER });
+    const done = evaluateStayCompletion(assessed, { stayId });
     assert.equal(done.stay.status, "COMPLETED");
   });
 });

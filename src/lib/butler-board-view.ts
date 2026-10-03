@@ -1,7 +1,7 @@
 import { format, parseISO } from "date-fns";
 import { type NextCardAction } from "./butler-card.ts";
 import { addIsoDays } from "./butler-timeline.ts";
-import { butlerFieldBoard, readinessOf } from "./domain/engine.ts";
+import { butlerFieldBoard, readinessOf, activeEnhancedCleaningNote } from "./domain/engine.ts";
 import type { ProtectiveHold, Stay, VillaReadinessState, World } from "./domain/types.ts";
 
 /**
@@ -80,9 +80,7 @@ export function drawerAction(
   stay: Stay,
   readiness: VillaReadinessState,
   viewed: string,
-  blocked: boolean,
 ): CardAction | null {
-  if (blocked && stay.status === "CHECKED_OUT") return null;
   if (stay.status === "CHECKED_IN") {
     if (stay.checkOut > viewed) return null;
     if (!stay.departureObservedAt) {
@@ -189,10 +187,7 @@ function waitingResolution(world: World, villaId: string): boolean {
 }
 
 function enhancedCleaningNote(world: World, villaId: string): string | null {
-  const note = (world.readinessNotes ?? []).find(
-    (item) => item.villaId === villaId && item.kind === "ENHANCED_CLEANING",
-  );
-  return note?.note ?? null;
+  return activeEnhancedCleaningNote(world, villaId);
 }
 
 function chooseAction(
@@ -202,16 +197,14 @@ function chooseAction(
   holdId: string | null,
   readiness: VillaReadinessState,
   villaId: string,
-  blocked: boolean,
 ): CardAction | null {
   if (!flags.canAct) {
     if (flags.canHold && holdId) return { kind: "release-hold", label: "Gỡ giữ bảo vệ", tone: "lotus", holdId };
     return null;
   }
-  if (blocked) return null;
   const options: CardAction[] = [];
   for (const stay of stays) {
-    const action = drawerAction(stay, readiness, date, false);
+    const action = drawerAction(stay, readiness, date);
     if (action) options.push(action);
   }
   const guestStillIn = stays.some((stay) => stay.status === "CHECKED_IN" && stay.checkOut > date);
@@ -313,7 +306,6 @@ export function dayLayout(
         attention.hold?.id ?? null,
         readiness,
         villaId,
-        waiting,
       ),
     });
   }

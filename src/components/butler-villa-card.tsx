@@ -156,7 +156,7 @@ export function VillaDayCard({
             {card.readiness === "DIRTY" && !card.freshnessDetail ? (
               <span className="rounded-full bg-sand px-2 py-0.5 text-xs font-medium text-ink">Cần dọn</span>
             ) : null}
-            {card.housekeeping === "ready" ? (
+            {card.readiness === "READY" && !card.freshnessDetail ? (
               <span className="rounded-full bg-moss px-2 py-0.5 text-xs font-medium text-cream">Sẵn sàng</span>
             ) : null}
             {card.housekeeping === "quiet" ||

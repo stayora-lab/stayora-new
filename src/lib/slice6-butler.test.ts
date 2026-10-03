@@ -18,9 +18,10 @@ import {
   observeDeparture,
   readinessOf,
   recordPayment,
+  activeEnhancedCleaningNote,
 } from "./domain/engine.ts";
 import { guestStayAccess } from "./guest-access.ts";
-import { drawerAction } from "./butler-board-view.ts";
+import { dayLayout, drawerAction } from "./butler-board-view.ts";
 import type { Actor, World } from "./domain/types.ts";
 
 const NOW = "2026-09-22T03:00:00.000Z";
@@ -60,6 +61,13 @@ function checkedInStay() {
   const paid = pay(world, created.request.id);
   world = checkInStay(paid.world, { stayId: paid.stay!.id, actor: BUTLER }).world;
   return { world, stayId: paid.stay!.id, bookingId: paid.booking!.id };
+}
+
+function cardFor(world: World, date: string) {
+  const layout = dayLayout(world, date, ["t01"], date, { canAct: true, canHold: false });
+  return [...layout.pinned, ...layout.late, ...layout.windows.flatMap((window) => window.cards)].find(
+    (card) => card.villaId === "t01",
+  );
 }
 
 describe("slice 6 butler semantics", () => {
@@ -131,7 +139,7 @@ describe("slice 6 butler semantics", () => {
     assert.equal(left.stay.status, "CHECKED_IN");
     assert.equal(left.stay.checkedOutAt, undefined);
     assert.equal(readinessOf(left.world, "t01").state, "DIRTY");
-    const next = drawerAction(left.stay, "DIRTY", "2026-12-04", false);
+    const next = drawerAction(left.stay, "DIRTY", "2026-12-04");
     assert.equal(next?.kind, "stay");
     if (next?.kind === "stay") assert.equal(next.id, "check-out");
   });
@@ -151,6 +159,14 @@ describe("slice 6 butler semantics", () => {
     assert.notEqual(normal.stay.checkedOutAt, undefined);
     assert.equal(normal.world.auditLog.some((item) => item.action === "CHECK_OUT"), true);
     assert.equal(normal.world.auditLog.some((item) => item.action === "COMPLETE"), true);
+    assert.equal(
+      normal.world.auditLog.find((item) => item.action === "CHECK_OUT")?.persona,
+      "BUTLER",
+    );
+    const completion = normal.world.auditLog.find((item) => item.action === "COMPLETE");
+    assert.ok(completion);
+    assert.equal(completion.persona, "PLATFORM_POLICY");
+    assert.notEqual(completion.persona, "BUTLER");
     assert.equal(
       normal.world.commitments.find((item) => item.bookingId === booked.bookingId)?.status,
       "ACTIVE",
@@ -192,12 +208,64 @@ describe("slice 6 butler semantics", () => {
       amounts,
     );
     assert.equal(damage.world.refundCases.length, booked.world.refundCases.length);
+    assert.equal(readinessOf(damage.world, "t01").state, "DIRTY");
+    const damageCard = cardFor(damage.world, "2026-12-04");
+    assert.equal(damageCard?.waitingResolution, true);
+    assert.equal(damageCard?.action?.kind, "begin-cleaning");
+    assert.equal(damage.world.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_OUT");
+
+    const cleaning = beginCleaning(damage.world, { villaId: "t01", actor: BUTLER });
+    assert.equal(cleaning.readiness.state, "CLEANING");
+    assert.equal(cleaning.world.stays.find((item) => item.id === booked.stayId)?.status, "CHECKED_OUT");
+    const cleaningCard = cardFor(cleaning.world, "2026-12-04");
+    assert.equal(cleaningCard?.action?.kind, "complete-cleaning");
+    assert.equal(cleaningCard?.waitingResolution, true);
+
+    const ready = completeCleaning(cleaning.world, { villaId: "t01", actor: BUTLER });
+    assert.equal(ready.readiness.state, "READY");
+    const stay = ready.world.stays.find((item) => item.id === booked.stayId);
+    assert.equal(stay?.status, "CHECKED_OUT");
+    assert.equal(stay?.completedAt, undefined);
+    assert.equal(ready.world.incidents[0]?.completionBlocker, true);
+    assert.notEqual(ready.world.incidents[0]?.status, "RESOLVED");
+    const readyCard = cardFor(ready.world, "2026-12-04");
+    assert.equal(readyCard?.readiness, "READY");
+    assert.equal(readyCard?.waitingResolution, true);
+    assert.notEqual(readyCard?.action?.kind, "begin-cleaning");
+    assert.notEqual(readyCard?.action?.kind, "complete-cleaning");
+    assert.equal(ready.world.auditLog.some((item) => item.action === "COMPLETE"), false);
+  });
+
+  it("closes an enhanced-cleaning note when the villa reaches READY", () => {
+    const booked = checkedInStay();
+    const enhanced = checkoutWithAssessment(booked.world, {
+      stayId: booked.stayId,
+      actor: BUTLER,
+      outcome: "ENHANCED_CLEANING",
+      note: "Cần giặt thảm",
+    });
+    assert.equal(activeEnhancedCleaningNote(enhanced.world, "t01"), "Cần giặt thảm");
+    const started = beginCleaning(enhanced.world, { villaId: "t01", actor: BUTLER });
+    assert.equal(activeEnhancedCleaningNote(started.world, "t01"), "Cần giặt thảm");
+    const finished = completeCleaning(started.world, { villaId: "t01", actor: BUTLER });
+    assert.equal(finished.readiness.state, "READY");
+    assert.equal(activeEnhancedCleaningNote(finished.world, "t01"), null);
+    assert.equal(
+      finished.world.readinessNotes?.some((item) => item.kind === "ENHANCED_CLEANING" && item.closedAt),
+      true,
+    );
+    const decayed = advanceTime(finished.world, VILLA_FRESHNESS_MS);
+    assert.equal(readinessOf(decayed, "t01").state, "DIRTY");
+    assert.equal(readinessOf(decayed, "t01").cause, "FRESHNESS_DECAY");
+    assert.equal(activeEnhancedCleaningNote(decayed, "t01"), null);
   });
 
   it("hides no-show and a manual complete action from the Butler surface", () => {
     const ops = source("../routes/ops.tsx");
     assert.equal(ops.includes("Lưu trú hoàn tất"), false);
     assert.equal(ops.includes("completeStay"), false);
+    assert.equal(source("./world-actions.ts").includes("COMPLETE_STAY"), false);
+    assert.equal(source("./store.ts").includes("completeStay"), false);
     assert.equal(ops.includes("Khách không đến"), false);
     assert.equal(ops.includes("butlerNoShow"), false);
     assert.equal(ops.includes("Gỡ chặn hư hại"), false);

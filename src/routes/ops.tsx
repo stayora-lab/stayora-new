@@ -23,7 +23,7 @@ import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import type { NextCardAction } from "@/lib/butler-card";
 import { cardOrder, dayLayout, drawerAction, FRESHNESS_DETAIL, weekDays, type CardAction } from "@/lib/butler-board-view";
-import { readinessOf, type VillaReadiness } from "@/lib/domain";
+import { readinessOf, activeEnhancedCleaningNote, type VillaReadiness } from "@/lib/domain";
 import {
   emptyDayMessage,
   nextUpcoming,
@@ -72,11 +72,8 @@ function openDamageIncident(world: World, stayId: string) {
   );
 }
 
-function enhancedNoteFor(world: World, stayId: string): string | null {
-  const note = (world.readinessNotes ?? []).find(
-    (item) => item.stayId === stayId && item.kind === "ENHANCED_CLEANING",
-  );
-  return note?.note ?? null;
+function enhancedNoteFor(world: World, villaId: string): string | null {
+  return activeEnhancedCleaningNote(world, villaId);
 }
 
 function OpsPage() {
@@ -293,7 +290,7 @@ function OpsPage() {
                   role={role}
                   saleName={saleNameFor(world, openStay)}
                   waiting={Boolean(openDamageIncident(world, openStay.id))}
-                  enhancedNote={enhancedNoteFor(world, openStay.id)}
+                  enhancedNote={enhancedNoteFor(world, openStay.villaId)}
                   canAct={!isBql && scope.includes(openStay.villaId)}
                   canHold={isBql}
                   viewed={viewed}
@@ -533,7 +530,7 @@ function StayWork({
   onIncident: () => void;
 }) {
   const villa = getVilla(stay.villaId);
-  const action = canAct ? drawerAction(stay, readiness.state, viewed, waiting) : null;
+  const action = canAct ? drawerAction(stay, readiness.state, viewed) : null;
   const freshness = readiness.cause === "FRESHNESS_DECAY" && readiness.state === "DIRTY";
   const readinessLine = freshness
     ? "Chuẩn bị lại"

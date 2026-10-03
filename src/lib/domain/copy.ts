@@ -112,6 +112,8 @@ export function personaLabel(persona: string): string {
       return "BQL";
     case "ADMIN":
       return "Stayora vận hành";
+    case "PLATFORM_POLICY":
+      return "Chính sách nền tảng";
     default:
       return persona;
   }
