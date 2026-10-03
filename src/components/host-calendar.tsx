@@ -335,6 +335,7 @@ export function HostCalendar({
                 setNote={setNote}
                 onExternal={() => submitExternal(true)}
                 onRecordFact={onRecordFact ? () => submitExternal(false) : undefined}
+                overlapping
                 only="external"
               />
             ) : null}
@@ -393,7 +394,7 @@ function OccupiedCell({
       <h2 className="mt-1 font-serif text-2xl">{format(parseISO(date), "EEEE d/M", { locale: vi })}</h2>
       {conflict ? (
         <p className="mt-2 text-sm text-lotus-deep">
-          Hai chỗ cùng lúc. Stayora vận hành sẽ xử lý — không tự chọn bên thắng.
+          Hai chỗ cùng lúc. Không ghi đè. Stayora vận hành sẽ xử lý — không tự chọn bên thắng.
         </p>
       ) : null}
       {holds.length > 0 ? (
@@ -424,12 +425,26 @@ function OccupiedCell({
         ))}
       </div>
       {showExternal ? (
-        <Button variant="outline" className="mt-5 w-full" onClick={onExternal}>
-          Ghi đặt ngoài chồng lên
-        </Button>
+        <div className="mt-5">
+          <Button variant="outline" className="w-full" onClick={onExternal}>
+            Ghi nhận thêm chỗ ngoài
+          </Button>
+          <p className="mt-2 text-xs text-muted">
+            Không ghi đè chỗ đang có. Nếu trùng ngày, lịch sẽ hiện xung đột.
+          </p>
+        </div>
       ) : null}
     </div>
   );
+}
+
+function sourceLabel(commitment: Commitment): string {
+  if (commitment.kind === "AVAILABILITY_BLOCK") {
+    return commitment.blockKind === "MAINTENANCE" ? "Bảo trì" : "Chủ nhà chặn";
+  }
+  if (commitment.basis === "EXTERNAL") return `Đặt ngoài · ${commitment.source ?? "Khác"}`;
+  if (commitment.kind === "HOLD") return "Stayora · đang giữ chỗ";
+  return "Stayora";
 }
 
 function CommitmentDetail({
@@ -461,7 +476,7 @@ function CommitmentDetail({
         {stay ? ` · ${guestLabel} · ${stay.guests} khách` : null}
       </p>
       <dl className="mt-3 space-y-1 text-sm text-ink-soft">
-        <div>Nguồn: {commitment.source ?? (commitment.basis === "STAYORA_BOOKING" ? "Stayora" : commitment.blockKind ?? "—")}</div>
+        <div>Nguồn: {sourceLabel(commitment)}</div>
         <div>Mã: {commitment.reference ?? booking?.reference ?? "—"}</div>
         <div>Tạo bởi: {commitment.createdBy ? personaLabel(commitment.createdBy) : "—"}</div>
         <div>Lúc: {commitment.createdAt ? formatDueAt(commitment.createdAt) : "—"}</div>
@@ -497,6 +512,7 @@ function EmptyCell({
   onPlaceHold,
   composer = true,
   only,
+  overlapping = false,
 }: {
   villaId: string;
   date: string;
@@ -518,6 +534,7 @@ function EmptyCell({
   onPlaceHold?: () => void;
   composer?: boolean;
   only?: "external" | "block";
+  overlapping?: boolean;
 }) {
   const villa = getVilla(villaId);
   const [mode, setMode] = useState<"external" | "block" | "protect">(
@@ -525,7 +542,9 @@ function EmptyCell({
   );
   return (
     <div>
-      <p className="text-xs font-semibold tracking-wider text-muted uppercase">Trống</p>
+      <p className="text-xs font-semibold tracking-wider text-muted uppercase">
+        {overlapping ? "Thêm chỗ ngoài" : "Trống"}
+      </p>
       <h2 className="mt-1 font-serif text-2xl">{villa?.name}</h2>
       <p className="mt-1 text-sm text-muted">
         Từ {format(parseISO(date), "d/M")} · chọn ngày đi
@@ -613,16 +632,26 @@ function EmptyCell({
               className="mt-1 h-12 w-full rounded-xl bg-cream px-4"
             />
           </label>
-          <p className="mt-2 text-xs text-muted">
-            Ghi nhận là việc đã có khách ngoài. Giữ chỗ mới chặn lịch. Không tạo đặt Stayora, không hỏi giá.
+          <p className="mt-3 text-sm text-ink">
+            Ghi nhận khách ở ngoài Stayora. Giữ lịch và tạo kỳ ở để quản gia nhận phòng. Không hỏi giá.
           </p>
-          <Button className="mt-5 w-full" onClick={onExternal}>
+          {overlapping ? (
+            <p className="mt-2 text-sm text-lotus-deep">
+              Chỗ đang có vẫn giữ. Thêm chỗ này sẽ hiện xung đột, không ghi đè và không chọn Stayora thắng.
+            </p>
+          ) : null}
+          <Button className="mt-4 w-full" onClick={onExternal}>
             Ghi nhận và giữ chỗ
           </Button>
           {onRecordFact ? (
-            <Button variant="outline" className="mt-2 w-full" onClick={onRecordFact}>
-              Chỉ ghi nhận
-            </Button>
+            <>
+              <p className="mt-4 text-sm text-ink">
+                Chỉ lưu việc đã có khách. Không giữ lịch. Không tạo kỳ ở.
+              </p>
+              <Button variant="outline" className="mt-2 w-full" onClick={onRecordFact}>
+                Chỉ ghi nhận
+              </Button>
+            </>
           ) : null}
         </>
       ) : (
