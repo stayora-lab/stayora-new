@@ -28,9 +28,11 @@ export const fetchWorld = createServerFn({ method: "POST" })
 
 export const fetchGuestSlice = createServerFn({ method: "POST" })
   .validator((input: { credential?: string | null; requestId?: string | null; stayId?: string | null }) => input)
-  .handler(async ({ data }): Promise<{ ok: true; slice: GuestSlice } | { ok: false }> => {
+  .handler(async ({ data }): Promise<
+    { ok: true; slice: GuestSlice; access: "live" | "read-only" } | { ok: false; reason?: "post-stay" }
+  > => {
     const { readWorld } = await import("./world.server.ts");
-    const { openGuestSlice } = await import("./guest-access.ts");
+    const { openGuestSlice, guestStayAccess } = await import("./guest-access.ts");
     const { getSql } = await import("./db.ts");
     const { requestIdForGuestCredential } = await import("./guest-credential.server.ts");
     const requestId = data.credential
@@ -42,7 +44,9 @@ export const fetchGuestSlice = createServerFn({ method: "POST" })
       stayId: data.stayId,
     });
     if (!slice) return { ok: false };
-    return { ok: true, slice };
+    const access = guestStayAccess(slice.stay, snap.world.now);
+    if (access === "ended") return { ok: false, reason: "post-stay" };
+    return { ok: true, slice, access };
   });
 
 export const resolveRole = createServerFn({ method: "POST" })

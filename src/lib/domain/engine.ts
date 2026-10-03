@@ -1152,6 +1152,45 @@ export function recordCheckoutAssessment(
   };
 }
 
+/**
+ * PROTOTYPE ASSUMPTION — Slice 6, Oceanami V0.
+ * One Butler confirmation records Checkout and the required assessment.
+ * Completion is the next evaluation, not a second Butler decision.
+ * NORMAL and enhanced cleaning complete when nothing blocks them.
+ * Damage leaves the Stay CHECKED_OUT. This prototype still writes the
+ * COMPLETE audit as the Butler actor because it has no separate system actor.
+ * That audit is not a Butler-owned Complete action.
+ */
+export function checkoutWithAssessment(
+  world: World,
+  input: {
+    stayId: string;
+    actor: Actor;
+    outcome: CheckoutAssessmentOutcome;
+    note?: string;
+    hasPhoto?: boolean;
+  },
+): { world: World; stay: Stay; completed: boolean } {
+  const checked = checkOutStay(world, { stayId: input.stayId, actor: input.actor });
+  const assessed = recordCheckoutAssessment(checked.world, {
+    stayId: input.stayId,
+    actor: input.actor,
+    outcome: input.outcome,
+    note: input.note,
+    hasPhoto: input.hasPhoto,
+  });
+  const checkedOut = assessed.world.stays.find((item) => item.id === input.stayId);
+  if (!checkedOut) throw new DomainError("NOT_FOUND", "Stay not found");
+  if (openCompletionBlocker(assessed.world, input.stayId)) {
+    return { world: assessed.world, stay: checkedOut, completed: false };
+  }
+  const done = evaluateStayCompletion(assessed.world, {
+    stayId: input.stayId,
+    actor: input.actor,
+  });
+  return { world: done.world, stay: done.stay, completed: true };
+}
+
 function assertDamageResolution(actor: Actor, villaId: string): void {
   if (actor.persona !== "HOST") {
     throw new DomainError(
@@ -1855,6 +1894,24 @@ export function stayGuestLabel(status: Stay["status"]): string {
       return "Hoàn tất";
     case "DID_NOT_OCCUR":
       return "Không diễn ra";
+    case "CANCELLED":
+      return "Đã huỷ";
+  }
+}
+
+/** Guest surface only. Does not name readiness, assignment, or blockers. */
+export function guestStayPhrase(status: Stay["status"]): string {
+  switch (status) {
+    case "SCHEDULED":
+      return "Sắp đến";
+    case "CHECKED_IN":
+      return "Đang lưu trú";
+    case "CHECKED_OUT":
+      return "Đã trả phòng";
+    case "COMPLETED":
+      return "Kỳ nghỉ đã hoàn tất";
+    case "DID_NOT_OCCUR":
+      return "Kỳ ở không diễn ra";
     case "CANCELLED":
       return "Đã huỷ";
   }

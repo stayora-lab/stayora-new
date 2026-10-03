@@ -55,13 +55,19 @@ export const TIMEZONE = "Asia/Ho_Chi_Minh";
 export const COMPLETION_BLOCKERS_DECIDED = false;
 
 /**
- * PROTOTYPE ASSUMPTION (ADR-P072):
- * Freshness decay — READY becomes DIRTY when no guest is present — is
- * confirmed as a rule. The Oceanami duration is TBD in
- * 13-destination-operations/oceanami/configuration.md. This prototype uses
- * 7 days. Not policy.
+ * Oceanami V0 pilot configuration, not universal Stayora truth.
+ * A READY villa with no guest present becomes DIRTY at readyAt + 72 hours.
+ * The duration is destination configuration for this prototype. Not a global constant.
  */
-export const VILLA_FRESHNESS_MS = 7 * 24 * 60 * 60 * 1000;
+export const VILLA_FRESHNESS_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Oceanami V0 prototype window for a completed Stay.
+ * Before completedAt + 30 days the Guest surface is read-only.
+ * At or after that moment the prototype denies the view.
+ * Not a production access-control system.
+ */
+export const GUEST_POST_STAY_READ_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * PROTOTYPE ASSUMPTION (G-v2.2, FD-16):
@@ -113,8 +119,8 @@ export const EXTERNAL_COMMITMENT_TIMING = "host-may-wait";
 /**
  * PROTOTYPE ASSUMPTION (G-v2.3, ADR-P066):
  * Who may record that a scheduled Stay did not take place is not named.
- * This prototype keeps the assigned Butler, and requires one of
- * NON_OCCURRENCE_REASONS. Cancelling a Booking does not write the Stay.
+ * The domain function remains for earlier prototype coverage.
+ * Slice 6 does not expose no-show / DID_NOT_OCCUR as an accepted Butler action.
  * Not a grant decision.
  */
 export const NON_OCCURRENCE_ACTOR = "assigned-butler";

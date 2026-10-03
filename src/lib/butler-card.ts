@@ -12,12 +12,12 @@ export function nextCardAction(stay: Stay, lane: BoardLane): NextCardAction | nu
   if (lane === "prepare" || lane === "inHouse") return null;
   if (lane === "arriving") {
     if (stay.status !== "SCHEDULED") return null;
-    if (!stay.arrivalObservedAt) return { id: "observe-arrival", label: "Ghi nhận khách đến" };
+    if (!stay.arrivalObservedAt) return { id: "observe-arrival", label: "Đã thấy khách đến" };
     return { id: "check-in", label: "Nhận phòng" };
   }
   if (lane === "departing") {
     if (stay.status !== "CHECKED_IN") return null;
-    if (!stay.departureObservedAt) return { id: "observe-departure", label: "Ghi nhận khách đi" };
+    if (!stay.departureObservedAt) return { id: "observe-departure", label: "Đã thấy khách rời villa" };
     return { id: "check-out", label: "Trả phòng" };
   }
   return null;

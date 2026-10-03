@@ -22,8 +22,8 @@ import { useBookingStore } from "@/lib/store";
 import { getVilla, villas } from "@/lib/villas";
 import { visibleGuestName } from "@/lib/privacy";
 import type { NextCardAction } from "@/lib/butler-card";
-import { cardOrder, dayLayout, weekDays, type CardAction } from "@/lib/butler-board-view";
-import { readinessOf, type VillaReadinessState } from "@/lib/domain";
+import { cardOrder, dayLayout, drawerAction, FRESHNESS_DETAIL, weekDays, type CardAction } from "@/lib/butler-board-view";
+import { readinessOf, type VillaReadiness } from "@/lib/domain";
 import {
   emptyDayMessage,
   nextUpcoming,
@@ -36,11 +36,17 @@ export const Route = createFileRoute("/ops")({
   component: OpsPage,
 });
 
+type CheckoutOutcome = "NORMAL" | "DAMAGE_COMPENSATION" | "ENHANCED_CLEANING";
+
 type Sheet =
-  | { kind: "noshow"; stayId: string }
-  | { kind: "incident"; stayId: string; checkoutDamage?: boolean }
-  | { kind: "assessment"; stayId: string }
-  | { kind: "enhanced"; stayId: string }
+  | { kind: "incident"; stayId: string }
+  | {
+      kind: "checkout";
+      stayId: string;
+      outcome: CheckoutOutcome | null;
+      phase: "form" | "done";
+      completed?: boolean;
+    }
   | null;
 
 function ictDay(iso: string): string {
@@ -57,10 +63,6 @@ function saleNameFor(world: World, stay: Stay): string | null {
   const request = world.requests.find((item) => item.id === stay.requestId);
   if (!request?.saleId) return null;
   return world.sales.find((person) => person.id === request.saleId)?.name ?? null;
-}
-
-function assessmentFor(world: World, stayId: string) {
-  return (world.checkoutAssessments ?? []).find((item) => item.stayId === stayId);
 }
 
 function openDamageIncident(world: World, stayId: string) {
@@ -87,18 +89,13 @@ function OpsPage() {
   const butlerObserveArrival = useBookingStore((state) => state.butlerObserveArrival);
   const butlerObserveDeparture = useBookingStore((state) => state.butlerObserveDeparture);
   const butlerCheckIn = useBookingStore((state) => state.butlerCheckIn);
-  const butlerCheckOut = useBookingStore((state) => state.butlerCheckOut);
-  const recordCheckoutAssessment = useBookingStore((state) => state.recordCheckoutAssessment);
-  const completeStay = useBookingStore((state) => state.completeStay);
-  const resolveCheckoutDamage = useBookingStore((state) => state.resolveCheckoutDamage);
-  const butlerNoShow = useBookingStore((state) => state.butlerNoShow);
+  const butlerCheckoutWithAssessment = useBookingStore((state) => state.butlerCheckoutWithAssessment);
   const butlerIncident = useBookingStore((state) => state.butlerIncident);
   const placeProtectiveHold = useBookingStore((state) => state.placeProtectiveHold);
   const releaseProtectiveHold = useBookingStore((state) => state.releaseProtectiveHold);
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [hasPhoto, setHasPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,62 +145,47 @@ function OpsPage() {
     }
   }
 
-  function submitNoShow() {
-    if (!sheet || sheet.kind !== "noshow" || !sheetStay) return;
-    if (!reason.trim()) setReason("NO_SHOW");
-    run(() => butlerNoShow(sheetStay.id, reason.trim() || "NO_SHOW"));
-    setSheet(null);
-    setReason("");
-  }
-
   function submitIncident() {
     if (!sheet || sheet.kind !== "incident" || !sheetStay) return;
     if (!note.trim()) {
       setError("Cần mô tả sự cố");
       return;
     }
-    if (sheet.checkoutDamage) {
-      run(() =>
-        recordCheckoutAssessment(sheetStay.id, "DAMAGE_COMPENSATION", note, hasPhoto),
-      );
-    } else {
-      run(() => butlerIncident(sheetStay.id, note, hasPhoto));
-    }
+    run(() => butlerIncident(sheetStay.id, note, hasPhoto));
     setSheet(null);
     setNote("");
     setHasPhoto(false);
   }
 
-  function beginCheckout(stayId: string) {
-    run(async () => {
-      await butlerCheckOut(stayId);
-      setNote("");
-      setSheet({ kind: "assessment", stayId });
-    });
+  function openCheckout(stayId: string) {
+    setNote("");
+    setHasPhoto(false);
+    setError(null);
+    setSheet({ kind: "checkout", stayId, outcome: null, phase: "form" });
   }
 
-  function finishNormal(stayId: string) {
-    run(async () => {
-      await recordCheckoutAssessment(stayId, "NORMAL");
-      await completeStay(stayId);
-      setSheet(null);
-    });
-  }
-
-  function finishEnhanced() {
-    if (!sheet || sheet.kind !== "enhanced" || !sheetStay) return;
-    if (!note.trim()) {
-      setError("Cần ghi việc dọn");
+  async function confirmCheckout() {
+    if (!sheet || sheet.kind !== "checkout" || !sheet.outcome) return;
+    if (sheet.outcome !== "NORMAL" && !note.trim()) {
+      setError(sheet.outcome === "DAMAGE_COMPENSATION" ? "Cần mô tả hư hỏng" : "Cần ghi việc dọn");
       return;
     }
-    const stayId = sheetStay.id;
-    const text = note;
-    run(async () => {
-      await recordCheckoutAssessment(stayId, "ENHANCED_CLEANING", text);
-      await completeStay(stayId);
-    });
-    setSheet(null);
-    setNote("");
+    const stayId = sheet.stayId;
+    const outcome = sheet.outcome;
+    setError(null);
+    try {
+      await butlerCheckoutWithAssessment(stayId, outcome, note.trim() || undefined, hasPhoto);
+      const stay = useBookingStore.getState().world.stays.find((item) => item.id === stayId);
+      setSheet({
+        kind: "checkout",
+        stayId,
+        outcome,
+        phase: "done",
+        completed: stay?.status === "COMPLETED",
+      });
+    } catch (err) {
+      setError(domainMessageVi(err));
+    }
   }
 
   function runCard(action: CardAction) {
@@ -217,7 +199,7 @@ function OpsPage() {
     if (actionId === "observe-arrival") return run(() => butlerObserveArrival(stayId));
     if (actionId === "check-in") return run(() => butlerCheckIn(stayId));
     if (actionId === "observe-departure") return run(() => butlerObserveDeparture(stayId));
-    return beginCheckout(stayId);
+    return openCheckout(stayId);
   }
 
   return (
@@ -254,7 +236,7 @@ function OpsPage() {
               Xem ngày đến, ngày đi, và việc cần chú ý. Có thể giữ bảo vệ khi villa cần được xem. Không nhận phòng, không trả phòng.
             </p>
           ) : (
-            <p className="mt-3 text-sm text-muted">Chỉ villa được giao cho bạn.</p>
+            <p className="mt-3 text-sm text-muted">Ca hôm nay của bạn.</p>
           )}
           {persona === "BUTLER" || persona === "BQL" ? <OtherRoleHint current={persona} /> : null}
         </div>
@@ -310,22 +292,11 @@ function OpsPage() {
                   stay={openStay}
                   role={role}
                   saleName={saleNameFor(world, openStay)}
-                  waitingOnDamage={Boolean(openDamageIncident(world, openStay.id))}
-                  needsAssessment={
-                    openStay.status === "CHECKED_OUT" && !assessmentFor(world, openStay.id)
-                  }
-                  canComplete={
-                    openStay.status === "CHECKED_OUT" &&
-                    Boolean(assessmentFor(world, openStay.id)) &&
-                    !openDamageIncident(world, openStay.id)
-                  }
+                  waiting={Boolean(openDamageIncident(world, openStay.id))}
                   enhancedNote={enhancedNoteFor(world, openStay.id)}
-                  canResolve={Boolean(
-                    openDamageIncident(world, openStay.id) &&
-                      role.damageResolutionVillaIds?.includes(openStay.villaId),
-                  )}
                   canAct={!isBql && scope.includes(openStay.villaId)}
                   canHold={isBql}
+                  viewed={viewed}
                   onPlaceHold={() =>
                     run(() =>
                       placeProtectiveHold({
@@ -336,23 +307,13 @@ function OpsPage() {
                       }),
                     )
                   }
-                  readiness={readinessOf(world, openStay.villaId).state}
+                  readiness={readinessOf(world, openStay.villaId)}
                   onBeginCleaning={() => run(() => beginCleaning(openStay.villaId))}
                   onCompleteCleaning={() => run(() => completeCleaning(openStay.villaId))}
                   onArrival={() => run(() => butlerObserveArrival(openStay.id))}
                   onCheckIn={() => run(() => butlerCheckIn(openStay.id))}
                   onDeparture={() => run(() => butlerObserveDeparture(openStay.id))}
-                  onCheckOut={() => beginCheckout(openStay.id)}
-                  onAssess={() => setSheet({ kind: "assessment", stayId: openStay.id })}
-                  onComplete={() => run(() => completeStay(openStay.id))}
-                  onResolve={() => {
-                    const incident = openDamageIncident(world, openStay.id);
-                    if (incident) run(() => resolveCheckoutDamage(incident.id));
-                  }}
-                  onNoShow={() => {
-                    setReason("");
-                    setSheet({ kind: "noshow", stayId: openStay.id });
-                  }}
+                  onCheckOut={() => openCheckout(openStay.id)}
                   onIncident={() => {
                     setNote("");
                     setHasPhoto(false);
@@ -369,7 +330,6 @@ function OpsPage() {
           onOpenChange={(open) => {
             if (!open) {
               setSheet(null);
-              setReason("");
               setNote("");
               setHasPhoto(false);
             }
@@ -377,45 +337,14 @@ function OpsPage() {
         >
           <Drawer.Portal>
             <Drawer.Overlay className="fixed inset-0 z-[60] bg-ink/40" />
-            <Drawer.Content className="fixed inset-x-0 bottom-0 z-[60] rounded-t-2xl bg-paper p-5 pb-10">
+            <Drawer.Content className="fixed inset-x-0 bottom-0 z-[60] max-h-[92vh] rounded-t-2xl bg-paper outline-none">
+              <div className="max-h-[92vh] overflow-y-auto p-5 pb-10">
               <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-sand" />
-              {sheet?.kind === "noshow" && sheetStay ? (
-                <>
-                  <p className="font-serif text-2xl">Khách không đến</p>
-                  <p className="mt-2 text-sm text-ink-soft">
-                    {getVilla(sheetStay.villaId)?.name} · {visibleGuestName(sheetStay, role)}. Chọn lý do. Không tự ghi khi quá ngày.
-                  </p>
-                  <label className="mt-4 block text-sm">
-                    Lý do
-                    <select
-                      value={reason || "NO_SHOW"}
-                      onChange={(event) => setReason(event.target.value)}
-                      className="mt-1 h-12 w-full rounded-xl bg-cream px-3"
-                    >
-                      <option value="NO_SHOW">Khách không đến</option>
-                      <option value="BOOKING_CANCELLED">Đặt chỗ đã huỷ</option>
-                      <option value="OTHER_AUTHORIZED_REASON">Lý do khác đã được phép</option>
-                    </select>
-                  </label>
-                  <div className="mt-6 flex gap-2">
-                    <Button variant="outline" className="flex-1" onClick={() => setSheet(null)}>
-                      Huỷ
-                    </Button>
-                    <Button className="flex-1" onClick={submitNoShow}>
-                      Ghi nhận
-                    </Button>
-                  </div>
-                </>
-              ) : null}
               {sheet?.kind === "incident" && sheetStay ? (
                 <>
-                  <p className="font-serif text-2xl">
-                    {sheet.checkoutDamage ? "Hư hại cần xử lý" : "Báo sự cố"}
-                  </p>
+                  <p className="font-serif text-2xl">Báo sự cố</p>
                   <p className="mt-2 text-sm text-ink-soft">
-                    {sheet.checkoutDamage
-                      ? "Ghi sự cố cho lần trả phòng này. Chưa có giao dịch tiền. Lưu trú chưa hoàn tất cho đến khi sự cố được gỡ."
-                      : "Chỉ ghi sự cố. Không khoá lịch, không đổi đặt phòng."}
+                    Chỉ ghi sự cố. Không khoá lịch, không đổi đặt phòng.
                   </p>
                   <textarea
                     value={note}
@@ -449,63 +378,105 @@ function OpsPage() {
                   </div>
                 </>
               ) : null}
-              {sheet?.kind === "assessment" ? (
+              {sheet?.kind === "checkout" && sheetStay ? (
                 <div data-checkout-assessment>
-                  <p className="font-serif text-2xl">Đánh giá khi trả phòng</p>
-                  <p className="mt-2 text-sm text-ink-soft">
-                    Chọn một kết quả. Bình thường và dọn kỹ không cần chủ nhà duyệt.
-                  </p>
-                  <div className="mt-5 grid gap-2">
-                    <Button className="h-12" onClick={() => finishNormal(sheet.stayId)}>
-                      Bình thường
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-12"
-                      onClick={() => {
-                        setNote("");
-                        setHasPhoto(false);
-                        setSheet({ kind: "incident", stayId: sheet.stayId, checkoutDamage: true });
-                      }}
-                    >
-                      Hư hại cần xử lý
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-12"
-                      onClick={() => {
-                        setNote("");
-                        setSheet({ kind: "enhanced", stayId: sheet.stayId });
-                      }}
-                    >
-                      Cần dọn kỹ hơn
-                    </Button>
-                  </div>
+                  <p className="font-serif text-2xl">Trả phòng — {getVilla(sheetStay.villaId)?.name ?? sheetStay.villaId}</p>
+                  {sheet.phase === "done" ? (
+                    <div className="mt-4 space-y-3">
+                      <p className="text-sm text-ink">Đã ghi nhận trả phòng.</p>
+                      {sheet.completed ? (
+                        <p className="rounded-xl bg-cream px-3 py-3 text-sm text-ink" data-completion-result>
+                          Kỳ ở đã hoàn tất. Việc này do hệ thống ghi, không phải nút của quản gia.
+                        </p>
+                      ) : (
+                        <p className="rounded-xl bg-cream px-3 py-3 text-sm font-medium text-ink" data-completion-wait>
+                          Đã trả phòng · đang chờ xử lý
+                        </p>
+                      )}
+                      {sheet.outcome === "ENHANCED_CLEANING" ? (
+                        <p className="text-sm text-ink-soft">
+                          Cần vệ sinh tăng cường vẫn là việc dọn. Villa đang cần dọn.
+                        </p>
+                      ) : null}
+                      <Button className="h-12 w-full" onClick={() => setSheet(null)}>
+                        Xong
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-sm text-ink-soft">Tình trạng khi khách rời villa?</p>
+                      <div className="mt-4 grid gap-2" role="radiogroup" aria-label="Tình trạng khi khách rời villa">
+                        {(
+                          [
+                            ["NORMAL", "Bình thường"],
+                            ["DAMAGE_COMPENSATION", "Có hư hỏng / cần xử lý bồi thường"],
+                            ["ENHANCED_CLEANING", "Cần vệ sinh tăng cường"],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <label
+                            key={value}
+                            className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm ${
+                              sheet.outcome === value ? "bg-ink text-cream" : "bg-cream text-ink"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="checkout-outcome"
+                              className="size-4"
+                              checked={sheet.outcome === value}
+                              onChange={() =>
+                                setSheet({ ...sheet, outcome: value })
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                      {sheet.outcome === "DAMAGE_COMPENSATION" || sheet.outcome === "ENHANCED_CLEANING" ? (
+                        <>
+                          <textarea
+                            value={note}
+                            onChange={(event) => setNote(event.target.value)}
+                            placeholder={
+                              sheet.outcome === "DAMAGE_COMPENSATION" ? "Mô tả hư hỏng" : "Việc dọn cần làm"
+                            }
+                            rows={3}
+                            className="mt-4 w-full rounded-xl bg-cream p-3 text-ink outline-none ring-lotus/40 focus:ring-2"
+                          />
+                          {sheet.outcome === "DAMAGE_COMPENSATION" ? (
+                            <button
+                              type="button"
+                              onClick={() => setHasPhoto((value) => !value)}
+                              className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border-strong bg-cream text-sm text-ink-soft"
+                            >
+                              {hasPhoto ? "Đã gắn 1 ảnh" : "Thêm ảnh"}
+                            </button>
+                          ) : null}
+                        </>
+                      ) : null}
+                      <p className="mt-4 text-sm text-ink">Ghi nhận trả phòng</p>
+                      <p className="mt-1 text-sm text-muted">
+                        {sheet.outcome === "DAMAGE_COMPENSATION"
+                          ? "Trả phòng sẽ được ghi. Kỳ ở chưa hoàn tất. Không tính bồi thường."
+                          : "Sau khi ghi, hệ thống tự xét hoàn tất. Không có nút hoàn tất riêng."}
+                      </p>
+                      <div className="mt-4 flex gap-2">
+                        <Button variant="outline" className="h-12 flex-1" onClick={() => setSheet(null)}>
+                          Huỷ
+                        </Button>
+                        <Button
+                          className="h-12 flex-1"
+                          disabled={!sheet.outcome || (sheet.outcome !== "NORMAL" && !note.trim())}
+                          onClick={() => void confirmCheckout()}
+                        >
+                          Ghi nhận trả phòng
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : null}
-              {sheet?.kind === "enhanced" ? (
-                <>
-                  <p className="font-serif text-2xl">Cần dọn kỹ hơn</p>
-                  <p className="mt-2 text-sm text-ink-soft">
-                    Ghi việc dọn. Không thêm trạng thái villa, không chặn hoàn tất.
-                  </p>
-                  <textarea
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    placeholder="Việc dọn cần làm"
-                    rows={3}
-                    className="mt-4 w-full rounded-xl bg-cream p-3 text-ink outline-none ring-lotus/40 focus:ring-2"
-                  />
-                  <div className="mt-6 flex gap-2">
-                    <Button variant="outline" className="flex-1" onClick={() => setSheet(null)}>
-                      Huỷ
-                    </Button>
-                    <Button className="flex-1" onClick={finishEnhanced} disabled={!note.trim()}>
-                      Ghi và hoàn tất
-                    </Button>
-                  </div>
-                </>
-              ) : null}
+              </div>
             </Drawer.Content>
           </Drawer.Portal>
         </Drawer.Root>
@@ -529,13 +500,11 @@ function StayWork({
   readiness,
   role,
   saleName,
-  waitingOnDamage,
-  needsAssessment,
-  canComplete,
+  waiting,
   enhancedNote,
-  canResolve,
   canAct,
   canHold,
+  viewed,
   onPlaceHold,
   onBeginCleaning,
   onCompleteCleaning,
@@ -543,23 +512,17 @@ function StayWork({
   onCheckIn,
   onDeparture,
   onCheckOut,
-  onAssess,
-  onComplete,
-  onResolve,
-  onNoShow,
   onIncident,
 }: {
   stay: Stay;
-  readiness: VillaReadinessState;
+  readiness: VillaReadiness;
   role: RoleSession;
   saleName: string | null;
-  waitingOnDamage: boolean;
-  needsAssessment: boolean;
-  canComplete: boolean;
+  waiting: boolean;
   enhancedNote: string | null;
-  canResolve: boolean;
   canAct: boolean;
   canHold: boolean;
+  viewed: string;
   onPlaceHold: () => void;
   onBeginCleaning: () => void;
   onCompleteCleaning: () => void;
@@ -567,18 +530,29 @@ function StayWork({
   onCheckIn: () => void;
   onDeparture: () => void;
   onCheckOut: () => void;
-  onAssess: () => void;
-  onComplete: () => void;
-  onResolve: () => void;
-  onNoShow: () => void;
   onIncident: () => void;
 }) {
   const villa = getVilla(stay.villaId);
-  const scheduled = stay.status === "SCHEDULED";
-  const inHouse = stay.status === "CHECKED_IN";
-  const checkedOut = stay.status === "CHECKED_OUT" || stay.status === "COMPLETED";
-  const canNoteArrival = scheduled || inHouse;
-  const canNoteDeparture = scheduled || inHouse || checkedOut;
+  const action = canAct ? drawerAction(stay, readiness.state, viewed, waiting) : null;
+  const freshness = readiness.cause === "FRESHNESS_DECAY" && readiness.state === "DIRTY";
+  const readinessLine = freshness
+    ? "Chuẩn bị lại"
+    : readiness.state === "CLEANING"
+      ? "Đang dọn"
+      : readiness.state === "READY"
+        ? "Sẵn sàng"
+        : "Cần dọn";
+
+  function runAction() {
+    if (!action) return;
+    if (action.kind === "begin-cleaning") return onBeginCleaning();
+    if (action.kind === "complete-cleaning") return onCompleteCleaning();
+    if (action.kind !== "stay") return;
+    if (action.id === "observe-arrival") return onArrival();
+    if (action.id === "check-in") return onCheckIn();
+    if (action.id === "observe-departure") return onDeparture();
+    return onCheckOut();
+  }
 
   return (
     <div>
@@ -589,86 +563,48 @@ function StayWork({
         {stay.guests} khách · {viDateRange(stay.checkIn, stay.checkOut)}
       </p>
       <div className="mt-4 space-y-1">
-        <p className="text-sm text-ink">
-          Villa{" "}
-          {readiness === "CLEANING" ? "đang dọn" : readiness === "READY" ? "sẵn sàng" : "cần dọn"}
-        </p>
-        {factLine("Đã thấy khách tới", stay.arrivalObservedAt)}
-        {factLine("Đã nhận phòng", stay.checkedInAt)}
-        {factLine("Đã thấy khách rời", stay.departureObservedAt)}
-        {factLine("Đã trả phòng", stay.checkedOutAt)}
-        {factLine("Ca lưu trú đã hoàn tất", stay.completedAt)}
-        {stay.status === "CHECKED_OUT" && !stay.completedAt ? (
-          <p className="text-sm text-ink">Ca chưa hoàn tất.</p>
+        <p className="text-sm text-ink">Villa {readinessLine}</p>
+        {freshness ? (
+          <p className="text-sm text-ink">{FRESHNESS_DETAIL}</p>
         ) : null}
-        {waitingOnDamage ? (
-          <p className="text-sm font-medium text-lotus" data-completion-wait>
-            Đang chờ xử lý sự cố hư hại. Lưu trú chưa hoàn tất.
+        {factLine("Đã thấy khách đến", stay.arrivalObservedAt)}
+        {stay.arrivalObservedAt && stay.status === "SCHEDULED" ? (
+          <p className="text-sm text-ink-soft">Chưa nhận phòng.</p>
+        ) : null}
+        {factLine("Đã nhận phòng", stay.checkedInAt)}
+        {factLine("Đã thấy khách rời villa", stay.departureObservedAt)}
+        {stay.departureObservedAt && stay.status === "CHECKED_IN" ? (
+          <p className="text-sm text-ink-soft">Chưa trả phòng.</p>
+        ) : null}
+        {factLine("Đã trả phòng", stay.checkedOutAt)}
+        {stay.status === "COMPLETED" ? (
+          <p className="text-sm text-ink">Kỳ ở đã hoàn tất.</p>
+        ) : null}
+        {waiting ? (
+          <p className="text-sm font-medium text-ink" data-completion-wait>
+            Đã trả phòng · đang chờ xử lý
           </p>
         ) : null}
-        {enhancedNote ? <p className="text-sm text-ink-soft">Dọn kỹ: {enhancedNote}</p> : null}
+        {enhancedNote && (readiness.state === "DIRTY" || readiness.state === "CLEANING") ? (
+          <p className="text-sm text-ink">Cần vệ sinh tăng cường. {enhancedNote}</p>
+        ) : null}
       </div>
+      {action ? (
+        <button
+          type="button"
+          data-next-action={action.kind === "stay" ? action.id : action.kind}
+          className={`mt-5 inline-flex h-12 w-full items-center justify-center rounded-full px-5 text-sm font-medium text-cream ${
+            action.tone === "moss" ? "bg-moss" : "bg-lotus"
+          }`}
+          onClick={runAction}
+        >
+          {action.label}
+        </button>
+      ) : null}
       {canAct ? (
-        <div className="mt-5 grid grid-cols-1 gap-2">
-          {readiness === "DIRTY" ? (
-            <Button className="h-12" onClick={onBeginCleaning}>
-              Bắt đầu dọn
-            </Button>
-          ) : null}
-          {readiness === "CLEANING" ? (
-            <Button className="h-12" onClick={onCompleteCleaning}>
-              Dọn xong
-            </Button>
-          ) : null}
-          {canNoteArrival && !stay.arrivalObservedAt ? (
-            <Button variant="outline" className="h-12" onClick={onArrival}>
-              Khách đã tới
-            </Button>
-          ) : null}
-          {scheduled ? (
-            <Button className="h-12" onClick={onCheckIn}>
-              Nhận phòng
-            </Button>
-          ) : null}
-          {canNoteDeparture && !stay.departureObservedAt ? (
-            <div>
-              <Button variant="outline" className="h-12 w-full" onClick={onDeparture}>
-                Khách đã rời
-              </Button>
-              <p className="mt-2 text-sm text-muted">
-                Xác nhận đã thấy khách rời villa. Sau đó kiểm tra phòng rồi bấm Trả phòng.
-              </p>
-            </div>
-          ) : null}
-          {inHouse ? (
-            <Button variant="ink" className="h-12" onClick={onCheckOut}>
-              Trả phòng
-            </Button>
-          ) : null}
-          {needsAssessment ? (
-            <Button className="h-12" onClick={onAssess}>
-              Ghi đánh giá trả phòng
-            </Button>
-          ) : null}
-          {canComplete ? (
-            <Button variant="ink" className="h-12" onClick={onComplete}>
-              Lưu trú hoàn tất
-            </Button>
-          ) : null}
-          {canResolve ? (
-            <Button variant="outline" className="h-12" onClick={onResolve}>
-              Gỡ chặn hư hại
-            </Button>
-          ) : null}
-          {scheduled ? (
-            <Button variant="outline" className="h-12" onClick={onNoShow}>
-              Khách không đến
-            </Button>
-          ) : null}
-          <Button variant="ghost" className="h-12" onClick={onIncident}>
-            Báo sự cố
-          </Button>
-        </div>
+        <Button variant="ghost" className="mt-2 h-12 w-full" onClick={onIncident}>
+          Báo sự cố
+        </Button>
       ) : null}
       {canHold ? (
         <div className="mt-5 grid grid-cols-1 gap-2">

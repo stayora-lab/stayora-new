@@ -3,6 +3,7 @@ import {
   advanceTime,
   checkInStay,
   checkOutStay,
+  checkoutWithAssessment,
   evaluateStayCompletion,
   recordCheckoutAssessment,
   resolveCheckoutDamage,
@@ -102,6 +103,13 @@ export type WorldAction =
       note?: string;
       hasPhoto?: boolean;
     }
+  | {
+      type: "CHECKOUT_WITH_ASSESSMENT";
+      stayId: string;
+      outcome: CheckoutAssessmentOutcome;
+      note?: string;
+      hasPhoto?: boolean;
+    }
   | { type: "COMPLETE_STAY"; stayId: string }
   | { type: "RESOLVE_CHECKOUT_DAMAGE"; incidentId: string }
   | { type: "BEGIN_CLEANING"; villaId: string }
@@ -158,6 +166,7 @@ function villaIdFor(world: World, action: WorldAction): string | undefined {
     action.type === "DID_NOT_OCCUR" ||
     action.type === "REPORT_INCIDENT" ||
     action.type === "CHECKOUT_ASSESSMENT" ||
+    action.type === "CHECKOUT_WITH_ASSESSMENT" ||
     action.type === "COMPLETE_STAY"
   ) {
     return world.stays.find((item) => item.id === action.stayId)?.villaId;
@@ -311,6 +320,16 @@ export function applyWorldAction(
         hasPhoto: action.hasPhoto,
       });
       return { world: assessed.world };
+    }
+    case "CHECKOUT_WITH_ASSESSMENT": {
+      const result = checkoutWithAssessment(world, {
+        stayId: action.stayId,
+        actor,
+        outcome: action.outcome,
+        note: action.note,
+        hasPhoto: action.hasPhoto,
+      });
+      return { world: result.world };
     }
     case "COMPLETE_STAY": {
       const completed = evaluateStayCompletion(world, { stayId: action.stayId, actor });
