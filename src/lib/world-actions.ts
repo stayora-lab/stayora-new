@@ -2,9 +2,7 @@ import {
   acceptRequest,
   advanceTime,
   checkInStay,
-  checkOutStay,
   checkoutWithAssessment,
-  recordCheckoutAssessment,
   resolveCheckoutDamage,
   extendAcceptanceDeadline,
   observeArrival,
@@ -94,14 +92,6 @@ export type WorldAction =
       reason: string;
     }
   | { type: "CHECK_IN"; stayId: string }
-  | { type: "CHECK_OUT"; stayId: string }
-  | {
-      type: "CHECKOUT_ASSESSMENT";
-      stayId: string;
-      outcome: CheckoutAssessmentOutcome;
-      note?: string;
-      hasPhoto?: boolean;
-    }
   | {
       type: "CHECKOUT_WITH_ASSESSMENT";
       stayId: string;
@@ -158,12 +148,10 @@ function villaIdFor(world: World, action: WorldAction): string | undefined {
   }
   if (
     action.type === "CHECK_IN" ||
-    action.type === "CHECK_OUT" ||
     action.type === "OBSERVE_ARRIVAL" ||
     action.type === "OBSERVE_DEPARTURE" ||
     action.type === "DID_NOT_OCCUR" ||
     action.type === "REPORT_INCIDENT" ||
-    action.type === "CHECKOUT_ASSESSMENT" ||
     action.type === "CHECKOUT_WITH_ASSESSMENT"
   ) {
     return world.stays.find((item) => item.id === action.stayId)?.villaId;
@@ -303,20 +291,6 @@ export function applyWorldAction(
     case "CHECK_IN": {
       const result = checkInStay(world, { stayId: action.stayId, actor });
       return { world: result.world };
-    }
-    case "CHECK_OUT": {
-      const checked = checkOutStay(world, { stayId: action.stayId, actor });
-      return { world: checked.world };
-    }
-    case "CHECKOUT_ASSESSMENT": {
-      const assessed = recordCheckoutAssessment(world, {
-        stayId: action.stayId,
-        actor,
-        outcome: action.outcome,
-        note: action.note,
-        hasPhoto: action.hasPhoto,
-      });
-      return { world: assessed.world };
     }
     case "CHECKOUT_WITH_ASSESSMENT": {
       const result = checkoutWithAssessment(world, {

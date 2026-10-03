@@ -277,6 +277,23 @@ describe("slice 6 butler semantics", () => {
     assert.match(ops, /Đã thấy khách rời villa/);
   });
 
+  it("does not dispatch standalone checkout or a standalone assessment", () => {
+    const actions = source("./world-actions.ts");
+    const store = source("./store.ts");
+    assert.equal(actions.includes('type: "CHECK_OUT"'), false);
+    assert.equal(actions.includes('case "CHECK_OUT"'), false);
+    assert.equal(actions.includes('type: "CHECKOUT_ASSESSMENT"'), false);
+    assert.equal(actions.includes('case "CHECKOUT_ASSESSMENT"'), false);
+    assert.match(actions, /type: "CHECKOUT_WITH_ASSESSMENT"/);
+    assert.match(actions, /case "CHECKOUT_WITH_ASSESSMENT"/);
+    assert.equal(store.includes("butlerCheckOut"), false);
+    assert.equal(store.includes("recordCheckoutAssessment"), false);
+    assert.equal(store.includes('type: "CHECK_OUT"'), false);
+    assert.equal(store.includes('type: "CHECKOUT_ASSESSMENT"'), false);
+    assert.match(store, /butlerCheckoutWithAssessment/);
+    assert.match(store, /type: "CHECKOUT_WITH_ASSESSMENT"/);
+  });
+
   it("keeps a completed Guest stay read-only for 30 days, then closed", () => {
     assert.equal(GUEST_POST_STAY_READ_MS, 30 * 24 * 60 * 60 * 1000);
     const completedAt = "2026-12-04T08:00:00.000Z";

@@ -122,13 +122,6 @@ type BookingState = {
     reason: string;
   }) => Promise<void>;
   butlerCheckIn: (stayId: string) => Promise<void>;
-  butlerCheckOut: (stayId: string) => Promise<void>;
-  recordCheckoutAssessment: (
-    stayId: string,
-    outcome: CheckoutAssessmentOutcome,
-    note?: string,
-    hasPhoto?: boolean,
-  ) => Promise<void>;
   butlerCheckoutWithAssessment: (
     stayId: string,
     outcome: CheckoutAssessmentOutcome,
@@ -420,18 +413,6 @@ export const useBookingStore = create<BookingState>()(
       },
       butlerCheckIn: async (stayId) => {
         await get().runAction({ type: "CHECK_IN", stayId });
-      },
-      butlerCheckOut: async (stayId) => {
-        await get().runAction({ type: "CHECK_OUT", stayId });
-      },
-      recordCheckoutAssessment: async (stayId, outcome, note, hasPhoto) => {
-        await get().runAction({
-          type: "CHECKOUT_ASSESSMENT",
-          stayId,
-          outcome,
-          note,
-          hasPhoto,
-        });
       },
       butlerCheckoutWithAssessment: async (stayId, outcome, note, hasPhoto) => {
         await get().runAction({
